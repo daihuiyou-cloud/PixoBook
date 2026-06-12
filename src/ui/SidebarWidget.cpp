@@ -1,6 +1,7 @@
 #include "SidebarWidget.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QKeyEvent>
 #include <QFontMetrics>
 #include <QContextMenuEvent>
 #include <QMenu>
@@ -15,6 +16,7 @@ SidebarWidget::SidebarWidget(QWidget *parent)
     setMouseTracking(true);
     setFixedWidth(220);
     setMinimumHeight(200);
+    setFocusPolicy(Qt::StrongFocus);
 }
 
 void SidebarWidget::setTags(const QVector<Tag> &tags)
@@ -100,13 +102,18 @@ void SidebarWidget::paintEvent(QPaintEvent *)
                 QRect itemRect(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
                 bool isHovered = (i == m_hoveredFolder);
                 bool isActive = (m_folders[i] == m_activeFolder);
+                bool isFocused = (m_focusSection == FocusFolders && m_focusIndex == i);
 
                 if (isActive) {
                     p.fillRect(itemRect, QColor(0x37, 0x37, 0x3d));
                     p.fillRect(itemRect.left(), itemRect.top(), 2, itemRect.height(), QColor(0x00, 0x7a, 0xcc));
+                } else if (isFocused) {
+                    p.fillRect(itemRect, QColor(0x2d, 0x2d, 0x30));
                 } else if (isHovered) {
                     p.fillRect(itemRect, QColor(0x2a, 0x2d, 0x2e));
                 }
+                if (isFocused)
+                    drawFocusRect(p, itemRect);
 
                 bool folderActive = (m_folders[i] == m_activeFolder);
                 bool folderHover = (i == m_hoveredFolder);
@@ -142,13 +149,18 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             QRect itemRect(0, tagY + kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
             bool isHovered = (i == m_hoveredTag);
             bool isActive = (m_tags[i].id == m_activeTagId);
+            bool isFocused = (m_focusSection == FocusTags && m_focusIndex == i);
 
             if (isActive) {
                 p.fillRect(itemRect, QColor(0x37, 0x37, 0x3d));
                 p.fillRect(itemRect.left(), itemRect.top(), 2, itemRect.height(), QColor(0x00, 0x7a, 0xcc));
+            } else if (isFocused) {
+                p.fillRect(itemRect, QColor(0x2d, 0x2d, 0x30));
             } else if (isHovered) {
                 p.fillRect(itemRect, QColor(0x2a, 0x2d, 0x2e));
             }
+            if (isFocused)
+                drawFocusRect(p, itemRect);
 
             drawTagDot(p, QPoint(14, itemRect.center().y()), m_tags[i].color);
 
@@ -198,6 +210,9 @@ void SidebarWidget::mousePressEvent(QMouseEvent *event)
     if (!m_folders.isEmpty()) {
         QRect folderSectionHeader(0, 0, width(), kSectionHeight);
         if (folderSectionHeader.contains(event->pos())) {
+            setFocus();
+            m_focusSection = FocusFolders;
+            m_focusIndex = 0;
             m_foldersExpanded = !m_foldersExpanded;
             updateLayout();
             update();
@@ -208,6 +223,9 @@ void SidebarWidget::mousePressEvent(QMouseEvent *event)
     if (!m_tags.isEmpty()) {
         QRect tagSectionHeader(0, m_sectionTagY, width(), kSectionHeight);
         if (tagSectionHeader.contains(event->pos())) {
+            setFocus();
+            m_focusSection = FocusTags;
+            m_focusIndex = 0;
             m_tagsExpanded = !m_tagsExpanded;
             update();
             return;
@@ -224,6 +242,9 @@ void SidebarWidget::mousePressEvent(QMouseEvent *event)
     for (int i = 0; i < m_folders.size(); i++) {
         QRect r(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
         if (r.contains(event->pos())) {
+            setFocus();
+            m_focusSection = FocusFolders;
+            m_focusIndex = i;
             setActiveFolder(m_folders[i]);
             emit folderSelected(m_folders[i]);
             return;
@@ -232,10 +253,154 @@ void SidebarWidget::mousePressEvent(QMouseEvent *event)
     for (int i = 0; i < m_tags.size(); i++) {
         QRect r(0, m_sectionTagY + kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
         if (r.contains(event->pos())) {
+            setFocus();
+            m_focusSection = FocusTags;
+            m_focusIndex = i;
             setActiveTag(m_tags[i].id);
             emit tagSelected(m_tags[i].id);
             return;
         }
+    }
+}
+
+void SidebarWidget::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton) return;
+    for (int i = 0; i < m_folders.size(); i++) {
+        QRect r(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
+        if (r.contains(event->pos())) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(m_folders[i]));
+            return;
+        }
+    }
+}
+
+void SidebarWidget::keyPressEvent(QKeyEvent *event)
+{
+    int folderCount = m_foldersExpanded ? m_folders.size() : 0;
+    int tagCount = m_tagsExpanded ? m_tags.size() : 0;
+
+    if (event->key() == Qt::Key_Down) {
+        if (m_focusSection == FocusFolders && m_focusIndex < folderCount - 1) {
+            m_focusIndex++;
+        } else if (m_focusSection == FocusFolders && folderCount > 0) {
+            // Move to tags if available
+            if (tagCount > 0) { m_focusSection = FocusTags; m_focusIndex = 0; }
+        } else if (m_focusSection == FocusTags && m_focusIndex < tagCount - 1) {
+            m_focusIndex++;
+        } else if (m_focusSection == FocusNone) {
+            if (folderCount > 0) { m_focusSection = FocusFolders; m_focusIndex = 0; }
+            else if (tagCount > 0) { m_focusSection = FocusTags; m_focusIndex = 0; }
+        }
+        update();
+    } else if (event->key() == Qt::Key_Up) {
+        if (m_focusSection == FocusTags && m_focusIndex > 0) {
+            m_focusIndex--;
+        } else if (m_focusSection == FocusTags && tagCount > 0) {
+            if (folderCount > 0) { m_focusSection = FocusFolders; m_focusIndex = folderCount - 1; }
+        } else if (m_focusSection == FocusFolders && m_focusIndex > 0) {
+            m_focusIndex--;
+        } else if (m_focusSection == FocusNone) {
+            if (tagCount > 0) { m_focusSection = FocusTags; m_focusIndex = tagCount - 1; }
+            else if (folderCount > 0) { m_focusSection = FocusFolders; m_focusIndex = folderCount - 1; }
+        }
+        update();
+    } else if (event->key() == Qt::Key_Right || event->key() == Qt::Key_Return || event->key() == Qt::Key_Space) {
+        if (event->key() == Qt::Key_Right && m_focusSection == FocusFolders && !m_foldersExpanded) {
+            m_foldersExpanded = true;
+            updateLayout(); update();
+        } else if (event->key() == Qt::Key_Right && m_focusSection == FocusTags && !m_tagsExpanded) {
+            m_tagsExpanded = true;
+            updateLayout(); update();
+        } else {
+            activateCurrentFocus();
+        }
+    } else if (event->key() == Qt::Key_Left) {
+        if (m_focusSection == FocusFolders && m_foldersExpanded) {
+            m_foldersExpanded = false;
+            updateLayout(); update();
+        } else if (m_focusSection == FocusTags && m_tagsExpanded) {
+            m_tagsExpanded = false;
+            updateLayout(); update();
+        }
+    } else if (event->key() == Qt::Key_Home) {
+        if (folderCount > 0) { m_focusSection = FocusFolders; m_focusIndex = 0; }
+        else if (tagCount > 0) { m_focusSection = FocusTags; m_focusIndex = 0; }
+        update();
+    } else if (event->key() == Qt::Key_End) {
+        if (tagCount > 0) { m_focusSection = FocusTags; m_focusIndex = tagCount - 1; }
+        else if (folderCount > 0) { m_focusSection = FocusFolders; m_focusIndex = folderCount - 1; }
+        update();
+    } else if (event->key() == Qt::Key_Menu) {
+        showContextMenuForCurrentFocus();
+    } else if (event->key() == Qt::Key_F2) {
+        if (m_focusSection == FocusTags && m_focusIndex >= 0 && m_focusIndex < m_tags.size())
+            emit tagEditRequested(m_tags[m_focusIndex].id);
+    } else if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
+        if (m_focusSection == FocusFolders && m_focusIndex >= 0 && m_focusIndex < m_folders.size())
+            emit folderRemoveRequested(m_folders[m_focusIndex]);
+        else if (m_focusSection == FocusTags && m_focusIndex >= 0 && m_focusIndex < m_tags.size())
+            emit tagDeleteRequested(m_tags[m_focusIndex].id);
+    } else {
+        QWidget::keyPressEvent(event);
+    }
+}
+
+void SidebarWidget::drawFocusRect(QPainter &p, const QRect &r) const
+{
+    p.setPen(QPen(QColor(0x00, 0x7a, 0xcc), 1, Qt::DotLine));
+    p.setBrush(Qt::NoBrush);
+    p.drawRect(r.adjusted(1, 1, -2, -1));
+}
+
+void SidebarWidget::activateCurrentFocus()
+{
+    if (m_focusSection == FocusFolders && m_focusIndex >= 0 && m_focusIndex < m_folders.size()) {
+        setActiveFolder(m_folders[m_focusIndex]);
+        emit folderSelected(m_folders[m_focusIndex]);
+    } else if (m_focusSection == FocusTags && m_focusIndex >= 0 && m_focusIndex < m_tags.size()) {
+        setActiveTag(m_tags[m_focusIndex].id);
+        emit tagSelected(m_tags[m_focusIndex].id);
+    }
+}
+
+void SidebarWidget::showContextMenuForCurrentFocus()
+{
+    QMenu menu(this);
+    QPalette mPal;
+    mPal.setColor(QPalette::Window, QColor(0x25, 0x25, 0x26));
+    mPal.setColor(QPalette::WindowText, QColor(0xcc, 0xcc, 0xcc));
+    mPal.setColor(QPalette::Highlight, QColor(0x09, 0x47, 0x71));
+    mPal.setColor(QPalette::HighlightedText, QColor(0xcc, 0xcc, 0xcc));
+    menu.setPalette(mPal);
+
+    if (m_focusSection == FocusFolders && m_focusIndex >= 0 && m_focusIndex < m_folders.size()) {
+        QAction *refreshAction = menu.addAction(QString::fromUtf8("\xe5\x88\xb7\xe6\x96\xb0"));
+        connect(refreshAction, &QAction::triggered, this, [this]() {
+            emit folderRefreshRequested(m_folders[m_focusIndex]);
+        });
+        QAction *removeAction = menu.addAction(QString::fromUtf8("\xe4\xbb\x8e\xe5\xba\x93\xe4\xb8\xad\xe7\xa7\xbb\xe9\x99\xa4"));
+        connect(removeAction, &QAction::triggered, this, [this]() {
+            emit folderRemoveRequested(m_folders[m_focusIndex]);
+        });
+        menu.addSeparator();
+        QAction *explorerAction = menu.addAction(QString::fromUtf8("\xe5\x9c\xa8\xe8\xb5\x84\xe6\xba\x90\xe7\xae\xa1\xe7\x90\x86\xe5\x99\xa8\xe4\xb8\xad\xe6\x89\x93\xe5\xbc\x80"));
+        connect(explorerAction, &QAction::triggered, this, [this]() {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(m_folders[m_focusIndex]));
+        });
+        QPoint pos = mapToGlobal(QPoint(width() / 2, kSectionHeight + 1 + m_focusIndex * kItemHeight));
+        menu.exec(pos);
+    } else if (m_focusSection == FocusTags && m_focusIndex >= 0 && m_focusIndex < m_tags.size()) {
+        QAction *editAction = menu.addAction(QString::fromUtf8("\xe7\xbc\x96\xe8\xbe\x91\xe6\xa0\x87\xe7\xad\xbe"));
+        connect(editAction, &QAction::triggered, this, [this]() {
+            emit tagEditRequested(m_tags[m_focusIndex].id);
+        });
+        QAction *delAction = menu.addAction(QString::fromUtf8("\xe5\x88\xa0\xe9\x99\xa4\xe6\xa0\x87\xe7\xad\xbe"));
+        connect(delAction, &QAction::triggered, this, [this]() {
+            emit tagDeleteRequested(m_tags[m_focusIndex].id);
+        });
+        QPoint pos = mapToGlobal(QPoint(width() / 2, m_sectionTagY + kSectionHeight + 1 + m_focusIndex * kItemHeight));
+        menu.exec(pos);
     }
 }
 

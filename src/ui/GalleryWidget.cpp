@@ -292,6 +292,12 @@ void GalleryWidget::keyPressEvent(QKeyEvent *event)
         navigateTo(0);
     } else if (event->key() == Qt::Key_End && !m_assets.isEmpty()) {
         navigateTo(m_assets.size() - 1);
+    } else if (event->key() == Qt::Key_PageUp && currentIdx >= m_columns) {
+        int rowsPerPage = qMax(1, height() / m_itemHeight());
+        navigateTo(qMax(0, currentIdx - rowsPerPage * m_columns));
+    } else if (event->key() == Qt::Key_PageDown && currentIdx >= 0) {
+        int rowsPerPage = qMax(1, height() / m_itemHeight());
+        navigateTo(qMin(m_assets.size() - 1, currentIdx + rowsPerPage * m_columns));
     } else if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Return) {
         if (!m_selectedAsset.id.isEmpty())
             emit assetDoubleClicked(m_selectedAsset);

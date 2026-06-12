@@ -1,6 +1,7 @@
 #include "ActivityBar.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QKeyEvent>
 #include <QToolTip>
 #include <QEvent>
 #include "Codicon.h"
@@ -10,6 +11,7 @@ ActivityBar::ActivityBar(QWidget *parent)
 {
     setFixedWidth(48);
     setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
 
     m_icons = {
         { "layout",     QStringLiteral("\u56fe\u5e93") },
@@ -86,6 +88,30 @@ void ActivityBar::mousePressEvent(QMouseEvent *event)
         m_active = static_cast<Activity>(idx);
         update();
         emit activitySelected(m_active);
+    }
+}
+
+void ActivityBar::keyPressEvent(QKeyEvent *event)
+{
+    int cur = static_cast<int>(m_active);
+    if (event->key() == Qt::Key_Up && cur > 0) {
+        m_active = static_cast<Activity>(cur - 1);
+        update();
+        emit activitySelected(m_active);
+    } else if (event->key() == Qt::Key_Down && cur < m_icons.size() - 1) {
+        m_active = static_cast<Activity>(cur + 1);
+        update();
+        emit activitySelected(m_active);
+    } else if (event->key() == Qt::Key_Home) {
+        m_active = static_cast<Activity>(0);
+        update();
+        emit activitySelected(m_active);
+    } else if (event->key() == Qt::Key_End) {
+        m_active = static_cast<Activity>(m_icons.size() - 1);
+        update();
+        emit activitySelected(m_active);
+    } else {
+        QWidget::keyPressEvent(event);
     }
 }
 

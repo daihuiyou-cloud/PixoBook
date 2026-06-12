@@ -28,6 +28,7 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void leaveEvent(QEvent *event) override;
+    bool event(QEvent *event) override;
 
 private:
     enum HitTest {

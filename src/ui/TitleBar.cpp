@@ -1,6 +1,8 @@
 #include "TitleBar.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QToolTip>
+#include <QHelpEvent>
 #include <QApplication>
 #include "Codicon.h"
 
@@ -256,4 +258,21 @@ void TitleBar::leaveEvent(QEvent *)
         m_hoveredControl = -1;
         update();
     }
+}
+
+bool TitleBar::event(QEvent *event)
+{
+    if (event->type() == QEvent::ToolTip) {
+        auto *he = static_cast<QHelpEvent *>(event);
+        if (minimizeBtnRect().contains(he->pos()))
+            QToolTip::showText(he->globalPos(), QStringLiteral("最小化"), this);
+        else if (maximizeBtnRect().contains(he->pos()))
+            QToolTip::showText(he->globalPos(), m_maximized ? QStringLiteral("还原") : QStringLiteral("最大化"), this);
+        else if (closeBtnRect().contains(he->pos()))
+            QToolTip::showText(he->globalPos(), QStringLiteral("关闭"), this);
+        else
+            QToolTip::hideText();
+        return true;
+    }
+    return QWidget::event(event);
 }

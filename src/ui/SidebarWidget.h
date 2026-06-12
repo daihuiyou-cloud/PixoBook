@@ -10,6 +10,8 @@ class SidebarWidget : public QWidget
 {
     Q_OBJECT
 public:
+    enum FocusSection { FocusNone, FocusFolders, FocusTags };
+
     explicit SidebarWidget(QWidget *parent = nullptr);
 
     void setTags(const QVector<Tag> &tags);
@@ -31,12 +33,17 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
     void drawFolderIcon(QPainter &p, const QRect &r, bool hovered, bool active) const;
     void drawTagDot(QPainter &p, const QPoint &center, const QColor &color) const;
+    void drawFocusRect(QPainter &p, const QRect &r) const;
+    void activateCurrentFocus();
+    void showContextMenuForCurrentFocus();
 
     QVector<Tag> m_tags;
     QStringList m_folders;
@@ -52,6 +59,9 @@ private:
     int m_hoveredFolder = -1;
     int m_hoveredTag = -1;
     bool m_hoveredAddButton = false;
+
+    FocusSection m_focusSection = FocusNone;
+    int m_focusIndex = -1;
 
     void updateLayout();
 };

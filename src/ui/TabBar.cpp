@@ -1,6 +1,7 @@
 #include "TabBar.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QKeyEvent>
 #include <QToolTip>
 #include "Codicon.h"
 
@@ -9,6 +10,7 @@ TabBar::TabBar(QWidget *parent)
 {
     setFixedHeight(kTabHeight);
     setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
 
     m_tabs = {
         { QStringLiteral("\u6240\u6709\u7d20\u6750"), QStringLiteral("layout") },
@@ -145,6 +147,21 @@ void TabBar::mousePressEvent(QMouseEvent *event)
     int idx = indexAt(event->pos());
     if (idx >= 0 && idx != m_currentIndex) {
         setCurrentIndex(idx);
+    }
+}
+
+void TabBar::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Left && m_currentIndex > 0) {
+        setCurrentIndex(m_currentIndex - 1);
+    } else if (event->key() == Qt::Key_Right && m_currentIndex < m_tabs.size() - 1) {
+        setCurrentIndex(m_currentIndex + 1);
+    } else if (event->key() == Qt::Key_Home && !m_tabs.isEmpty()) {
+        setCurrentIndex(0);
+    } else if (event->key() == Qt::Key_End && !m_tabs.isEmpty()) {
+        setCurrentIndex(m_tabs.size() - 1);
+    } else {
+        QWidget::keyPressEvent(event);
     }
 }
 

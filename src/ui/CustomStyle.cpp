@@ -248,6 +248,16 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         painter->fillRect(option->rect, Color::BG_MENUBAR);
         return;
     }
+    case CE_ComboBoxLabel: {
+        auto *cbOpt = qstyleoption_cast<const QStyleOptionComboBox *>(option);
+        if (!cbOpt) break;
+
+        painter->setPen(Color::TEXT_PRIMARY);
+        QRect textRect = cbOpt->rect.adjusted(10, 0, -22, 0);
+        painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
+                          painter->fontMetrics().elidedText(cbOpt->currentText, Qt::ElideRight, textRect.width()));
+        return;
+    }
     case CE_MenuBarItem: {
         auto *menuItem = qstyleoption_cast<const QStyleOptionMenuItem *>(option);
         if (!menuItem) break;
@@ -394,13 +404,6 @@ void CustomStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
         painter->setBrush(bgColor);
         painter->setPen(QPen(borderColor, 1));
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
-
-        if (!cbOpt->currentText.isEmpty()) {
-            painter->setPen(Color::TEXT_PRIMARY);
-            QRect textRect = r.adjusted(10, 0, -22, 0);
-            painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
-                              painter->fontMetrics().elidedText(cbOpt->currentText, Qt::ElideRight, textRect.width()));
-        }
 
         QRect arrowRect = subControlRect(CC_ComboBox, option, SC_ComboBoxArrow, widget);
         if (arrowRect.isValid() && !arrowRect.isEmpty()) {

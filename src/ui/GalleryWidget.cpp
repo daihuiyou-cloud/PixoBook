@@ -225,7 +225,8 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         }
 
         // File name label
-        QRect labelRect = r.adjusted(kPadding, kPadding + m_thumbSize + 6, -kPadding - 20, 0);
+        int labelAreaHeight = m_itemHeight() - kPadding - m_thumbSize - 6;
+        QRect labelRect = r.adjusted(kPadding, kPadding + m_thumbSize + 6, -kPadding - 32, 0);
         QString fileName = m_assets[i].fileName;
         QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
 
@@ -239,8 +240,8 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         }
         p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
-        // Favorite star
-        QRect starRect(r.right() - 26, r.bottom() - 24, 22, 22);
+        // Favorite star (aligned with label text vertically)
+        QRect starRect(r.right() - 26, r.bottom() - 26, 22, 22);
         QColor starColor = m_assets[i].isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x60, 0x60, 0x60);
         Codicon::draw(p, "star", starRect, starColor, 14);
     }

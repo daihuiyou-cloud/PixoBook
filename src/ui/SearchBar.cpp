@@ -2,6 +2,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QButtonGroup>
+#include <QAction>
 #include <QPainter>
 #include <QPaintEvent>
 #include "ui/Codicon.h"
@@ -31,6 +32,25 @@ SearchBar::SearchBar(QWidget *parent)
     m_searchInput->addAction(QIcon(searchPx), QLineEdit::LeadingPosition);
     m_searchInput->setFont(inputFont);
     m_searchInput->setTextMargins(10, 5, 10, 5);
+
+    // Clear button (trailing)
+    QPixmap clearPx(16, 16);
+    clearPx.fill(Qt::transparent);
+    {
+        QPainter cp(&clearPx);
+        Codicon::draw(cp, "close", QRect(0, 0, 16, 16), QColor(0x96, 0x96, 0x96), 14);
+    }
+    m_clearAction = m_searchInput->addAction(QIcon(clearPx), QLineEdit::TrailingPosition);
+    m_clearAction->setVisible(false);
+    connect(m_searchInput, &QLineEdit::textChanged, this, [this](const QString &text) {
+        m_clearAction->setVisible(!text.isEmpty());
+    });
+    connect(m_clearAction, &QAction::triggered, this, [this]() {
+        m_searchInput->clear();
+        m_debounceTimer->stop();
+        emit searchRequested();
+    });
+
     layout->addWidget(m_searchInput, 1);
 
     m_sourceCombo = new QComboBox();

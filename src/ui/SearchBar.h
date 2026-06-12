@@ -6,6 +6,7 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QButtonGroup>
+#include <QAction>
 #include <QTimer>
 
 class SearchBar : public QWidget
@@ -41,6 +42,7 @@ private:
     QPushButton *m_sizeMediumBtn;
     QPushButton *m_sizeLargeBtn;
     QButtonGroup *m_sizeGroup;
+    QAction *m_clearAction;
     QPushButton *m_favButton;
     QTimer *m_debounceTimer;
     bool m_onlyFavorites = false;

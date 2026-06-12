@@ -1,6 +1,7 @@
 #include "LightboxWidget.h"
 #include <QPainter>
 #include <QKeyEvent>
+#include "ui/Codicon.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QApplication>
@@ -142,11 +143,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     p.drawText(topBar.adjusted(12, 0, 0, 0), Qt::AlignVCenter, fileName);
 
     m_closeBtnRect = QRect(width() - 36, 8, 24, 24);
-    p.setPen(QColor(0xcc, 0xcc, 0xcc));
-    QFont cf = p.font();
-    cf.setPointSize(14);
-    p.setFont(cf);
-    p.drawText(m_closeBtnRect, Qt::AlignCenter, "\xc3\x97");
+    Codicon::draw(p, "close", m_closeBtnRect, QColor(0xcc, 0xcc, 0xcc), 18);
 
     // Bottom bar
     QRect bottomBar(0, height() - 50, width(), 50);
@@ -157,13 +154,10 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     int cx = width() / 2;
 
     m_prevBtnRect = QRect(cx - 200, height() - 44, 36, 36);
-    bool canPrev = m_currentIndex > 0;
-    p.setPen(canPrev ? QColor(0xcc, 0xcc, 0xcc) : QColor(0x50, 0x50, 0x50));
-    QFont nf = p.font();
-    nf.setPointSize(16);
-    p.setFont(nf);
-    p.drawText(m_prevBtnRect, Qt::AlignCenter, "\xe2\x97\x80");
+    QColor prevClr = (m_currentIndex > 0) ? QColor(0xcc, 0xcc, 0xcc) : QColor(0x50, 0x50, 0x50);
+    Codicon::draw(p, "chevron-left", m_prevBtnRect, prevClr, 18);
 
+    QFont nf = p.font();
     nf.setPointSize(10);
     p.setFont(nf);
     p.setPen(QColor(0xcc, 0xcc, 0xcc));
@@ -176,11 +170,8 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     p.drawText(infoRect, Qt::AlignCenter, info);
 
     m_favBtnRect = QRect(cx + 160, height() - 44, 36, 36);
-    p.setPen(asset.isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x96, 0x96, 0x96));
-    nf.setPointSize(16);
-    p.setFont(nf);
-    p.drawText(m_favBtnRect, Qt::AlignCenter,
-               asset.isFavorite ? "\xe2\x98\x85" : "\xe2\x98\x86");
+    QColor favClr = asset.isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x96, 0x96, 0x96);
+    Codicon::draw(p, "star", m_favBtnRect, favClr, 18);
 
     p.setPen(QColor(0x96, 0x96, 0x96));
     nf.setPointSize(10);
@@ -193,11 +184,8 @@ void LightboxWidget::paintEvent(QPaintEvent *)
                QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size()));
 
     m_nextBtnRect = QRect(cx + 280, height() - 44, 36, 36);
-    bool canNext = m_currentIndex < m_assets.size() - 1;
-    p.setPen(canNext ? QColor(0xcc, 0xcc, 0xcc) : QColor(0x50, 0x50, 0x50));
-    nf.setPointSize(16);
-    p.setFont(nf);
-    p.drawText(m_nextBtnRect, Qt::AlignCenter, "\xe2\x96\xb6");
+    QColor nextClr = (m_currentIndex < m_assets.size() - 1) ? QColor(0xcc, 0xcc, 0xcc) : QColor(0x50, 0x50, 0x50);
+    Codicon::draw(p, "chevron-right", m_nextBtnRect, nextClr, 18);
 
     p.setPen(QColor(0x3c, 0x3c, 0x3c));
     p.drawLine(0, 40, width(), 40);

@@ -3,19 +3,17 @@
 
 #include <QMainWindow>
 #include <QSplitter>
+#include <QLabel>
 #include "ui/GalleryWidget.h"
 #include "ui/DetailPanel.h"
 #include "ui/SidebarWidget.h"
 #include "ui/SearchBar.h"
-#include "database/DatabaseManager.h"
-#include "services/ImageCache.h"
-#include "services/FileScanner.h"
-#include "services/FileWatcher.h"
-#include "parsers/MetadataParser.h"
-#include "models/Tag.h"
-#include "models/Asset.h"
-#include "models/Metadata.h"
+#include "ui/ActivityBar.h"
+#include "ui/CommandPalette.h"
 #include "ui/LightboxWidget.h"
+#include "ui/TitleBar.h"
+#include "ui/TabBar.h"
+#include "services/LibraryController.h"
 
 class MainWindow : public QMainWindow
 {
@@ -25,46 +23,45 @@ public:
     ~MainWindow() override;
 
     void closeEvent(QCloseEvent *event) override;
-
-private slots:
-    void onFolderSelected(const QString &path);
-    void onAddFolderClicked();
-    void onImportFolder();
-    void onImportFile();
-    void onFilesDropped(const QStringList &paths);
-    void onAssetSelected(const Asset &asset);
-    void onAssetDoubleClicked(const Asset &asset);
-    void onSearchRequested();
-    void onFilterChanged();
-    void onTagSelected(int tagId);
-    void onDeleteRequested(const QVector<Asset> &assets);
-    void onTagEditRequested(int tagId);
+#if defined(Q_OS_WIN)
+    bool nativeEvent(const QByteArray &eventType, void *message, long *result) override;
+#endif
 
 private:
     void setupUI();
-    void setupMenuBar();
+    void setupTitleBar();
     void setupStatusBar();
+    void setupConnections();
+    void setupShortcuts();
+    void onImportFolder();
+    void onImportFile();
     void loadAssets();
-    void addFolderToLibrary(const QString &dir);
-    void scanAndInsertFile(const QString &path);
     void saveSettings();
     void loadSettings();
+    void onTagEditRequested(int tagId);
+    int pickTagId(const QVector<QString> &assetIds);
 
+    // UI
+    ActivityBar *m_activityBar;
     QSplitter *m_mainSplitter;
     SidebarWidget *m_sidebar;
     QWidget *m_centerPanel;
     SearchBar *m_searchBar;
     GalleryWidget *m_gallery;
     DetailPanel *m_detailPanel;
+    LightboxWidget *m_lightbox;
+    CommandPalette *m_commandPalette;
+    TitleBar *m_titleBar;
+    TabBar *m_tabBar;
+    QLabel *m_statusMsg;
+    QLabel *m_statusCount;
 
-    DatabaseManager *m_db;
-    ImageCache *m_cache;
-    FileScanner *m_scanner;
-    FileWatcher *m_watcher;
+    // Controller
+    LibraryController *m_library;
 
+    // State
     QStringList m_folders;
     int m_activeTagId = -1;
-    LightboxWidget *m_lightbox;
 };
 
 #endif

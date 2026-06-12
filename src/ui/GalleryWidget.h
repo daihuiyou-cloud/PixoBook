@@ -23,6 +23,8 @@ public:
     QVector<Asset> allAssets() const;
 
     void setThumbnailSize(int size);
+    void setSearchKeyword(const QString &keyword) { m_searchKeyword = keyword; update(); }
+    QString searchKeyword() const { return m_searchKeyword; }
 
 signals:
     void assetSelected(const Asset &asset);
@@ -52,9 +54,9 @@ private:
     void navigateTo(int index);
 
     int m_thumbSize = 180;
-    static constexpr int kPadding = 12;
+    static constexpr int kPadding = 10;
     int m_itemWidth() const { return m_thumbSize + kPadding * 2; }
-    int m_itemHeight() const { return m_thumbSize + kPadding * 2 + 26; }
+    int m_itemHeight() const { return m_thumbSize + kPadding * 2 + 22; }
 
     QVector<Asset> m_assets;
     QSet<int> m_selectedIndices;
@@ -63,6 +65,7 @@ private:
     int m_scrollOffset = 0;
     int m_totalHeight = 0;
     int m_columns = 4;
+    QString m_searchKeyword;
     ImageCache *m_cache;
 };
 

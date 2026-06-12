@@ -1,5 +1,6 @@
 #include "GalleryWidget.h"
 #include <QPainter>
+#include <QPainterPath>
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QContextMenuEvent>
@@ -13,6 +14,7 @@
 #include <QFontMetrics>
 #include <QAction>
 #include <QFileInfo>
+#include "ui/Codicon.h"
 
 GalleryWidget::GalleryWidget(ImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
@@ -145,13 +147,16 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
     p.fillRect(rect(), QColor(0x1e, 0x1e, 0x1e));
 
-    int startIdx = qMax(0, (m_scrollOffset / m_itemHeight()) * m_columns);
-    int endIdx = qMin(m_assets.size(),
-                      ((m_scrollOffset + height()) / m_itemHeight() + 1) * m_columns);
+    if (m_assets.isEmpty() || m_columns == 0) return;
+
+    int itemH = m_itemHeight();
+    int firstRow = qMax(0, m_scrollOffset / itemH);
+    int visibleRows = height() / itemH + 2;
+    int startIdx = qMin(firstRow * m_columns, m_assets.size());
+    int endIdx = qMin((firstRow + visibleRows) * m_columns, m_assets.size());
 
     for (int i = startIdx; i < endIdx; i++) {
         QRect r = itemRect(i);
-        if (r.bottom() < 0 || r.top() > height()) continue;
 
         bool isHovered = (i == m_hoveredIndex);
         bool isSelected = m_selectedIndices.contains(i) || m_selectedAsset.id == m_assets[i].id;
@@ -182,7 +187,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             p.fillRect(thumbArea, QColor(0x3c, 0x20, 0x20));
             p.setPen(QColor(0xc0, 0x60, 0x60));
             QFont pf = p.font();
-            pf.setPointSize(9);
+            pf.setPixelSize(12);
             p.setFont(pf);
             p.drawText(thumbArea, Qt::AlignCenter,
                        QString::fromUtf8("\xe6\x96\x87\xe4\xbb\xb6\xe4\xb8\x8d\xe5\xad\x98\xe5\x9c\xa8"));
@@ -193,14 +198,13 @@ void GalleryWidget::paintEvent(QPaintEvent *)
                 p.fillRect(thumbArea, QColor(0x3c, 0x3c, 0x3f));
                 p.setPen(QColor(0x96, 0x96, 0x96));
                 QFont pf = p.font();
-                pf.setPointSize(10);
+                pf.setPixelSize(13);
                 p.setFont(pf);
                 p.drawText(thumbArea, Qt::AlignCenter, m_assets[i].format.toUpper());
             } else {
-                QRect shadowRect = thumbArea.adjusted(-2, 2, 2, 2);
-                p.setPen(Qt::NoPen);
-                p.setBrush(QColor(0, 0, 0, 40));
-                p.drawRoundedRect(shadowRect, 4, 4);
+                p.setPen(QPen(QColor(0x3c, 0x3c, 0x3c), 1));
+                p.setBrush(Qt::NoBrush);
+                p.drawRoundedRect(thumbArea, 4, 4);
 
                 QPainterPath clipPath;
                 clipPath.addRoundedRect(QRectF(thumbArea), 4, 4);
@@ -212,22 +216,27 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
         // File name label
         QRect labelRect = r.adjusted(kPadding, kPadding + m_thumbSize + 6, -kPadding - 20, 0);
-        p.setPen(QColor(0xcc, 0xcc, 0xcc));
         QFont lf = p.font();
-        lf.setPointSize(9);
+        lf.setPixelSize(12);
         p.setFont(lf);
-        QString name = p.fontMetrics().elidedText(m_assets[i].fileName,
-                                                   Qt::ElideRight, labelRect.width());
-        p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, name);
+        QString fileName = m_assets[i].fileName;
+        QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
+
+        if (!m_searchKeyword.isEmpty() && elided.contains(m_searchKeyword, Qt::CaseInsensitive)) {
+            QRect bgRect = labelRect;
+            bgRect.setHeight(p.fontMetrics().height());
+            p.fillRect(bgRect, QColor(0x2a, 0x2a, 0x2d));
+            p.setPen(QColor(0xcc, 0xcc, 0xcc));
+            p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
+        } else {
+            p.setPen(QColor(0xcc, 0xcc, 0xcc));
+            p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
+        }
 
         // Favorite star
-        QRect starRect(r.right() - 22, r.bottom() - 22, 18, 18);
-        p.setPen(m_assets[i].isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x60, 0x60, 0x60));
-        QFont sf = p.font();
-        sf.setPointSize(10);
-        p.setFont(sf);
-        p.drawText(starRect, Qt::AlignCenter,
-                   m_assets[i].isFavorite ? "\xe2\x98\x85" : "\xe2\x98\x86");
+        QRect starRect(r.right() - 24, r.bottom() - 24, 20, 20);
+        QColor starColor = m_assets[i].isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x60, 0x60, 0x60);
+        Codicon::draw(p, "star", starRect, starColor, 14);
     }
 }
 
@@ -391,11 +400,12 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
         return;
 
     QMenu menu(this);
-    menu.setStyleSheet(
-        "QMenu { background: #252526; color: #cccccc; border: 1px solid #3c3c3c; font-size: 12px; }"
-        "QMenu::item:selected { background: #094771; }"
-        "QMenu::separator { background: #3c3c3c; height: 1px; margin: 4px 8px; }"
-    );
+    QPalette mPal;
+    mPal.setColor(QPalette::Window, QColor(0x25, 0x25, 0x26));
+    mPal.setColor(QPalette::WindowText, QColor(0xcc, 0xcc, 0xcc));
+    mPal.setColor(QPalette::Highlight, QColor(0x09, 0x47, 0x71));
+    mPal.setColor(QPalette::HighlightedText, QColor(0xcc, 0xcc, 0xcc));
+    menu.setPalette(mPal);
 
     auto sel = selectedAssets();
     if (sel.size() == 1) {

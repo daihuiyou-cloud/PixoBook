@@ -3,25 +3,26 @@
 
 #include <QObject>
 #include <QStringList>
-#include "database/DatabaseManager.h"
-#include "services/ImageCache.h"
-#include "services/FileScanner.h"
-#include "services/FileWatcher.h"
+#include "core/IDatabaseManager.h"
+#include "core/IImageCache.h"
 #include "models/Asset.h"
 #include "models/Tag.h"
 #include "models/Metadata.h"
+
+class FileScanner;
+class FileWatcher;
 
 class LibraryController : public QObject
 {
     Q_OBJECT
 public:
-    explicit LibraryController(QObject *parent = nullptr);
+    explicit LibraryController(IDatabaseManager *db, IImageCache *cache,
+                               FileScanner *scanner, FileWatcher *watcher,
+                               QObject *parent = nullptr);
     ~LibraryController() override;
 
-    bool initialize(const QString &dbPath);
-
-    // Database operations
-    DatabaseManager* db() const { return m_db; }
+    IImageCache* cache() const { return m_cache; }
+    IDatabaseManager* db() const { return m_db; }
 
     // Asset queries
     QVector<Asset> loadAssets(const QString &keyword = {}, const QString &source = {},
@@ -52,9 +53,6 @@ public:
     bool deleteAssets(const QVector<Asset> &assets);
     void toggleFavorite(const QString &assetId, bool isFavorite);
 
-    // Cache
-    ImageCache* cache() const { return m_cache; }
-
 signals:
     void assetCountChanged(int count);
     void scanProgress(int current, int total);
@@ -62,8 +60,8 @@ signals:
     void dataChanged();
 
 private:
-    DatabaseManager *m_db;
-    ImageCache *m_cache;
+    IDatabaseManager *m_db;
+    IImageCache *m_cache;
     FileScanner *m_scanner;
     FileWatcher *m_watcher;
     QStringList m_folders;

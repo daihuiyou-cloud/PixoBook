@@ -1,9 +1,14 @@
 #include <QApplication>
 #include <QStyleFactory>
 #include <QFont>
+#include <memory>
 #include "ui/MainWindow.h"
 #include "ui/CustomStyle.h"
 #include "ui/Codicon.h"
+#include "core/ParserRegistry.h"
+#include "parsers/SDParser.h"
+#include "parsers/MJParser.h"
+#include "parsers/DALLEParser.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,10 +21,15 @@ int main(int argc, char *argv[])
     app.setOrganizationName("AIMaterialLibrary");
 
     QFont appFont = app.font();
-    appFont.setPointSize(10);
+    appFont.setPointSize(11);
     app.setFont(appFont);
 
     Codicon::init();
+
+    // Register parsers
+    ParserRegistry::instance().registerParser(std::make_unique<SDParser>());
+    ParserRegistry::instance().registerParser(std::make_unique<MJParser>());
+    ParserRegistry::instance().registerParser(std::make_unique<DALLEParser>());
 
     app.setStyle(new CustomStyle());
 

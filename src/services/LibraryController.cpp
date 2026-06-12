@@ -1,31 +1,17 @@
 #include "LibraryController.h"
+#include "services/FileScanner.h"
+#include "services/FileWatcher.h"
 #include "parsers/MetadataParser.h"
 
-LibraryController::LibraryController(QObject *parent)
+LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
+                                     FileScanner *scanner, FileWatcher *watcher,
+                                     QObject *parent)
     : QObject(parent)
-    , m_db(nullptr)
-    , m_cache(nullptr)
-    , m_scanner(nullptr)
-    , m_watcher(nullptr)
+    , m_db(db)
+    , m_cache(cache)
+    , m_scanner(scanner)
+    , m_watcher(watcher)
 {
-}
-
-LibraryController::~LibraryController()
-{
-    delete m_db;
-}
-
-bool LibraryController::initialize(const QString &dbPath)
-{
-    m_db = new DatabaseManager(dbPath);
-    if (!m_db->initialize()) {
-        return false;
-    }
-
-    m_cache = new ImageCache(500, this);
-    m_scanner = new FileScanner(this);
-    m_watcher = new FileWatcher(this);
-
     connect(m_scanner, &FileScanner::assetFound, this, [this](const Asset &asset) {
         Asset existing = m_db->findByPath(asset.filePath);
         if (existing.id.isEmpty() && m_db->findByHash(asset.hash).id.isEmpty()) {
@@ -59,9 +45,9 @@ bool LibraryController::initialize(const QString &dbPath)
             emit dataChanged();
         }
     });
-
-    return true;
 }
+
+LibraryController::~LibraryController() = default;
 
 QVector<Asset> LibraryController::loadAssets(const QString &keyword, const QString &source,
                                               const QVector<int> &tagIds, bool onlyFavorites,

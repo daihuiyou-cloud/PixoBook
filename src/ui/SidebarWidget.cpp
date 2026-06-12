@@ -73,7 +73,6 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         p.setPen(QColor(0x96, 0x96, 0x96));
         QFont sf = p.font();
         sf.setBold(false);
-        sf.setPixelSize(14);
         p.setFont(sf);
         QString folderHeader = Codicon::icon(m_foldersExpanded ? "chevron-down" : "chevron-right")
                              + "  " + QStringLiteral("文件夹");
@@ -86,9 +85,6 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             if (isAddHovered)
                 p.fillRect(addRect, QColor(0xff, 0xff, 0xff, 15));
             p.setPen(QColor(0x96, 0x96, 0x96));
-            QFont addF = p.font();
-            addF.setPixelSize(16);
-            p.setFont(addF);
             p.drawText(addRect, Qt::AlignCenter, "+");
         }
 
@@ -99,7 +95,6 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         if (m_foldersExpanded) {
             QFont f = p.font();
             f.setBold(false);
-            f.setPixelSize(14);
             p.setFont(f);
             for (int i = 0; i < m_folders.size(); i++) {
                 QRect itemRect(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
@@ -130,7 +125,6 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     p.setPen(QColor(0x96, 0x96, 0x96));
     QFont sf2 = p.font();
     sf2.setBold(false);
-    sf2.setPixelSize(14);
     p.setFont(sf2);
     QString tagHeader = Codicon::icon(m_tagsExpanded ? "chevron-down" : "chevron-right")
                       + "  " + QStringLiteral("标签");
@@ -143,7 +137,6 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     if (m_tagsExpanded) {
         QFont f2 = p.font();
         f2.setBold(false);
-        f2.setPixelSize(14);
         p.setFont(f2);
         for (int i = 0; i < m_tags.size(); i++) {
             QRect itemRect(0, tagY + kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);

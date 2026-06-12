@@ -26,7 +26,6 @@ private slots:
 
 private:
     QFileSystemWatcher *m_watcher;
-    QStringList m_imageFormats = {"png", "jpg", "jpeg", "webp"};
     void checkForNewFiles(const QString &dirPath);
     QStringList m_knownFiles;
 };

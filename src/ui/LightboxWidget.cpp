@@ -8,7 +8,7 @@
 #include <QFileInfo>
 #include <cmath>
 
-LightboxWidget::LightboxWidget(ImageCache *cache, QWidget *parent)
+LightboxWidget::LightboxWidget(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
 {
     setFocusPolicy(Qt::StrongFocus);

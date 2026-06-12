@@ -1,9 +1,11 @@
 #include "MJParser.h"
 #include <QRegularExpression>
+#include <QFileInfo>
 
-Metadata MJParser::parse(const QString &filePath, const QString &fileName)
+Metadata MJParser::parse(const QString &filePath)
 {
-    Q_UNUSED(filePath)
+    QFileInfo fi(filePath);
+    QString fileName = fi.fileName();
     Metadata meta;
     meta.source = "midjourney";
 

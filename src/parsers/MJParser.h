@@ -2,12 +2,14 @@
 #define MJPARSER_H
 
 #include <QString>
+#include "core/IParser.h"
 #include "models/Metadata.h"
 
-class MJParser
+class MJParser : public IParser
 {
 public:
-    static Metadata parse(const QString &filePath, const QString &fileName);
+    Metadata parse(const QString &filePath) override;
+    QString sourceName() const override { return QStringLiteral("midjourney"); }
 };
 
 #endif

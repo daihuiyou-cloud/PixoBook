@@ -176,9 +176,6 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
 
         painter->setPen(checked ? Qt::white : QColor(0xcc, 0xcc, 0xcc));
-        QFont f = painter->font();
-        f.setPixelSize(14);
-        painter->setFont(f);
         painter->drawText(r, Qt::AlignCenter, btnOpt->text);
         return;
     }
@@ -197,9 +194,6 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
             painter->fillRect(r, QColor(0x09, 0x47, 0x71));
 
         painter->setPen(QColor(0xcc, 0xcc, 0xcc));
-        QFont f = menuItem->font;
-        f.setPixelSize(14);
-        painter->setFont(f);
         painter->drawText(r.adjusted(8, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft,
                           menuItem->text);
         return;
@@ -222,9 +216,6 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
             painter->fillRect(r, QColor(0x09, 0x47, 0x71));
 
         painter->setPen(QColor(0xcc, 0xcc, 0xcc));
-        QFont f = menuItem->font;
-        f.setPixelSize(14);
-        painter->setFont(f);
 
         int iconWidth = 0;
         if (!menuItem->icon.isNull())
@@ -300,9 +291,6 @@ void CustomStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
 
         if (!cbOpt->currentText.isEmpty()) {
             painter->setPen(QColor(0xcc, 0xcc, 0xcc));
-            QFont f = painter->font();
-            f.setPixelSize(14);
-            painter->setFont(f);
             QRect textRect = r.adjusted(10, 0, -22, 0);
             painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
                               painter->fontMetrics().elidedText(cbOpt->currentText, Qt::ElideRight, textRect.width()));

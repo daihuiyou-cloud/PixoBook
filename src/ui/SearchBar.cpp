@@ -20,7 +20,6 @@ SearchBar::SearchBar(QWidget *parent)
     inputPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
     m_searchInput->setPalette(inputPal);
     QFont inputFont;
-    inputFont.setPixelSize(14);
 
     // Search icon
     QPixmap searchPx(22, 22);
@@ -40,7 +39,6 @@ SearchBar::SearchBar(QWidget *parent)
     m_sourceCombo->addItem("Midjourney", "midjourney");
     m_sourceCombo->addItem("DALL-E", "dalle");
     QFont comboFont;
-    comboFont.setPixelSize(14);
     m_sourceCombo->setFont(comboFont);
     QPalette comboPal;
     comboPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));

@@ -15,6 +15,8 @@
 #include "ui/TitleBar.h"
 #include "ui/TabBar.h"
 #include "services/LibraryController.h"
+#include "services/ImageCache.h"
+#include "database/DatabaseManager.h"
 
 class MainWindow : public QMainWindow
 {
@@ -58,8 +60,10 @@ private:
     QLabel *m_statusMsg;
     QLabel *m_statusCount;
 
-    // Controller
+    // Controller & Dependencies
+    DatabaseManager *m_db;
     LibraryController *m_library;
+    ImageCache *m_concreteCache;
 
     // State
     QStringList m_folders;

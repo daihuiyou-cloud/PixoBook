@@ -35,7 +35,6 @@ void TabBar::setTabs(const QVector<Tab> &tabs)
 QRect TabBar::tabRect(int index) const
 {
     QFont f = font();
-    f.setPixelSize(12);
     QFontMetrics fm(f);
     int x = 0;
     for (int i = 0; i < index && i < m_tabs.size(); i++) {
@@ -51,7 +50,6 @@ QRect TabBar::tabRect(int index) const
 QRect TabBar::addButtonRect() const
 {
     QFont f = font();
-    f.setPixelSize(12);
     QFontMetrics fm(f);
     int x = 4;
     for (int i = 0; i < m_tabs.size(); i++) {
@@ -104,9 +102,6 @@ void TabBar::paintEvent(QPaintEvent *)
 
         Codicon::draw(p, m_tabs[i].icon, QRect(r.left() + 10, 9, 16, 16), textColor, 14);
 
-        QFont f = font();
-        f.setPixelSize(12);
-        p.setFont(f);
         p.setPen(textColor);
         p.drawText(QRect(r.left() + 28, r.top(), r.width() - 28 - kTabPadding, kTabHeight),
                    Qt::AlignVCenter | Qt::AlignLeft, m_tabs[i].label);
@@ -118,9 +113,6 @@ void TabBar::paintEvent(QPaintEvent *)
             p.fillRect(r, QColor(0x37, 0x37, 0x3d));
         }
         p.setPen(QColor(0xcc, 0xcc, 0xcc));
-        QFont f = font();
-        f.setPixelSize(18);
-        p.setFont(f);
         p.drawText(r, Qt::AlignCenter, QStringLiteral("+"));
     }
 }

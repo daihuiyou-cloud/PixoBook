@@ -27,7 +27,6 @@ void TitleBar::setMaximized(bool maximized)
 QRect TitleBar::menuItemRect(int idx) const
 {
     QFont f = font();
-    f.setPixelSize(14);
     QFontMetrics fm(f);
     int x = 80;
     for (int i = 0; i < idx && i < m_menus.size(); i++) {
@@ -74,7 +73,6 @@ void TitleBar::paintEvent(QPaintEvent *)
     Codicon::draw(p, "layout", QRect(8, 5, 24, 22), QColor(0xcc, 0xcc, 0xcc), 18);
 
     QFont f = font();
-    f.setPixelSize(14);
     p.setFont(f);
     p.setPen(QColor(0xcc, 0xcc, 0xcc));
     p.drawText(QRect(32, 0, 50, kHeight), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("AI\u7d20\u6750\u5e93"));

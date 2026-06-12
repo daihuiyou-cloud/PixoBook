@@ -5,7 +5,7 @@
 #include <QFileInfo>
 #include "ui/Codicon.h"
 
-DetailPanel::DetailPanel(ImageCache *cache, QWidget *parent)
+DetailPanel::DetailPanel(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
 {
     setMouseTracking(true);
@@ -115,9 +115,6 @@ int DetailPanel::drawImage(QPainter &p)
     QRect infoBg(imgRect.left(), imgRect.bottom() - 28, imgRect.width(), 28);
     p.fillRect(infoBg, QColor(0, 0, 0, 160));
     p.setPen(QColor(0xcc, 0xcc, 0xcc));
-    QFont of = p.font();
-    of.setPixelSize(12);
-    p.setFont(of);
     p.drawText(infoBg.adjusted(8, 0, 28, 0), Qt::AlignVCenter,
                QString("%1 x %2  |  %3%")
                    .arg(m_asset.width).arg(m_asset.height)
@@ -135,7 +132,6 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
 {
     QFont hf;
     hf.setBold(true);
-    hf.setPixelSize(12);
     p.setFont(hf);
     m_fileInfoHeaderRect = QRect(0, y - 18, width(), 22);
     p.setPen(QColor(0x96, 0x96, 0x96));
@@ -165,7 +161,6 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
 
     QFont hf;
     hf.setBold(true);
-    hf.setPixelSize(12);
     p.setFont(hf);
     m_metadataHeaderRect = QRect(0, y - 18, width(), 22);
     p.setPen(QColor(0x96, 0x96, 0x96));
@@ -182,9 +177,6 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     drawField(p, 16, y, QString::fromUtf8("\xe6\x9d\xa5\xe6\xba\x90"), sourceDisplay);
 
     // Prompt with toggle
-    QFont nf;
-    nf.setPixelSize(12);
-    p.setFont(nf);
     m_promptHeaderRect = QRect(0, y - 18, width(), 22);
     p.setPen(QColor(0x96, 0x96, 0x96));
     p.drawText(16, y, QString(m_promptExpanded ? QChar(0x25BC) : QChar(0x25B6)) + "  Prompt");
@@ -230,7 +222,6 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
 
     QFont hf;
     hf.setBold(true);
-    hf.setPixelSize(12);
     p.setFont(hf);
     m_tagsHeaderRect = QRect(0, y - 18, width(), 22);
     p.setPen(QColor(0x96, 0x96, 0x96));
@@ -283,9 +274,6 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
 
 void DetailPanel::drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW)
 {
-    QFont nf;
-    nf.setPixelSize(12);
-    p.setFont(nf);
     p.setPen(QColor(0x96, 0x96, 0x96));
     p.drawText(x, y, label);
 

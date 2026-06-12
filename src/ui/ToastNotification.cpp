@@ -13,9 +13,6 @@ ToastNotification::ToastNotification(QWidget *parent)
 
     m_label = new QLabel();
     m_label->setAlignment(Qt::AlignCenter);
-    QFont f;
-    f.setPixelSize(12);
-    m_label->setFont(f);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(16, 0, 16, 0);

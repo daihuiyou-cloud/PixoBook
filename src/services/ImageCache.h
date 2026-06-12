@@ -4,26 +4,23 @@
 #include <QPixmap>
 #include <QHash>
 #include <QString>
-#include <QObject>
 #include <QMutex>
 #include <functional>
+#include "core/IImageCache.h"
 
-class ImageCache : public QObject
+class ImageCache : public IImageCache
 {
     Q_OBJECT
 public:
     explicit ImageCache(int maxEntries = 500, QObject *parent = nullptr);
 
-    QPixmap get(const QString &filePath, const QSize &size) const;
-    void insert(const QString &filePath, const QSize &size, const QPixmap &pixmap);
-    void invalidate(const QString &filePath);
-    void clear();
+    QPixmap get(const QString &filePath, const QSize &size) const override;
+    void insert(const QString &filePath, const QSize &size, const QPixmap &pixmap) override;
+    void invalidate(const QString &filePath) override;
+    void clear() override;
 
-    void requestThumbnail(const QString &filePath, const QSize &size);
-    QPixmap generateThumbnail(const QString &filePath, const QSize &size) const;
-
-signals:
-    void thumbnailReady(const QString &filePath, const QSize &size, const QPixmap &pixmap);
+    void requestThumbnail(const QString &filePath, const QSize &size) override;
+    QPixmap generateThumbnail(const QString &filePath, const QSize &size) const override;
 
 public:
     struct CacheKey {

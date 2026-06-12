@@ -24,7 +24,6 @@ signals:
     void scanFinished();
 
 private:
-    QStringList m_supportedFormats = {"png", "jpg", "jpeg", "webp"};
     QVector<Asset> scanDirectorySync(const QString &dirPath, bool recursive);
 };
 

@@ -5,13 +5,13 @@
 #include "models/Asset.h"
 #include "models/Metadata.h"
 #include "models/Tag.h"
-#include "services/ImageCache.h"
+#include "core/IImageCache.h"
 
 class DetailPanel : public QWidget
 {
     Q_OBJECT
 public:
-    explicit DetailPanel(ImageCache *cache, QWidget *parent = nullptr);
+    explicit DetailPanel(IImageCache *cache, QWidget *parent = nullptr);
 
     void showAsset(const Asset &asset, const Metadata &metadata, const QVector<Tag> &tags);
     void clear();
@@ -55,7 +55,7 @@ private:
     QRect m_tagsHeaderRect;
     QVector<QPair<int, QRect>> m_tagRects;
 
-    ImageCache *m_cache;
+    IImageCache *m_cache;
 
     QRect imageArea() const;
     QRect metadataArea() const;

@@ -16,17 +16,18 @@
 #include <QFileInfo>
 #include "ui/Codicon.h"
 
-GalleryWidget::GalleryWidget(ImageCache *cache, QWidget *parent)
+GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
 {
     setMouseTracking(true);
     setAcceptDrops(true);
     setFocusPolicy(Qt::StrongFocus);
     setMinimumWidth(m_itemWidth() + kPadding * 2);
+}
 
-    connect(m_cache, &ImageCache::thumbnailReady, this, [this](const QString &, const QSize &, const QPixmap &) {
-        update();
-    }, Qt::QueuedConnection);
+void GalleryWidget::onThumbnailReady(const QString &, const QSize &, const QPixmap &)
+{
+    update();
 }
 
 void GalleryWidget::setThumbnailSize(int size)
@@ -186,9 +187,6 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         if (!fileExists) {
             p.fillRect(thumbArea, QColor(0x3c, 0x20, 0x20));
             p.setPen(QColor(0xc0, 0x60, 0x60));
-            QFont pf = p.font();
-            pf.setPixelSize(12);
-            p.setFont(pf);
             p.drawText(thumbArea, Qt::AlignCenter,
                        QString::fromUtf8("\xe6\x96\x87\xe4\xbb\xb6\xe4\xb8\x8d\xe5\xad\x98\xe5\x9c\xa8"));
         } else {
@@ -197,9 +195,6 @@ void GalleryWidget::paintEvent(QPaintEvent *)
                 m_cache->requestThumbnail(m_assets[i].filePath, thumbSize);
                 p.fillRect(thumbArea, QColor(0x3c, 0x3c, 0x3f));
                 p.setPen(QColor(0x96, 0x96, 0x96));
-                QFont pf = p.font();
-                pf.setPixelSize(13);
-                p.setFont(pf);
                 p.drawText(thumbArea, Qt::AlignCenter, m_assets[i].format.toUpper());
             } else {
                 p.setPen(QPen(QColor(0x3c, 0x3c, 0x3c), 1));
@@ -216,9 +211,6 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
         // File name label
         QRect labelRect = r.adjusted(kPadding, kPadding + m_thumbSize + 6, -kPadding - 20, 0);
-        QFont lf = p.font();
-        lf.setPixelSize(12);
-        p.setFont(lf);
         QString fileName = m_assets[i].fileName;
         QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
 

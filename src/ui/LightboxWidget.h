@@ -6,13 +6,13 @@
 #include <QPoint>
 #include <QTimer>
 #include "models/Asset.h"
-#include "services/ImageCache.h"
+#include "core/IImageCache.h"
 
 class LightboxWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit LightboxWidget(ImageCache *cache, QWidget *parent = nullptr);
+    explicit LightboxWidget(IImageCache *cache, QWidget *parent = nullptr);
 
     void show(const QVector<Asset> &assets, int startIndex);
     void close();
@@ -39,7 +39,7 @@ private:
     QVector<Asset> m_assets;
     int m_currentIndex = -1;
     QPixmap m_currentPixmap;
-    ImageCache *m_cache;
+    IImageCache *m_cache;
 
     double m_zoom = 1.0;
     QPointF m_panOffset;

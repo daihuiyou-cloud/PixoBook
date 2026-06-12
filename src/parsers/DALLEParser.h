@@ -2,12 +2,14 @@
 #define DALLEPARSER_H
 
 #include <QString>
+#include "core/IParser.h"
 #include "models/Metadata.h"
 
-class DALLEParser
+class DALLEParser : public IParser
 {
 public:
-    static Metadata parse(const QString &filePath, const QString &fileName);
+    Metadata parse(const QString &filePath) override;
+    QString sourceName() const override { return QStringLiteral("dalle"); }
 };
 
 #endif

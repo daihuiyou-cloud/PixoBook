@@ -6,7 +6,7 @@
 #include <QtConcurrent>
 
 ImageCache::ImageCache(int maxEntries, QObject *parent)
-    : QObject(parent), m_maxEntries(maxEntries)
+    : IImageCache(parent), m_maxEntries(maxEntries)
 {
 }
 

@@ -1,4 +1,5 @@
 #include "FileWatcher.h"
+#include "core/ImageFormats.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
@@ -22,7 +23,7 @@ void FileWatcher::addWatchPath(const QString &path)
     QDir dir(path);
     auto entries = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
     for (const auto &fi : entries) {
-        if (m_imageFormats.contains(fi.suffix().toLower()))
+        if (isSupportedImageFormat(fi.suffix()))
             m_knownFiles.append(fi.absoluteFilePath());
     }
 }
@@ -57,7 +58,7 @@ void FileWatcher::checkForNewFiles(const QString &dirPath)
     QSet<QString> current;
 
     for (const auto &fi : entries) {
-        if (!m_imageFormats.contains(fi.suffix().toLower())) continue;
+        if (!isSupportedImageFormat(fi.suffix())) continue;
         current.insert(fi.absoluteFilePath());
         if (!m_knownFiles.contains(fi.absoluteFilePath()))
             emit fileAdded(fi.absoluteFilePath());

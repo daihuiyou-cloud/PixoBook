@@ -1,9 +1,11 @@
 #include "DALLEParser.h"
 #include <QRegularExpression>
+#include <QFileInfo>
 
-Metadata DALLEParser::parse(const QString &filePath, const QString &fileName)
+Metadata DALLEParser::parse(const QString &filePath)
 {
-    Q_UNUSED(filePath)
+    QFileInfo fi(filePath);
+    QString fileName = fi.fileName();
     Metadata meta;
     meta.source = "dalle";
 

@@ -21,6 +21,10 @@
 #include "ui/ToastNotification.h"
 #include "ui/TagPickerDialog.h"
 #include "ui/Codicon.h"
+#include "database/DatabaseManager.h"
+#include "services/ImageCache.h"
+#include "services/FileScanner.h"
+#include "services/FileWatcher.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -29,13 +33,18 @@ MainWindow::MainWindow(QWidget *parent)
     QDir().mkpath(dbPath);
     dbPath += "/aimateriallibrary.db";
 
-    m_library = new LibraryController(this);
-    if (!m_library->initialize(dbPath)) {
+    // Create dependencies
+    m_db = new DatabaseManager(dbPath);
+    if (!m_db->initialize()) {
         QMessageBox::critical(this, "Error", "Failed to initialize database");
         return;
     }
 
-    m_library->cache()->setParent(this);
+    m_concreteCache = new ImageCache(500, this);
+    auto *scanner = new FileScanner(this);
+    auto *watcher = new FileWatcher(this);
+
+    m_library = new LibraryController(m_db, m_concreteCache, scanner, watcher, this);
 
     // Frameless window
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint);
@@ -127,30 +136,30 @@ void MainWindow::setupTitleBar()
 {
     connect(m_titleBar, &TitleBar::menuTriggered, this, [this](int menuIndex) {
         switch (menuIndex) {
-        case 0: { // 文件
+        case 0: { // File
             QMenu menu(this);
-            QMenu *importSub = menu.addMenu(QStringLiteral("导入"));
-            QAction *importFolder = importSub->addAction(QStringLiteral("导入文件夹..."));
+            QMenu *importSub = menu.addMenu(QStringLiteral("\u5bfc\u5165"));
+            QAction *importFolder = importSub->addAction(QStringLiteral("\u5bfc\u5165\u6587\u4ef6\u5939..."));
             connect(importFolder, &QAction::triggered, this, [this]() {
                 QString dir = QFileDialog::getExistingDirectory(this,
-                    QStringLiteral("选择素材文件夹"));
+                    QStringLiteral("\u9009\u62e9\u7d20\u6750\u6587\u4ef6\u5939"));
                 if (!dir.isEmpty()) {
                     m_library->scanFolder(dir);
                     m_sidebar->setFolders(m_library->folders());
                 }
             });
-            QAction *importFile = importSub->addAction(QStringLiteral("导入图片..."));
+            QAction *importFile = importSub->addAction(QStringLiteral("\u5bfc\u5165\u56fe\u7247..."));
             connect(importFile, &QAction::triggered, this, &MainWindow::onImportFile);
             menu.addSeparator();
-            QAction *exit = menu.addAction(QStringLiteral("退出"));
+            QAction *exit = menu.addAction(QStringLiteral("\u9000\u51fa"));
             connect(exit, &QAction::triggered, qApp, &QApplication::quit);
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(0).left(), m_titleBar->menuItemRect(0).bottom()));
             menu.exec(pos);
             break;
         }
-        case 1: { // 编辑
+        case 1: { // Edit
             QMenu menu(this);
-            QAction *selectAll = menu.addAction(QStringLiteral("全选"));
+            QAction *selectAll = menu.addAction(QStringLiteral("\u5168\u9009"));
             connect(selectAll, &QAction::triggered, this, [this]() {
                 QKeyEvent ev(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
                 QApplication::sendEvent(m_gallery, &ev);
@@ -159,24 +168,24 @@ void MainWindow::setupTitleBar()
             menu.exec(pos);
             break;
         }
-        case 2: { // 查看
+        case 2: { // View
             QMenu menu(this);
-            QAction *smallThumb = menu.addAction(QStringLiteral("小缩略图 (100px)"));
+            QAction *smallThumb = menu.addAction(QStringLiteral("\u5c0f\u7f29\u7565\u56fe (100px)"));
             connect(smallThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(100); });
-            QAction *mediumThumb = menu.addAction(QStringLiteral("中缩略图 (180px)"));
+            QAction *mediumThumb = menu.addAction(QStringLiteral("\u4e2d\u7f29\u7565\u56fe (180px)"));
             connect(mediumThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(180); });
-            QAction *largeThumb = menu.addAction(QStringLiteral("大缩略图 (280px)"));
+            QAction *largeThumb = menu.addAction(QStringLiteral("\u5927\u7f29\u7565\u56fe (280px)"));
             connect(largeThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(280); });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(2).left(), m_titleBar->menuItemRect(2).bottom()));
             menu.exec(pos);
             break;
         }
-        case 3: { // 帮助
+        case 3: { // Help
             QMenu menu(this);
-            QAction *about = menu.addAction(QStringLiteral("关于 AI素材库"));
+            QAction *about = menu.addAction(QStringLiteral("\u5173\u4e8e AI\u7d20\u6750\u5e93"));
             connect(about, &QAction::triggered, this, [this]() {
-                QMessageBox::about(this, QStringLiteral("关于"),
-                    QStringLiteral("AI素材库 v1.0.0\nAI 生成素材管理工具"));
+                QMessageBox::about(this, QStringLiteral("\u5173\u4e8e"),
+                    QStringLiteral("AI\u7d20\u6750\u5e93 v1.0.0\nAI \u751f\u6210\u7d20\u6750\u7ba1\u7406\u5de5\u5177"));
             });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(3).left(), m_titleBar->menuItemRect(3).bottom()));
             menu.exec(pos);
@@ -196,14 +205,10 @@ void MainWindow::setupStatusBar()
 
     m_statusMsg = new QLabel(QStringLiteral("\u5c31\u7eea"));
     m_statusMsg->setPalette(sbPal);
-    QFont sf;
-    sf.setPixelSize(14);
-    m_statusMsg->setFont(sf);
     statusBar()->addWidget(m_statusMsg, 1);
 
     m_statusCount = new QLabel();
     m_statusCount->setPalette(sbPal);
-    m_statusCount->setFont(sf);
     statusBar()->addPermanentWidget(m_statusCount);
 }
 
@@ -223,6 +228,9 @@ void MainWindow::setupConnections()
         m_statusCount->setText(
             QStringLiteral("%1 \u5f20\u56fe\u7247").arg(m_gallery->assetCount()));
     });
+
+    // Cache thumbnail ready -> gallery update
+    connect(m_concreteCache, &ImageCache::thumbnailReady, m_gallery, &GalleryWidget::onThumbnailReady, Qt::QueuedConnection);
 
     // Sidebar
     connect(m_sidebar, &SidebarWidget::tagEditRequested, this, &MainWindow::onTagEditRequested);

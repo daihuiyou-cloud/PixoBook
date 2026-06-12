@@ -3,44 +3,45 @@
 
 #include <QSqlDatabase>
 #include <QVector>
+#include "core/IDatabaseManager.h"
 #include "models/Asset.h"
 #include "models/Tag.h"
 #include "models/Metadata.h"
 
-class DatabaseManager
+class DatabaseManager : public IDatabaseManager
 {
 public:
     explicit DatabaseManager(const QString &dbPath);
-    ~DatabaseManager();
+    ~DatabaseManager() override;
 
-    bool initialize();
+    bool initialize() override;
 
-    bool insertAsset(const Asset &asset);
-    bool updateAsset(const Asset &asset);
-    bool updateAssetFavorite(const QString &assetId, bool isFavorite);
-    bool deleteAsset(const QString &assetId);
-    Asset getAsset(const QString &assetId) const;
-    QVector<Asset> getAllAssets() const;
+    bool insertAsset(const Asset &asset) override;
+    bool updateAsset(const Asset &asset) override;
+    bool updateAssetFavorite(const QString &assetId, bool isFavorite) override;
+    bool deleteAsset(const QString &assetId) override;
+    Asset getAsset(const QString &assetId) const override;
+    QVector<Asset> getAllAssets() const override;
     QVector<Asset> searchAssets(const QString &keyword, const QString &source,
                                 const QVector<int> &tagIds, bool onlyFavorites,
                                 const QString &sortField = "created_at",
-                                bool sortAscending = false) const;
-    Asset findByPath(const QString &filePath) const;
-    Asset findByHash(const QString &hash) const;
+                                bool sortAscending = false) const override;
+    Asset findByPath(const QString &filePath) const override;
+    Asset findByHash(const QString &hash) const override;
 
-    bool upsertMetadata(const Metadata &metadata);
-    Metadata getMetadata(const QString &assetId) const;
+    bool upsertMetadata(const Metadata &metadata) override;
+    Metadata getMetadata(const QString &assetId) const override;
 
-    int insertTag(const Tag &tag);
-    bool updateTag(const Tag &tag);
-    bool deleteTag(int tagId);
-    QVector<Tag> getAllTags() const;
+    int insertTag(const Tag &tag) override;
+    bool updateTag(const Tag &tag) override;
+    bool deleteTag(int tagId) override;
+    QVector<Tag> getAllTags() const override;
 
-    bool addTagToAsset(const QString &assetId, int tagId);
-    bool removeTagFromAsset(const QString &assetId, int tagId);
-    QVector<int> getTagIdsForAsset(const QString &assetId) const;
-    QVector<Tag> getTagsForAsset(const QString &assetId) const;
-    QVector<Asset> getAssetsByTag(int tagId) const;
+    bool addTagToAsset(const QString &assetId, int tagId) override;
+    bool removeTagFromAsset(const QString &assetId, int tagId) override;
+    QVector<int> getTagIdsForAsset(const QString &assetId) const override;
+    QVector<Tag> getTagsForAsset(const QString &assetId) const override;
+    QVector<Asset> getAssetsByTag(int tagId) const override;
 
 private:
     void createSchema();

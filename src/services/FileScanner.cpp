@@ -1,4 +1,5 @@
 #include "FileScanner.h"
+#include "core/ImageFormats.h"
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QImage>
@@ -35,7 +36,7 @@ QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recur
         if (!fi.isFile()) continue;
 
         QString ext = fi.suffix().toLower();
-        if (!m_supportedFormats.contains(ext)) continue;
+        if (!isSupportedImageFormat(ext)) continue;
 
         Asset asset;
         asset.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -78,9 +79,8 @@ Asset FileScanner::scanSingleFile(const QString &filePath)
     QFileInfo fi(filePath);
     if (!fi.isFile()) return {};
 
-    static QStringList formats = {"png", "jpg", "jpeg", "webp"};
     QString ext = fi.suffix().toLower();
-    if (!formats.contains(ext)) return {};
+    if (!isSupportedImageFormat(ext)) return {};
 
     Asset asset;
     asset.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -104,8 +104,7 @@ Asset FileScanner::scanSingleFile(const QString &filePath)
 
 bool FileScanner::isSupportedFormat(const QString &filePath)
 {
-    static QStringList formats = {"png", "jpg", "jpeg", "webp"};
-    return formats.contains(QFileInfo(filePath).suffix().toLower());
+    return isSupportedImageFormat(QFileInfo(filePath).suffix());
 }
 
 QString FileScanner::detectFormat(const QString &filePath)

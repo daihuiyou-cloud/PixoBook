@@ -5,13 +5,13 @@
 #include <QVector>
 #include <QSet>
 #include "models/Asset.h"
-#include "services/ImageCache.h"
+#include "core/IImageCache.h"
 
 class GalleryWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GalleryWidget(ImageCache *cache, QWidget *parent = nullptr);
+    explicit GalleryWidget(IImageCache *cache, QWidget *parent = nullptr);
 
     void setAssets(const QVector<Asset> &assets);
     void appendAssets(const QVector<Asset> &assets);
@@ -25,6 +25,9 @@ public:
     void setThumbnailSize(int size);
     void setSearchKeyword(const QString &keyword) { m_searchKeyword = keyword; update(); }
     QString searchKeyword() const { return m_searchKeyword; }
+
+public slots:
+    void onThumbnailReady(const QString &filePath, const QSize &size, const QPixmap &pixmap);
 
 signals:
     void assetSelected(const Asset &asset);
@@ -66,7 +69,7 @@ private:
     int m_totalHeight = 0;
     int m_columns = 4;
     QString m_searchKeyword;
-    ImageCache *m_cache;
+    IImageCache *m_cache;
 };
 
 #endif

@@ -5,23 +5,32 @@
 #include "parsers/SDParser.h"
 #include "parsers/MJParser.h"
 #include "parsers/DALLEParser.h"
+#include "core/ParserRegistry.h"
 
 class TestParsers : public QObject
 {
     Q_OBJECT
 
 private slots:
+    void initTestCase()
+    {
+        ParserRegistry::instance().registerParser(std::make_unique<SDParser>());
+        ParserRegistry::instance().registerParser(std::make_unique<MJParser>());
+        ParserRegistry::instance().registerParser(std::make_unique<DALLEParser>());
+    }
+
     void testMJParser()
     {
-        Metadata m = MJParser::parse("C:/fake/test.png", "User_12345_6789.png");
+        MJParser parser;
+        Metadata m = parser.parse("C:/fake/User_12345_6789.png");
         QCOMPARE(m.source, "midjourney");
         QCOMPARE(m.seed, 12345);
     }
 
     void testDALLEParser()
     {
-        Metadata m = DALLEParser::parse("C:/fake/test.png",
-            "DALL·E 2024-01-15 12.30.00 - a cute cat.png");
+        DALLEParser parser;
+        Metadata m = parser.parse("C:/fake/DALL\u00B7E 2024-01-15 12.30.00 - a cute cat.png");
         QCOMPARE(m.source, "dalle");
         QVERIFY(m.prompt.contains("a cute cat"));
     }
@@ -29,13 +38,13 @@ private slots:
     void testDetectSourceByFilename()
     {
         QTemporaryDir dir;
-        QString path = dir.path() + "/DALL·E 2024-01-01 test.png";
+        QString path = dir.path() + "/DALL\u00B7E 2024-01-01 test.png";
         QFile f(path);
         f.open(QIODevice::WriteOnly);
         f.write("fake png data");
         f.close();
 
-        QString source = MetadataParser::detectSource(path);
+        QString source = ParserRegistry::detectSource(path);
         QCOMPARE(source, "dalle");
     }
 
@@ -48,7 +57,7 @@ private slots:
         f.write("fake png data");
         f.close();
 
-        QString source = MetadataParser::detectSource(path);
+        QString source = ParserRegistry::detectSource(path);
         QCOMPARE(source, "stable-diffusion");
     }
 };

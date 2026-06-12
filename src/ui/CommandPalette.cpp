@@ -18,9 +18,6 @@ CommandPalette::CommandPalette(QWidget *parent)
     m_input = new QLineEdit();
     m_input->setPlaceholderText(QString::fromUtf8("\xe8\xbe\x93\xe5\x85\xa5\xe5\x91\xbd\xe4\xbb\xa4\xe5\x90\x8d..."));
     m_input->setFixedHeight(36);
-    QFont f;
-    f.setPixelSize(14);
-    m_input->setFont(f);
     QPalette inputPal;
     inputPal.setColor(QPalette::Base, QColor(0x3c, 0x3c, 0x3c));
     inputPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
@@ -83,9 +80,6 @@ void CommandPalette::paintEvent(QPaintEvent *)
     p.drawLine(0, 36, width(), 36);
 
     // Filtered commands
-    QFont cf;
-    cf.setPixelSize(13);
-    p.setFont(cf);
 
     int y = 44;
     int visibleCount = qMin(m_filtered.size(), 10);

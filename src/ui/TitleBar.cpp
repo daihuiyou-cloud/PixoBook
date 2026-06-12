@@ -11,10 +11,10 @@ TitleBar::TitleBar(QWidget *parent)
     setMouseTracking(true);
 
     m_menus = {
-        { QStringLiteral("\u6587\u4ef6") },
-        { QStringLiteral("\u7f16\u8f91") },
-        { QStringLiteral("\u67e5\u770b") },
-        { QStringLiteral("\u5e2e\u52a9") },
+        { QStringLiteral("\u6587\u4ef6"), "file" },
+        { QStringLiteral("\u7f16\u8f91"), "edit" },
+        { QStringLiteral("\u67e5\u770b"), "eye" },
+        { QStringLiteral("\u5e2e\u52a9"), "question" },
     };
 }
 
@@ -27,7 +27,7 @@ void TitleBar::setMaximized(bool maximized)
 QRect TitleBar::menuItemRect(int idx) const
 {
     QFont f = font();
-    f.setPixelSize(12);
+    f.setPixelSize(14);
     QFontMetrics fm(f);
     int x = 80;
     for (int i = 0; i < idx && i < m_menus.size(); i++) {
@@ -71,21 +71,23 @@ void TitleBar::paintEvent(QPaintEvent *)
 
     p.fillRect(QRect(0, height() - 1, width(), 1), QColor(0x3c, 0x3c, 0x3c));
 
-    Codicon::draw(p, "layout", QRect(8, 6, 20, 20), QColor(0xcc, 0xcc, 0xcc), 14);
+    Codicon::draw(p, "layout", QRect(8, 5, 24, 22), QColor(0xcc, 0xcc, 0xcc), 18);
 
     QFont f = font();
-    f.setPixelSize(12);
+    f.setPixelSize(14);
     p.setFont(f);
     p.setPen(QColor(0xcc, 0xcc, 0xcc));
-    p.drawText(QRect(30, 0, 50, kHeight), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("AI\u7d20\u6750\u5e93"));
+    p.drawText(QRect(32, 0, 50, kHeight), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("AI\u7d20\u6750\u5e93"));
 
     for (int i = 0; i < m_menus.size(); i++) {
         QRect r = menuItemRect(i);
         if (i == m_hoveredMenu) {
             p.fillRect(r, QColor(0x37, 0x37, 0x3d));
         }
-        p.setPen(i == m_hoveredMenu ? QColor(0xff, 0xff, 0xff) : QColor(0xcc, 0xcc, 0xcc));
-        p.drawText(r, Qt::AlignCenter, m_menus[i].text);
+        QColor textColor = i == m_hoveredMenu ? QColor(0xff, 0xff, 0xff) : QColor(0xcc, 0xcc, 0xcc);
+        Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 4, r.top(), 16, r.height()), textColor, 12);
+        p.setPen(textColor);
+        p.drawText(r.adjusted(22, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);
     }
 
     {
@@ -93,9 +95,7 @@ void TitleBar::paintEvent(QPaintEvent *)
         if (m_hoveredControl == 0) {
             p.fillRect(r, QColor(0x37, 0x37, 0x3d));
         }
-        p.setPen(QColor(0xcc, 0xcc, 0xcc));
-        p.drawLine(r.left() + 10, r.top() + r.height() / 2,
-                   r.right() - 10, r.top() + r.height() / 2);
+        Codicon::draw(p, "chrome-minimize", r, QColor(0xcc, 0xcc, 0xcc), 14);
     }
 
     {
@@ -103,32 +103,17 @@ void TitleBar::paintEvent(QPaintEvent *)
         if (m_hoveredControl == 1) {
             p.fillRect(r, QColor(0x37, 0x37, 0x3d));
         }
-        p.setPen(QColor(0xcc, 0xcc, 0xcc));
-        if (m_maximized) {
-            int l = r.left() + 10;
-            int t = r.top() + 8;
-            int w = 8;
-            int h = 8;
-            int off = 3;
-            p.drawRect(l + off, t - off, w, h);
-            p.drawRect(l, t, w, h);
-        } else {
-            int margin = 9;
-            p.drawRect(r.adjusted(margin, margin, -margin, -margin));
-        }
+        Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", r, QColor(0xcc, 0xcc, 0xcc), 14);
     }
 
     {
         QRect r = closeBtnRect();
         if (m_hoveredControl == 2) {
             p.fillRect(r, QColor(0xe8, 0x11, 0x23));
-            p.setPen(Qt::white);
+            Codicon::draw(p, "chrome-close", r, Qt::white, 14);
         } else {
-            p.setPen(QColor(0xcc, 0xcc, 0xcc));
+            Codicon::draw(p, "chrome-close", r, QColor(0xcc, 0xcc, 0xcc), 14);
         }
-        int m = 10;
-        p.drawLine(r.left() + m, r.top() + m, r.right() - m, r.bottom() - m);
-        p.drawLine(r.left() + m, r.bottom() - m, r.right() - m, r.top() + m);
     }
 }
 

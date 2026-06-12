@@ -4,6 +4,7 @@ project(AIMaterialLibrary LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Sql Concurrent Test)

@@ -20,14 +20,14 @@ SearchBar::SearchBar(QWidget *parent)
     inputPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
     m_searchInput->setPalette(inputPal);
     QFont inputFont;
-    inputFont.setPixelSize(12);
+    inputFont.setPixelSize(14);
 
     // Search icon
-    QPixmap searchPx(20, 20);
+    QPixmap searchPx(22, 22);
     searchPx.fill(Qt::transparent);
     {
         QPainter sp(&searchPx);
-        Codicon::draw(sp, "search", QRect(0, 0, 20, 20), QColor(0x96, 0x96, 0x96), 14);
+        Codicon::draw(sp, "search", QRect(0, 0, 22, 22), QColor(0x96, 0x96, 0x96), 16);
     }
     m_searchInput->addAction(QIcon(searchPx), QLineEdit::LeadingPosition);
     m_searchInput->setFont(inputFont);
@@ -40,7 +40,7 @@ SearchBar::SearchBar(QWidget *parent)
     m_sourceCombo->addItem("Midjourney", "midjourney");
     m_sourceCombo->addItem("DALL-E", "dalle");
     QFont comboFont;
-    comboFont.setPixelSize(12);
+    comboFont.setPixelSize(14);
     m_sourceCombo->setFont(comboFont);
     QPalette comboPal;
     comboPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
@@ -69,20 +69,23 @@ SearchBar::SearchBar(QWidget *parent)
     sizeLabel->setFont(inputFont);
     layout->addWidget(sizeLabel);
 
-    m_sizeSmallBtn = new QPushButton(QString::fromUtf8("\xe2\x96\xad"));
+    m_sizeSmallBtn = new QPushButton();
     m_sizeSmallBtn->setCheckable(true);
     m_sizeSmallBtn->setToolTip(QString::fromUtf8("\xe5\xb0\x8f\xe7\xbc\xa9\xe7\x95\xa5\xe5\x9b\xbe (100px)"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "zoom-in", QRect(0, 0, 16, 16), QColor(0xcc, 0xcc, 0xcc), 14); m_sizeSmallBtn->setIcon(QIcon(px)); m_sizeSmallBtn->setIconSize(QSize(16, 16)); }
     layout->addWidget(m_sizeSmallBtn);
 
-    m_sizeMediumBtn = new QPushButton(QString::fromUtf8("\xe2\x96\xa3"));
+    m_sizeMediumBtn = new QPushButton();
     m_sizeMediumBtn->setCheckable(true);
     m_sizeMediumBtn->setChecked(true);
     m_sizeMediumBtn->setToolTip(QString::fromUtf8("\xe4\xb8\xad\xe7\xbc\xa9\xe7\x95\xa5\xe5\x9b\xbe (180px)"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "screen-normal", QRect(0, 0, 16, 16), QColor(0xcc, 0xcc, 0xcc), 14); m_sizeMediumBtn->setIcon(QIcon(px)); m_sizeMediumBtn->setIconSize(QSize(16, 16)); }
     layout->addWidget(m_sizeMediumBtn);
 
-    m_sizeLargeBtn = new QPushButton(QString::fromUtf8("\xe2\x96\xa0"));
+    m_sizeLargeBtn = new QPushButton();
     m_sizeLargeBtn->setCheckable(true);
     m_sizeLargeBtn->setToolTip(QString::fromUtf8("\xe5\xa4\xa7\xe7\xbc\xa9\xe7\x95\xa5\xe5\x9b\xbe (280px)"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "screen-full", QRect(0, 0, 16, 16), QColor(0xcc, 0xcc, 0xcc), 14); m_sizeLargeBtn->setIcon(QIcon(px)); m_sizeLargeBtn->setIconSize(QSize(16, 16)); }
     layout->addWidget(m_sizeLargeBtn);
 
     auto sizeGroup = new QButtonGroup(this);
@@ -95,8 +98,9 @@ SearchBar::SearchBar(QWidget *parent)
         if (id >= 0 && id < 3) emit thumbnailSizeChanged(sizes[id]);
     });
 
-    m_favButton = new QPushButton(QString::fromUtf8("\xe2\x98\x86 \xe6\x94\xb6\xe8\x97\x8f"));
+    m_favButton = new QPushButton(QString::fromUtf8(" \xe6\x94\xb6\xe8\x97\x8f"));
     m_favButton->setCheckable(true);
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "star-empty", QRect(0, 0, 16, 16), QColor(0xcc, 0xcc, 0xcc), 14); m_favButton->setIcon(QIcon(px)); m_favButton->setIconSize(QSize(16, 16)); }
     layout->addWidget(m_favButton);
 
     QPalette bgPal;
@@ -111,9 +115,8 @@ SearchBar::SearchBar(QWidget *parent)
             this, [this](int) { if (m_ready) emit filterChanged(); });
     connect(m_favButton, &QPushButton::toggled, this, [this](bool checked) {
         m_onlyFavorites = checked;
-        m_favButton->setText(checked
-            ? QString::fromUtf8("\xe2\x98\x85 \xe6\x94\xb6\xe8\x97\x8f")
-            : QString::fromUtf8("\xe2\x98\x86 \xe6\x94\xb6\xe8\x97\x8f"));
+        QPixmap px(16, 16); px.fill(Qt::transparent); { QPainter sp(&px); Codicon::draw(sp, checked ? "star" : "star-empty", QRect(0, 0, 16, 16), QColor(0xcc, 0xcc, 0xcc), 14); }
+        m_favButton->setIcon(QIcon(px)); m_favButton->setIconSize(QSize(16, 16));
         if (m_ready) emit filterChanged();
     });
 

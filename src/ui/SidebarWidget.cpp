@@ -51,12 +51,12 @@ void SidebarWidget::updateLayout()
 void SidebarWidget::drawFolderIcon(QPainter &p, const QRect &r, bool hovered, bool active) const
 {
     QColor fc = active ? QColor(0xcc, 0xcc, 0xcc) : (hovered ? QColor(0xc0, 0xa0, 0x60) : QColor(0x96, 0x96, 0x96));
-    Codicon::draw(p, "folder", QRect(r.x() + 4, r.y(), 20, r.height()), fc, 14);
+    Codicon::draw(p, "folder", QRect(r.x() + 4, r.y(), 20, r.height()), fc, 16);
 }
 
 void SidebarWidget::drawTagDot(QPainter &p, const QPoint &center, const QColor &color) const
 {
-    Codicon::draw(p, "tag", QRect(center.x() - 7, center.y() - 7, 14, 14), color, 12);
+    Codicon::draw(p, "tag", QRect(center.x() - 8, center.y() - 8, 16, 16), color, 14);
 }
 
 void SidebarWidget::paintEvent(QPaintEvent *)
@@ -73,9 +73,9 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         p.setPen(QColor(0x96, 0x96, 0x96));
         QFont sf = p.font();
         sf.setBold(false);
-        sf.setPixelSize(12);
+        sf.setPixelSize(14);
         p.setFont(sf);
-        QString folderHeader = QString(m_foldersExpanded ? QChar(0x25BC) : QChar(0x25B6))
+        QString folderHeader = Codicon::icon(m_foldersExpanded ? "chevron-down" : "chevron-right")
                              + "  " + QStringLiteral("文件夹");
         p.drawText(sectionRect.adjusted(12, 0, 0, 0), Qt::AlignVCenter, folderHeader);
 
@@ -99,7 +99,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         if (m_foldersExpanded) {
             QFont f = p.font();
             f.setBold(false);
-            f.setPixelSize(12);
+            f.setPixelSize(14);
             p.setFont(f);
             for (int i = 0; i < m_folders.size(); i++) {
                 QRect itemRect(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
@@ -130,9 +130,9 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     p.setPen(QColor(0x96, 0x96, 0x96));
     QFont sf2 = p.font();
     sf2.setBold(false);
-    sf2.setPixelSize(12);
+    sf2.setPixelSize(14);
     p.setFont(sf2);
-    QString tagHeader = QString(m_tagsExpanded ? QChar(0x25BC) : QChar(0x25B6))
+    QString tagHeader = Codicon::icon(m_tagsExpanded ? "chevron-down" : "chevron-right")
                       + "  " + QStringLiteral("标签");
     p.drawText(tagSectionRect.adjusted(12, 0, 0, 0), Qt::AlignVCenter, tagHeader);
 
@@ -143,7 +143,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     if (m_tagsExpanded) {
         QFont f2 = p.font();
         f2.setBold(false);
-        f2.setPixelSize(12);
+        f2.setPixelSize(14);
         p.setFont(f2);
         for (int i = 0; i < m_tags.size(); i++) {
             QRect itemRect(0, tagY + kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);

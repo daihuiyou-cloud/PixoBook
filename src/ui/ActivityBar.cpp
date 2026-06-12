@@ -60,7 +60,7 @@ void ActivityBar::paintEvent(QPaintEvent *)
             p.fillRect(r.adjusted(3, 0, 0, 0), bg);
 
         QColor iconColor = active ? QColor(0xff, 0xff, 0xff) : QColor(0x96, 0x96, 0x96);
-        Codicon::draw(p, m_icons[i].iconName, r.adjusted(4, 4, -4, -4), iconColor, 20);
+        Codicon::draw(p, m_icons[i].iconName, r.adjusted(4, 4, -4, -4), iconColor, 24);
     }
 }
 

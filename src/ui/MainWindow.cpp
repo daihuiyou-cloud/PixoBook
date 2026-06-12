@@ -197,7 +197,7 @@ void MainWindow::setupStatusBar()
     m_statusMsg = new QLabel(QStringLiteral("\u5c31\u7eea"));
     m_statusMsg->setPalette(sbPal);
     QFont sf;
-    sf.setPixelSize(12);
+    sf.setPixelSize(14);
     m_statusMsg->setFont(sf);
     statusBar()->addWidget(m_statusMsg, 1);
 
@@ -590,8 +590,8 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, long *r
 
     if (msg->message == WM_GETMINMAXINFO) {
         MINMAXINFO *mmi = reinterpret_cast<MINMAXINFO *>(msg->lParam);
-        mmi->ptMinTrackSize.x = 800;
-        mmi->ptMinTrackSize.y = 600;
+        mmi->ptMinTrackSize.x = 1000;
+        mmi->ptMinTrackSize.y = 700;
         *result = 0;
         return true;
     }

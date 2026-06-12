@@ -9,7 +9,7 @@
 
 class Codicon {
 public:
-    static QFont font(int pixelSize = 16) {
+    static QFont font(int pixelSize = 22) {
         QFont f("codicon");
         f.setPixelSize(pixelSize);
         return f;
@@ -53,6 +53,15 @@ public:
             { "symbol-field", QString(QChar(0xeb5f)) },
             { "symbol-misc",  QString(QChar(0xeb63)) },
             { "ellipsis",     QString(QChar(0xea7c)) },
+            { "eye",          QString(QChar(0xea70)) },
+            { "question",     QString(QChar(0xeb32)) },
+            { "chrome-close", QString(QChar(0xeab8)) },
+            { "chrome-maximize", QString(QChar(0xeab9)) },
+            { "chrome-minimize", QString(QChar(0xeaba)) },
+            { "chrome-restore", QString(QChar(0xeabb)) },
+            { "zoom-in",      QString(QChar(0xeb81)) },
+            { "screen-full",  QString(QChar(0xeb4c)) },
+            { "star-empty",   QString(QChar(0xea6a)) },
             { "arrow-left",   QString(QChar(0xea9b)) },
             { "arrow-right",  QString(QChar(0xea9c)) },
             { "arrow-up",     QString(QChar(0xeaa1)) },

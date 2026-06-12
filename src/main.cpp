@@ -6,6 +6,9 @@
 
 int main(int argc, char *argv[])
 {
+#if defined(Q_OS_WIN)
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
     QApplication app(argc, argv);
     app.setApplicationName("AI素材库");
     app.setApplicationVersion("1.0.0");
@@ -17,7 +20,7 @@ int main(int argc, char *argv[])
 
     MainWindow window;
     window.setWindowTitle("AI素材库");
-    window.resize(1280, 800);
+    window.resize(1600, 1000);
     window.show();
 
     return app.exec();

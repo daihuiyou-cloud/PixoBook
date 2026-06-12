@@ -53,6 +53,7 @@ private:
 
     struct MenuDef {
         QString text;
+        QString iconName;
     };
     QVector<MenuDef> m_menus;
     static constexpr int kHeight = 32;

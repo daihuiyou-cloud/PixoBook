@@ -14,6 +14,8 @@
 #include <QFontMetrics>
 #include <QAction>
 #include <QFileInfo>
+#include <QToolTip>
+#include <QHelpEvent>
 #include "ui/Codicon.h"
 
 GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
@@ -476,4 +478,26 @@ void GalleryWidget::dropEvent(QDropEvent *event)
         emit filesDropped(paths);
         event->acceptProposedAction();
     }
+}
+
+bool GalleryWidget::event(QEvent *event)
+{
+    if (event->type() == QEvent::ToolTip) {
+        auto *he = static_cast<QHelpEvent *>(event);
+        int idx = indexAt(he->pos());
+        if (idx >= 0 && idx < m_assets.size()) {
+            const Asset &a = m_assets[idx];
+            QString tip = QString("%1\n%2 x %3  |  %4 KB")
+                              .arg(a.fileName)
+                              .arg(a.width).arg(a.height)
+                              .arg(a.fileSize / 1024);
+            if (!a.format.isEmpty())
+                tip += QString("  |  %1").arg(a.format.toUpper());
+            QToolTip::showText(he->globalPos(), tip, this);
+        } else {
+            QToolTip::hideText();
+        }
+        return true;
+    }
+    return QWidget::event(event);
 }

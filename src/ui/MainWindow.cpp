@@ -336,14 +336,20 @@ void MainWindow::setupConnections()
     });
 
     // Search bar
-    connect(m_searchBar, &SearchBar::searchRequested, this, [this]() { loadAssets(); });
+    connect(m_searchBar, &SearchBar::searchRequested, this, [this]() {
+        // Clear tab override when user manually searches
+        m_tabBar->setCurrentIndex(0);
+        loadAssets();
+    });
     connect(m_searchBar, &SearchBar::filterChanged, this, [this]() { loadAssets(); });
     connect(m_searchBar, &SearchBar::thumbnailSizeChanged, m_gallery, &GalleryWidget::setThumbnailSize);
 
     // Tab bar
-    connect(m_tabBar, &TabBar::currentChanged, this, [this](int index) {
-        Q_UNUSED(index)
+    connect(m_tabBar, &TabBar::currentChanged, this, [this](int) {
         loadAssets();
+    });
+    connect(m_tabBar, &TabBar::addTabRequested, this, [this]() {
+        onImportFolder();
     });
 
     // Detail panel
@@ -387,28 +393,39 @@ void MainWindow::setupConnections()
     // Activity bar
     connect(m_activityBar, &ActivityBar::activitySelected, this, [this](ActivityBar::Activity act) {
         m_sidebar->setVisible(true);
+
+        // Block signals to avoid cascading refreshes
+        m_tabBar->blockSignals(true);
+        m_searchBar->blockSignals(true);
+
         switch (act) {
         case ActivityBar::Gallery:
             m_sidebar->setActiveFolder(QString());
             m_activeTagId = -1;
+            m_tabBar->setCurrentIndex(0);
             m_searchBar->clearFavFilter();
-            loadAssets();
             break;
         case ActivityBar::Favorites:
             m_sidebar->setActiveFolder(QString());
             m_activeTagId = -1;
+            m_tabBar->setCurrentIndex(1);
             m_searchBar->setFavFilter(true);
-            loadAssets();
             break;
         case ActivityBar::Tags:
             m_sidebar->setActiveTag(-1);
             m_activeTagId = -1;
-            loadAssets();
+            m_tabBar->setCurrentIndex(0);
             break;
         case ActivityBar::Settings:
+            m_tabBar->blockSignals(false);
+            m_searchBar->blockSignals(false);
             ToastNotification::show(this, QStringLiteral("设置功能即将推出"));
-            break;
+            return;
         }
+
+        m_tabBar->blockSignals(false);
+        m_searchBar->blockSignals(false);
+        loadAssets();
     });
 }
 
@@ -475,13 +492,24 @@ void MainWindow::loadAssets()
     QString keyword = m_searchBar->keyword();
     QString source = m_searchBar->sourceFilter();
     bool onlyFavs = m_searchBar->onlyFavorites();
+    QString sortField = m_searchBar->sortField();
+    bool sortAsc = m_searchBar->sortAscending();
+
+    // Apply tab-driven filters on top of search bar state
+    int tabIdx = m_tabBar->currentIndex();
+    if (tabIdx == 1) {
+        onlyFavs = true;
+    } else if (tabIdx == 2) {
+        sortField = QStringLiteral("created_at");
+        sortAsc = false;
+    }
 
     QVector<int> tagIds;
     if (m_activeTagId >= 0)
         tagIds.append(m_activeTagId);
 
     auto assets = m_library->loadAssets(keyword, source, tagIds, onlyFavs,
-                                        m_searchBar->sortField(), m_searchBar->sortAscending());
+                                        sortField, sortAsc);
     m_gallery->setAssets(assets);
     m_gallery->setSearchKeyword(keyword);
     m_sidebar->setTags(m_library->getAllTags());

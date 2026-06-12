@@ -4,6 +4,7 @@
 #include <QKeyEvent>
 #include <QToolTip>
 #include <QEvent>
+#include <QHelpEvent>
 #include "Codicon.h"
 #include "ColorConstants.h"
 
@@ -52,18 +53,15 @@ void ActivityBar::paintEvent(QPaintEvent *)
         bool active = (i == static_cast<int>(m_active));
         bool hovered = (i == m_hovered);
 
-        if (active) {
-            p.fillRect(r.left(), r.top(), 3, r.height(), Color::ACCENT);
-        }
+        if (active)
+            p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
+        else if (hovered)
+            p.fillRect(r.adjusted(4, 6, -4, -6), Color::BG_HOVER);
 
-        QColor bg = active ? Color::BG_DARK
-                  : hovered ? Color::BG_HOVER
-                  : Qt::transparent;
-        if (bg != Qt::transparent)
-            p.fillRect(r.adjusted(3, 0, 0, 0), bg);
-
-        QColor iconColor = active ? Color::TEXT_BRIGHT : Color::TEXT_SECONDARY;
-        Codicon::draw(p, m_icons[i].iconName, r.adjusted(4, 4, -4, -4), iconColor, 24);
+        QColor iconColor = active ? Color::TEXT_BRIGHT
+                         : hovered ? Color::TEXT_PRIMARY
+                         : Color::TEXT_SECONDARY;
+        Codicon::draw(p, m_icons[i].iconName, r.adjusted(4, 4, -4, -4), iconColor, 23);
     }
 }
 
@@ -74,7 +72,9 @@ void ActivityBar::mouseMoveEvent(QMouseEvent *event)
     if (oldHover != m_hovered) {
         update();
         if (m_hovered >= 0) {
-            QToolTip::showText(event->globalPos(), m_icons[m_hovered].tooltip, this);
+            QRect r = iconRect(m_hovered);
+            QToolTip::showText(mapToGlobal(QPoint(r.right() + 8, r.center().y())),
+                               m_icons[m_hovered].tooltip, this);
         } else {
             QToolTip::hideText();
         }

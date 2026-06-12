@@ -10,6 +10,7 @@
 #include <QStyleOptionProgressBar>
 #include <QProgressBar>
 #include <QApplication>
+#include <QPainterPath>
 
 CustomStyle::CustomStyle()
     : QProxyStyle("Fusion")
@@ -133,15 +134,17 @@ void CustomStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *op
         QRect r = option->rect;
         bool hovered = option->state & State_MouseOver;
         bool pressed = option->state & State_Sunken;
+        bool checked = option->state & State_On;
         Q_UNUSED(btnOpt);
 
         QColor bg;
-        if (pressed) bg = Color::BG_BUTTON_HOVER;
+        if (checked) bg = Color::BG_BUTTON_CHECKED;
+        else if (pressed) bg = Color::BG_BUTTON_HOVER;
         else if (hovered) bg = Color::BG_BUTTON_HOVER;
-        else bg = Color::BG_INPUT;
+        else bg = Color::BG_BUTTON;
 
         painter->setBrush(bg);
-        painter->setPen(QPen(Color::BORDER_INPUT, 1));
+        painter->setPen(QPen(checked ? Color::FOCUS_BORDER : Color::BORDER_SUBTLE, 1));
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
         return;
     }
@@ -165,25 +168,76 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         bool hovered = btnOpt->state & State_MouseOver;
         bool pressed = btnOpt->state & State_Sunken;
         bool checked = btnOpt->state & State_On;
+        bool enabled = btnOpt->state & State_Enabled;
+        bool hasFocus = btnOpt->state & State_HasFocus;
+        bool segmented = widget && widget->property("segmented").toBool();
+        bool toolbarButton = widget && widget->property("toolbarButton").toBool();
 
         QColor bg;
-        if (checked) bg = Color::HIGHLIGHT;
+        if (checked) bg = toolbarButton ? Color::BG_BUTTON_SUBTLE : Color::BG_BUTTON_CHECKED;
         else if (pressed) bg = Color::BG_BUTTON_HOVER;
         else if (hovered) bg = Color::BG_BUTTON_HOVER;
-        else bg = Color::BG_INPUT;
+        else bg = toolbarButton ? Color::BG_DARK : Color::BG_BUTTON;
 
-        QColor border = checked ? Color::ACCENT : Color::BORDER_INPUT;
+        QColor border = hasFocus ? Color::FOCUS_BORDER : (checked ? Color::ACCENT : Color::BORDER_SUBTLE);
 
         painter->setBrush(bg);
         painter->setPen(QPen(border, 1));
 
-        if (pressed)
-            painter->drawRoundedRect(r.adjusted(2, 2, -1, -1), 4, 4);
-        else
-            painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
+        QRect frame = pressed ? r.adjusted(2, 2, -1, -1) : r.adjusted(1, 1, -1, -1);
+        if (segmented) {
+            QString position = widget->property("segmentPosition").toString();
+            QPainterPath path;
+            const qreal radius = 4.0;
+            QRectF rf(frame);
+            if (position == "first") {
+                path.moveTo(rf.right(), rf.top());
+                path.lineTo(rf.right(), rf.bottom());
+                path.lineTo(rf.left() + radius, rf.bottom());
+                path.quadTo(rf.left(), rf.bottom(), rf.left(), rf.bottom() - radius);
+                path.lineTo(rf.left(), rf.top() + radius);
+                path.quadTo(rf.left(), rf.top(), rf.left() + radius, rf.top());
+                path.closeSubpath();
+            } else if (position == "last") {
+                path.moveTo(rf.left(), rf.top());
+                path.lineTo(rf.right() - radius, rf.top());
+                path.quadTo(rf.right(), rf.top(), rf.right(), rf.top() + radius);
+                path.lineTo(rf.right(), rf.bottom() - radius);
+                path.quadTo(rf.right(), rf.bottom(), rf.right() - radius, rf.bottom());
+                path.lineTo(rf.left(), rf.bottom());
+                path.closeSubpath();
+            } else {
+                path.addRect(rf);
+            }
+            painter->drawPath(path);
+        } else {
+            painter->drawRoundedRect(frame, 4, 4);
+        }
 
-        painter->setPen(checked ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
-        painter->drawText(r, Qt::AlignCenter, btnOpt->text);
+        QColor contentColor = !enabled ? Color::TEXT_DISABLED
+                            : (toolbarButton && checked) ? Color::FAVORITE_ON
+                            : checked ? Color::TEXT_BRIGHT
+                            : Color::TEXT_PRIMARY;
+        QSize iconSize = btnOpt->iconSize.isValid() ? btnOpt->iconSize : QSize(16, 16);
+        bool hasIcon = !btnOpt->icon.isNull();
+        bool hasText = !btnOpt->text.isEmpty();
+        int gap = hasIcon && hasText ? 6 : 0;
+        int iconW = hasIcon ? iconSize.width() : 0;
+        int textW = hasText ? btnOpt->fontMetrics.horizontalAdvance(btnOpt->text) : 0;
+        int totalW = iconW + gap + textW;
+        int x = r.center().x() - totalW / 2;
+
+        if (hasIcon) {
+            QRect iconRect(x, r.center().y() - iconSize.height() / 2, iconSize.width(), iconSize.height());
+            QIcon::Mode mode = enabled ? QIcon::Normal : QIcon::Disabled;
+            QIcon::State state = checked ? QIcon::On : QIcon::Off;
+            btnOpt->icon.paint(painter, iconRect, Qt::AlignCenter, mode, state);
+            x += iconSize.width() + gap;
+        }
+        if (hasText) {
+            painter->setPen(contentColor);
+            painter->drawText(QRect(x, r.top(), textW + 1, r.height()), Qt::AlignVCenter | Qt::AlignLeft, btnOpt->text);
+        }
         return;
     }
     case CE_MenuBarEmptyArea: {
@@ -311,7 +365,7 @@ void CustomStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
         bool pressed = cbOpt->state & State_Sunken;
         bool hasFocus = cbOpt->state & State_HasFocus;
 
-        QColor borderColor = hasFocus ? Color::ACCENT : Color::BORDER_INPUT;
+        QColor borderColor = hasFocus ? Color::FOCUS_BORDER : Color::BORDER_SUBTLE;
         QColor bgColor = pressed ? Color::BG_BUTTON_HOVER : (hovered ? Color::BG_BUTTON_HOVER : Color::BG_INPUT);
 
         painter->setBrush(bgColor);

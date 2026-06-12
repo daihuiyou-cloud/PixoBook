@@ -14,6 +14,9 @@ inline const QColor BG_SELECTED     = QColor(0x37, 0x37, 0x3d);
 inline const QColor BG_ACTIVITYBAR  = QColor(0x33, 0x33, 0x33);
 inline const QColor BG_INPUT        = QColor(0x3c, 0x3c, 0x3c);
 inline const QColor BG_BUTTON_HOVER = QColor(0x4a, 0x4a, 0x4a);
+inline const QColor BG_BUTTON       = QColor(0x2d, 0x2d, 0x30);
+inline const QColor BG_BUTTON_CHECKED = QColor(0x09, 0x47, 0x71);
+inline const QColor BG_BUTTON_SUBTLE = QColor(0x2a, 0x2a, 0x2d);
 inline const QColor BG_MENUBAR      = QColor(0x32, 0x32, 0x33);
 inline const QColor BG_LOADING      = QColor(0x3c, 0x3c, 0x3f);
 
@@ -26,11 +29,13 @@ inline const QColor TEXT_DISABLED   = QColor(0x50, 0x50, 0x50);
 // Accent
 inline const QColor ACCENT          = QColor(0x00, 0x7a, 0xcc);
 inline const QColor HIGHLIGHT       = QColor(0x09, 0x47, 0x71);
+inline const QColor FOCUS_BORDER    = QColor(0x00, 0x7a, 0xcc);
 
 // Borders
 inline const QColor BORDER          = QColor(0x3c, 0x3c, 0x3c);
 inline const QColor BORDER_INPUT    = QColor(0x5a, 0x5a, 0x5a);
 inline const QColor BORDER_CARD     = QColor(0x3c, 0x3c, 0x3c);
+inline const QColor BORDER_SUBTLE   = QColor(0x45, 0x45, 0x45);
 
 // Special
 inline const QColor FAVORITE_ON     = QColor(0xff, 0xcc, 0x00);

@@ -14,6 +14,7 @@ inline constexpr int RadiusMedium = 6;
 inline constexpr int RowHeight = 28;
 inline constexpr int SectionHeight = 30;
 inline constexpr int ToolbarHeight = 44;
+inline constexpr int ControlHeight = 30;
 
 inline constexpr int SpaceXs = 4;
 inline constexpr int SpaceSm = 8;

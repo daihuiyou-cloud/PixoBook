@@ -235,6 +235,13 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     m_tagRects.clear();
     m_addTagRect = {};
     int tagX = 16;
+    if (m_tags.isEmpty()) {
+        p.setPen(Color::TEXT_SECONDARY);
+        p.drawText(QRect(tagX, y - 2, width() - 32, 22),
+                   Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("暂无标签"));
+        y += 28;
+    }
+
     for (const auto &tag : m_tags) {
         int tw = p.fontMetrics().horizontalAdvance(tag.name) + 28;
         if (tagX + tw > width() - 16) { tagX = 16; y += 26; }
@@ -252,12 +259,17 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
         tagX += tw + 6;
     }
 
-    if (tagX + 28 > width() - 16) { tagX = 16; y += 26; }
-    m_addTagRect = QRect(tagX, y - 2, 28, 22);
-    p.setBrush(Color::BG_INPUT);
-    p.setPen(QPen(Color::TEXT_SECONDARY, 1));
+    QString addText = QStringLiteral("添加标签");
+    int addW = p.fontMetrics().horizontalAdvance(addText) + 34;
+    if (tagX + addW > width() - 16) { tagX = 16; y += 26; }
+    m_addTagRect = QRect(tagX, y - 2, addW, 22);
+    p.setBrush(m_addTagHovered ? Color::BG_BUTTON_HOVER : Color::BG_DARK);
+    p.setPen(QPen(m_addTagHovered ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
     p.drawRoundedRect(m_addTagRect, Visual::RadiusSmall, Visual::RadiusSmall);
-    Codicon::draw(p, "add", m_addTagRect, Color::TEXT_SECONDARY, 12);
+    QColor addColor = m_addTagHovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
+    Codicon::draw(p, "add", QRect(m_addTagRect.left() + 6, m_addTagRect.top(), 14, m_addTagRect.height()), addColor, 11);
+    p.setPen(addColor);
+    p.drawText(m_addTagRect.adjusted(24, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, addText);
     return y + 30;
 }
 
@@ -322,6 +334,11 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
 
 void DetailPanel::mouseMoveEvent(QMouseEvent *event)
 {
+    bool oldAddHover = m_addTagHovered;
+    m_addTagHovered = m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty();
+    if (oldAddHover != m_addTagHovered)
+        update();
+
     if (m_isPanning) {
         QPoint delta = event->pos() - m_lastPanPos;
         m_panOffset += delta;
@@ -350,3 +367,11 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
 }
 
 void DetailPanel::resizeEvent(QResizeEvent *) { update(); }
+
+void DetailPanel::leaveEvent(QEvent *)
+{
+    if (m_addTagHovered) {
+        m_addTagHovered = false;
+        update();
+    }
+}

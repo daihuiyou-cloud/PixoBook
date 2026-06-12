@@ -29,6 +29,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void leaveEvent(QEvent *event) override;
 
 private:
     Asset m_asset;
@@ -57,6 +58,7 @@ private:
     QRect m_metadataHeaderRect;
     QRect m_tagsHeaderRect;
     QVector<QPair<int, QRect>> m_tagRects;
+    bool m_addTagHovered = false;
 
     IImageCache *m_cache;
 

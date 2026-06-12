@@ -27,13 +27,13 @@ SearchBar::SearchBar(QWidget *parent)
 
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(12, 6, 12, 6);
-    layout->setSpacing(8);
+    layout->setSpacing(10);
 
     QFont controlFont = font();
     controlFont.setPixelSize(Visual::FontControl);
 
     m_searchInput = new QLineEdit();
-    m_searchInput->setMinimumHeight(30);
+    m_searchInput->setMinimumHeight(Visual::ControlHeight);
     m_searchInput->setFont(controlFont);
     m_searchInput->setPlaceholderText(QStringLiteral("搜索文件名、Prompt、模型..."));
     QPalette inputPal;
@@ -62,8 +62,15 @@ SearchBar::SearchBar(QWidget *parent)
     comboPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
     comboPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
 
+    auto *sourceLabel = new QLabel(QStringLiteral("来源"));
+    sourceLabel->setFont(controlFont);
+    QPalette labelPal;
+    labelPal.setColor(QPalette::WindowText, Color::TEXT_SECONDARY);
+    sourceLabel->setPalette(labelPal);
+    layout->addWidget(sourceLabel);
+
     m_sourceCombo = new QComboBox();
-    m_sourceCombo->setMinimumHeight(30);
+    m_sourceCombo->setMinimumHeight(Visual::ControlHeight);
     m_sourceCombo->setMinimumWidth(128);
     m_sourceCombo->setFont(controlFont);
     m_sourceCombo->setPalette(comboPal);
@@ -73,8 +80,13 @@ SearchBar::SearchBar(QWidget *parent)
     m_sourceCombo->addItem("DALL-E", "dalle");
     layout->addWidget(m_sourceCombo);
 
+    auto *sortLabel = new QLabel(QStringLiteral("排序"));
+    sortLabel->setFont(controlFont);
+    sortLabel->setPalette(labelPal);
+    layout->addWidget(sortLabel);
+
     m_sortCombo = new QComboBox();
-    m_sortCombo->setMinimumHeight(30);
+    m_sortCombo->setMinimumHeight(Visual::ControlHeight);
     m_sortCombo->setMinimumWidth(104);
     m_sortCombo->setFont(controlFont);
     m_sortCombo->setPalette(comboPal);
@@ -86,13 +98,15 @@ SearchBar::SearchBar(QWidget *parent)
     m_sortCombo->addItem(QStringLiteral("大小↓"), "file_size|DESC");
     layout->addWidget(m_sortCombo);
 
-    auto *sizeLabel = new QLabel(QStringLiteral("缩略图"));
+    auto *sizeLabel = new QLabel(QStringLiteral("视图"));
     sizeLabel->setFont(controlFont);
-    QPalette labelPal;
-    labelPal.setColor(QPalette::WindowText, Color::TEXT_SECONDARY);
     sizeLabel->setPalette(labelPal);
     layout->addWidget(sizeLabel);
 
+    auto *sizeSegment = new QWidget();
+    auto *sizeLayout = new QHBoxLayout(sizeSegment);
+    sizeLayout->setContentsMargins(0, 0, 0, 0);
+    sizeLayout->setSpacing(0);
     m_sizeSmallBtn = new QPushButton();
     m_sizeMediumBtn = new QPushButton();
     m_sizeLargeBtn = new QPushButton();
@@ -105,14 +119,25 @@ SearchBar::SearchBar(QWidget *parent)
     };
     for (int i = 0; i < sizeButtons.size(); i++) {
         auto *btn = sizeButtons[i];
-        btn->setFixedSize(30, 30);
+        btn->setFixedSize(32, Visual::ControlHeight);
         btn->setCheckable(true);
+        btn->setCursor(Qt::PointingHandCursor);
         btn->setToolTip(tips[i]);
         btn->setIcon(iconFor(iconNames[i], Color::TEXT_PRIMARY, 14));
-        btn->setIconSize(QSize(18, 18));
-        layout->addWidget(btn);
+        btn->setIconSize(QSize(16, 16));
+        btn->setProperty("segmented", true);
+        btn->setProperty("segmentPosition", i == 0 ? "first" : (i == sizeButtons.size() - 1 ? "last" : "middle"));
+        sizeLayout->addWidget(btn);
     }
+    layout->addWidget(sizeSegment);
     m_sizeMediumBtn->setChecked(true);
+    auto refreshSizeIcons = [sizeButtons, iconNames]() {
+        for (int i = 0; i < sizeButtons.size(); i++) {
+            const QColor iconColor = sizeButtons[i]->isChecked() ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
+            sizeButtons[i]->setIcon(iconFor(iconNames[i], iconColor, 14));
+        }
+    };
+    refreshSizeIcons();
 
     m_sizeGroup = new QButtonGroup(this);
     m_sizeGroup->setExclusive(true);
@@ -123,11 +148,17 @@ SearchBar::SearchBar(QWidget *parent)
         static const int sizes[] = {100, 180, 280};
         if (id >= 0 && id < 3) emit thumbnailSizeChanged(sizes[id]);
     });
+    for (auto *btn : sizeButtons) {
+        connect(btn, &QPushButton::toggled, this, refreshSizeIcons);
+    }
 
-    m_favButton = new QPushButton(iconFor("star-empty", Color::TEXT_PRIMARY, 14), QStringLiteral(" 收藏"));
+    m_favButton = new QPushButton(iconFor("star-empty", Color::TEXT_PRIMARY, 14), QStringLiteral("收藏"));
     m_favButton->setCheckable(true);
-    m_favButton->setMinimumHeight(30);
+    m_favButton->setMinimumHeight(Visual::ControlHeight);
+    m_favButton->setMinimumWidth(74);
     m_favButton->setFont(controlFont);
+    m_favButton->setCursor(Qt::PointingHandCursor);
+    m_favButton->setProperty("toolbarButton", true);
     m_favButton->setToolTip(QStringLiteral("仅显示收藏素材"));
     layout->addWidget(m_favButton);
 

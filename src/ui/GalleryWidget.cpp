@@ -17,6 +17,7 @@
 #include <QToolTip>
 #include <QHelpEvent>
 #include "ui/Codicon.h"
+#include "ui/ColorConstants.h"
 
 GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
@@ -148,10 +149,10 @@ void GalleryWidget::paintEvent(QPaintEvent *)
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    p.fillRect(rect(), QColor(0x1e, 0x1e, 0x1e));
+    p.fillRect(rect(), Color::BG_DARKEST);
 
     if (m_assets.isEmpty() || m_columns == 0) {
-        p.setPen(QColor(0x96, 0x96, 0x96));
+        p.setPen(Color::TEXT_SECONDARY);
         QFont emptyFont = p.font();
         emptyFont.setPointSize(14);
         p.setFont(emptyFont);
@@ -182,16 +183,16 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         cardPath.addRoundedRect(QRectF(r), 6, 6);
 
         if (isSelected) {
-            p.fillPath(cardPath, QColor(0x37, 0x37, 0x3d));
+            p.fillPath(cardPath, Color::BG_SELECTED);
             QRectF leftBorder(r.x() + 1, r.y() + 4, 3, r.height() - 8);
-            p.fillRect(leftBorder, QColor(0x00, 0x7a, 0xcc));
+            p.fillRect(leftBorder, Color::ACCENT);
         } else if (isHovered) {
-            p.fillPath(cardPath, QColor(0x2a, 0x2d, 0x2e));
+            p.fillPath(cardPath, Color::BG_HOVER);
         } else {
-            p.fillPath(cardPath, QColor(0x2d, 0x2d, 0x30));
+            p.fillPath(cardPath, Color::BG_MEDIUM);
         }
 
-        p.setPen(QPen(isSelected ? QColor(0x00, 0x7a, 0xcc) : QColor(0x3c, 0x3c, 0x3c), 1));
+        p.setPen(QPen(isSelected ? Color::ACCENT : Color::BORDER, 1));
         p.drawPath(cardPath);
 
         // Thumbnail area
@@ -200,19 +201,19 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
         bool fileExists = QFileInfo::exists(m_assets[i].filePath);
         if (!fileExists) {
-            p.fillRect(thumbArea, QColor(0x3c, 0x20, 0x20));
-            p.setPen(QColor(0xc0, 0x60, 0x60));
+            p.fillRect(thumbArea, Color::ERROR_BG);
+            p.setPen(Color::ERROR_TEXT);
             p.drawText(thumbArea, Qt::AlignCenter,
                        QString::fromUtf8("\xe6\x96\x87\xe4\xbb\xb6\xe4\xb8\x8d\xe5\xad\x98\xe5\x9c\xa8"));
         } else {
             QPixmap thumb = m_cache->get(m_assets[i].filePath, thumbSize);
             if (thumb.isNull()) {
                 m_cache->requestThumbnail(m_assets[i].filePath, thumbSize);
-                p.fillRect(thumbArea, QColor(0x3c, 0x3c, 0x3f));
-                p.setPen(QColor(0x96, 0x96, 0x96));
+                p.fillRect(thumbArea, Color::BG_LOADING);
+                p.setPen(Color::TEXT_SECONDARY);
                 p.drawText(thumbArea, Qt::AlignCenter, m_assets[i].format.toUpper());
             } else {
-                p.setPen(QPen(QColor(0x3c, 0x3c, 0x3c), 1));
+                p.setPen(QPen(Color::BORDER, 1));
                 p.setBrush(Qt::NoBrush);
                 p.drawRoundedRect(thumbArea, 4, 4);
 
@@ -233,16 +234,16 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive)) {
             QRect bgRect = labelRect;
             bgRect.setHeight(p.fontMetrics().height());
-            p.fillRect(bgRect, QColor(0x09, 0x47, 0x71, 40));
-            p.setPen(QColor(0xcc, 0xcc, 0xcc));
+            p.fillRect(bgRect, Color::SEARCH_HIGHLIGHT);
+            p.setPen(Color::TEXT_PRIMARY);
         } else {
-            p.setPen(QColor(0xcc, 0xcc, 0xcc));
+            p.setPen(Color::TEXT_PRIMARY);
         }
         p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
         // Favorite star (aligned with label text vertically)
         QRect starRect(r.right() - 26, r.bottom() - 26, 22, 22);
-        QColor starColor = m_assets[i].isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x60, 0x60, 0x60);
+        QColor starColor = m_assets[i].isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
         Codicon::draw(p, "star", starRect, starColor, 14);
     }
 }
@@ -420,17 +421,22 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
 
     QMenu menu(this);
     QPalette mPal;
-    mPal.setColor(QPalette::Window, QColor(0x25, 0x25, 0x26));
-    mPal.setColor(QPalette::WindowText, QColor(0xcc, 0xcc, 0xcc));
-    mPal.setColor(QPalette::Highlight, QColor(0x09, 0x47, 0x71));
-    mPal.setColor(QPalette::HighlightedText, QColor(0xcc, 0xcc, 0xcc));
+    mPal.setColor(QPalette::Window, Color::BG_DARK);
+    mPal.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
+    mPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
+    mPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
     menu.setPalette(mPal);
 
     auto sel = selectedAssets();
     if (sel.size() == 1) {
-        QAction *favAction = menu.addAction(sel[0].isFavorite
-            ? QString::fromUtf8("\xe5\x8f\x96\xe6\xb6\x88\xe6\x94\xb6\xe8\x97\x8f")
-            : QString::fromUtf8("\xe6\x94\xb6\xe8\x97\x8f"));
+        bool isFav = sel[0].isFavorite;
+        QAction *favAction = menu.addAction(
+            isFav
+                ? QString::fromUtf8("\xe5\x8f\x96\xe6\xb6\x88\xe6\x94\xb6\xe8\x97\x8f")
+                : QString::fromUtf8("\xe6\x94\xb6\xe8\x97\x8f"));
+        QPixmap favPx(16, 16); favPx.fill(Qt::transparent);
+        { QPainter sp(&favPx); Codicon::draw(sp, "star", QRect(0, 0, 16, 16), isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON, 14); }
+        favAction->setIcon(QIcon(favPx));
         connect(favAction, &QAction::triggered, this, [this, sel]() {
             emit favoriteToggled(sel[0].id, !sel[0].isFavorite);
         });
@@ -438,6 +444,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
     if (!sel.isEmpty()) {
         menu.addSeparator();
         QAction *tagAction = menu.addAction(QString::fromUtf8("\xe6\xb7\xbb\xe5\x8a\xa0\xe6\xa0\x87\xe7\xad\xbe..."));
+        { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "tag", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); tagAction->setIcon(QIcon(px)); }
         connect(tagAction, &QAction::triggered, this, [this, sel]() {
             QVector<QString> ids;
             for (const auto &a : sel) ids.append(a.id);
@@ -445,6 +452,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
         });
         menu.addSeparator();
         QAction *delAction = menu.addAction(QString::fromUtf8("\xe5\x88\xa0\xe9\x99\xa4"));
+        { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "trash", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); delAction->setIcon(QIcon(px)); }
         delAction->setShortcut(QKeySequence::Delete);
         connect(delAction, &QAction::triggered, this, [this, sel]() {
             emit deleteRequested(sel);

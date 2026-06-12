@@ -1,4 +1,5 @@
 #include "CommandPalette.h"
+#include "ColorConstants.h"
 #include <QPainter>
 #include <QKeyEvent>
 #include <QVBoxLayout>
@@ -19,8 +20,8 @@ CommandPalette::CommandPalette(QWidget *parent)
     m_input->setPlaceholderText(QString::fromUtf8("\xe8\xbe\x93\xe5\x85\xa5\xe5\x91\xbd\xe4\xbb\xa4\xe5\x90\x8d..."));
     m_input->setFixedHeight(36);
     QPalette inputPal;
-    inputPal.setColor(QPalette::Base, QColor(0x3c, 0x3c, 0x3c));
-    inputPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
+    inputPal.setColor(QPalette::Base, Color::BG_INPUT);
+    inputPal.setColor(QPalette::Text, Color::TEXT_PRIMARY);
     m_input->setPalette(inputPal);
     m_input->setTextMargins(12, 0, 12, 0);
     layout->addWidget(m_input);
@@ -78,12 +79,12 @@ void CommandPalette::paintEvent(QPaintEvent *)
     p.setRenderHint(QPainter::Antialiasing);
 
     // Background
-    p.setBrush(QColor(0x25, 0x25, 0x26));
-    p.setPen(QPen(QColor(0x3c, 0x3c, 0x3c), 1));
+    p.setBrush(Color::BG_DARK);
+    p.setPen(QPen(Color::BORDER, 1));
     p.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 8, 8);
 
     // Input area separator
-    p.setPen(QColor(0x3c, 0x3c, 0x3c));
+    p.setPen(Color::BORDER);
     p.drawLine(0, 36, width(), 36);
 
     // Filtered commands
@@ -92,7 +93,7 @@ void CommandPalette::paintEvent(QPaintEvent *)
     int totalFiltered = m_filtered.size();
 
     if (totalFiltered == 0) {
-        p.setPen(QColor(0x96, 0x96, 0x96));
+            p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect().adjusted(0, 36, 0, 0), Qt::AlignCenter,
                    QStringLiteral("无匹配命令"));
         return;
@@ -106,13 +107,13 @@ void CommandPalette::paintEvent(QPaintEvent *)
         bool selected = (listIdx == m_selectedIdx);
 
         if (selected)
-            p.fillRect(itemRect, QColor(0x09, 0x47, 0x71));
+            p.fillRect(itemRect, Color::HIGHLIGHT);
 
-        p.setPen(QColor(0xcc, 0xcc, 0xcc));
+        p.setPen(Color::TEXT_PRIMARY);
         p.drawText(itemRect.adjusted(14, 0, 0, 0), Qt::AlignVCenter, m_commands[idx].label);
 
         if (!m_commands[idx].shortcut.isEmpty()) {
-            p.setPen(QColor(0x96, 0x96, 0x96));
+        p.setPen(Color::TEXT_SECONDARY);
             p.drawText(itemRect.adjusted(0, 0, -14, 0), Qt::AlignVCenter | Qt::AlignRight,
                        m_commands[idx].shortcut);
         }

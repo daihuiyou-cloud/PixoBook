@@ -9,6 +9,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include "ui/Codicon.h"
+#include "ui/ColorConstants.h"
 
 SidebarWidget::SidebarWidget(QWidget *parent)
     : QWidget(parent)
@@ -54,7 +55,7 @@ void SidebarWidget::updateLayout()
 
 void SidebarWidget::drawFolderIcon(QPainter &p, const QRect &r, bool hovered, bool active) const
 {
-    QColor fc = active ? QColor(0xcc, 0xcc, 0xcc) : (hovered ? QColor(0xc0, 0xa0, 0x60) : QColor(0x96, 0x96, 0x96));
+    QColor fc = active ? Color::TEXT_PRIMARY : (hovered ? QColor(0xc0, 0xa0, 0x60) : Color::TEXT_SECONDARY);
     Codicon::draw(p, "folder", QRect(r.x() + 4, r.y(), 20, r.height()), fc, 16);
 }
 
@@ -68,13 +69,13 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    p.fillRect(rect(), QColor(0x25, 0x25, 0x26));
+    p.fillRect(rect(), Color::BG_DARK);
 
     // -- Folders section --
     if (!m_folders.isEmpty()) {
         int sectionY = 0;
         QRect sectionRect(0, sectionY, width(), kSectionHeight);
-        p.setPen(QColor(0x96, 0x96, 0x96));
+        p.setPen(Color::TEXT_SECONDARY);
         QFont sf = p.font();
         sf.setBold(false);
         p.setFont(sf);
@@ -88,12 +89,12 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             bool isAddHovered = m_hoveredAddButton;
             if (isAddHovered)
                 p.fillRect(addRect, QColor(0xff, 0xff, 0xff, 15));
-            p.setPen(QColor(0x96, 0x96, 0x96));
+            p.setPen(Color::TEXT_SECONDARY);
             p.drawText(addRect, Qt::AlignCenter, "+");
         }
 
         // Bottom separator
-        p.setPen(QColor(0x3c, 0x3c, 0x3c));
+        p.setPen(Color::BORDER);
         p.drawLine(12, sectionRect.bottom(), width() - 12, sectionRect.bottom());
 
         if (m_foldersExpanded) {
@@ -107,12 +108,12 @@ void SidebarWidget::paintEvent(QPaintEvent *)
                 bool isFocused = (m_focusSection == FocusFolders && m_focusIndex == i);
 
                 if (isActive) {
-                    p.fillRect(itemRect, QColor(0x37, 0x37, 0x3d));
-                    p.fillRect(itemRect.left(), itemRect.top(), 2, itemRect.height(), QColor(0x00, 0x7a, 0xcc));
+                    p.fillRect(itemRect, Color::BG_SELECTED);
+                    p.fillRect(itemRect.left(), itemRect.top(), 2, itemRect.height(), Color::ACCENT);
                 } else if (isFocused) {
-                    p.fillRect(itemRect, QColor(0x2d, 0x2d, 0x30));
+                    p.fillRect(itemRect, Color::BG_MEDIUM);
                 } else if (isHovered) {
-                    p.fillRect(itemRect, QColor(0x2a, 0x2d, 0x2e));
+                    p.fillRect(itemRect, Color::BG_HOVER);
                 }
                 if (isFocused)
                     drawFocusRect(p, itemRect);
@@ -121,7 +122,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
                 bool folderHover = (i == m_hoveredFolder);
                 drawFolderIcon(p, itemRect, folderHover, folderActive);
 
-                p.setPen(QColor(0xcc, 0xcc, 0xcc));
+                p.setPen(Color::TEXT_PRIMARY);
                 p.drawText(itemRect.adjusted(22, 0, 0, 0), Qt::AlignVCenter,
                            p.fontMetrics().elidedText(m_folders[i], Qt::ElideLeft, width() - 30));
             }
@@ -140,7 +141,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     p.drawText(tagSectionRect.adjusted(12, 0, 0, 0), Qt::AlignVCenter, tagHeader);
 
     // Bottom separator
-    p.setPen(QColor(0x3c, 0x3c, 0x3c));
+        p.setPen(Color::BORDER);
     p.drawLine(12, tagSectionRect.bottom(), width() - 12, tagSectionRect.bottom());
 
     if (m_tagsExpanded) {
@@ -154,12 +155,12 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             bool isFocused = (m_focusSection == FocusTags && m_focusIndex == i);
 
             if (isActive) {
-                p.fillRect(itemRect, QColor(0x37, 0x37, 0x3d));
-                p.fillRect(itemRect.left(), itemRect.top(), 2, itemRect.height(), QColor(0x00, 0x7a, 0xcc));
+                p.fillRect(itemRect, Color::BG_SELECTED);
+                p.fillRect(itemRect.left(), itemRect.top(), 2, itemRect.height(), Color::ACCENT);
             } else if (isFocused) {
-                p.fillRect(itemRect, QColor(0x2d, 0x2d, 0x30));
+                p.fillRect(itemRect, Color::BG_MEDIUM);
             } else if (isHovered) {
-                p.fillRect(itemRect, QColor(0x2a, 0x2d, 0x2e));
+                p.fillRect(itemRect, Color::BG_HOVER);
             }
             if (isFocused)
                 drawFocusRect(p, itemRect);
@@ -350,7 +351,7 @@ void SidebarWidget::keyPressEvent(QKeyEvent *event)
 
 void SidebarWidget::drawFocusRect(QPainter &p, const QRect &r) const
 {
-    p.setPen(QPen(QColor(0x00, 0x7a, 0xcc), 1, Qt::DotLine));
+    p.setPen(QPen(Color::ACCENT, 1, Qt::DotLine));
     p.setBrush(Qt::NoBrush);
     p.drawRect(r.adjusted(1, 1, -2, -1));
 }
@@ -366,43 +367,91 @@ void SidebarWidget::activateCurrentFocus()
     }
 }
 
-void SidebarWidget::showContextMenuForCurrentFocus()
+void SidebarWidget::showFolderContextMenu(int idx, const QPoint &pos)
 {
     QMenu menu(this);
     QPalette mPal;
-    mPal.setColor(QPalette::Window, QColor(0x25, 0x25, 0x26));
-    mPal.setColor(QPalette::WindowText, QColor(0xcc, 0xcc, 0xcc));
-    mPal.setColor(QPalette::Highlight, QColor(0x09, 0x47, 0x71));
-    mPal.setColor(QPalette::HighlightedText, QColor(0xcc, 0xcc, 0xcc));
+    mPal.setColor(QPalette::Window, Color::BG_DARK);
+    mPal.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
+    mPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
+    mPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
     menu.setPalette(mPal);
 
+    QAction *refreshAction = menu.addAction(QString::fromUtf8("\xe5\x88\xb7\xe6\x96\xb0"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "search", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); refreshAction->setIcon(QIcon(px)); }
+    connect(refreshAction, &QAction::triggered, this, [this, idx]() {
+        emit folderRefreshRequested(m_folders[idx]);
+    });
+
+    QAction *removeAction = menu.addAction(QString::fromUtf8("\xe4\xbb\x8e\xe5\xba\x93\xe4\xb8\xad\xe7\xa7\xbb\xe9\x99\xa4"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "trash", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); removeAction->setIcon(QIcon(px)); }
+    connect(removeAction, &QAction::triggered, this, [this, idx]() {
+        emit folderRemoveRequested(m_folders[idx]);
+    });
+
+    menu.addSeparator();
+
+    QAction *explorerAction = menu.addAction(QString::fromUtf8("\xe5\x9c\xa8\xe8\xb5\x84\xe6\xba\x90\xe7\xae\xa1\xe7\x90\x86\xe5\x99\xa8\xe4\xb8\xad\xe6\x89\x93\xe5\xbc\x80"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "folder", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); explorerAction->setIcon(QIcon(px)); }
+    connect(explorerAction, &QAction::triggered, this, [this, idx]() {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(m_folders[idx]));
+    });
+
+    menu.exec(pos);
+}
+
+void SidebarWidget::showTagContextMenu(int idx, const QPoint &pos)
+{
+    QMenu menu(this);
+    QPalette mPal;
+    mPal.setColor(QPalette::Window, Color::BG_DARK);
+    mPal.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
+    mPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
+    mPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
+    menu.setPalette(mPal);
+
+    QAction *editAction = menu.addAction(QString::fromUtf8("\xe7\xbc\x96\xe8\xbe\x91\xe6\xa0\x87\xe7\xad\xbe"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "edit", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); editAction->setIcon(QIcon(px)); }
+    connect(editAction, &QAction::triggered, this, [this, idx]() {
+        emit tagEditRequested(m_tags[idx].id);
+    });
+
+    QAction *delAction = menu.addAction(QString::fromUtf8("\xe5\x88\xa0\xe9\x99\xa4\xe6\xa0\x87\xe7\xad\xbe"));
+    { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "trash", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); delAction->setIcon(QIcon(px)); }
+    connect(delAction, &QAction::triggered, this, [this, idx]() {
+        emit tagDeleteRequested(m_tags[idx].id);
+    });
+
+    menu.exec(pos);
+}
+
+void SidebarWidget::showContextMenuForCurrentFocus()
+{
     if (m_focusSection == FocusFolders && m_focusIndex >= 0 && m_focusIndex < m_folders.size()) {
-        QAction *refreshAction = menu.addAction(QString::fromUtf8("\xe5\x88\xb7\xe6\x96\xb0"));
-        connect(refreshAction, &QAction::triggered, this, [this]() {
-            emit folderRefreshRequested(m_folders[m_focusIndex]);
-        });
-        QAction *removeAction = menu.addAction(QString::fromUtf8("\xe4\xbb\x8e\xe5\xba\x93\xe4\xb8\xad\xe7\xa7\xbb\xe9\x99\xa4"));
-        connect(removeAction, &QAction::triggered, this, [this]() {
-            emit folderRemoveRequested(m_folders[m_focusIndex]);
-        });
-        menu.addSeparator();
-        QAction *explorerAction = menu.addAction(QString::fromUtf8("\xe5\x9c\xa8\xe8\xb5\x84\xe6\xba\x90\xe7\xae\xa1\xe7\x90\x86\xe5\x99\xa8\xe4\xb8\xad\xe6\x89\x93\xe5\xbc\x80"));
-        connect(explorerAction, &QAction::triggered, this, [this]() {
-            QDesktopServices::openUrl(QUrl::fromLocalFile(m_folders[m_focusIndex]));
-        });
         QPoint pos = mapToGlobal(QPoint(width() / 2, kSectionHeight + 1 + m_focusIndex * kItemHeight));
-        menu.exec(pos);
+        showFolderContextMenu(m_focusIndex, pos);
     } else if (m_focusSection == FocusTags && m_focusIndex >= 0 && m_focusIndex < m_tags.size()) {
-        QAction *editAction = menu.addAction(QString::fromUtf8("\xe7\xbc\x96\xe8\xbe\x91\xe6\xa0\x87\xe7\xad\xbe"));
-        connect(editAction, &QAction::triggered, this, [this]() {
-            emit tagEditRequested(m_tags[m_focusIndex].id);
-        });
-        QAction *delAction = menu.addAction(QString::fromUtf8("\xe5\x88\xa0\xe9\x99\xa4\xe6\xa0\x87\xe7\xad\xbe"));
-        connect(delAction, &QAction::triggered, this, [this]() {
-            emit tagDeleteRequested(m_tags[m_focusIndex].id);
-        });
         QPoint pos = mapToGlobal(QPoint(width() / 2, m_sectionTagY + kSectionHeight + 1 + m_focusIndex * kItemHeight));
-        menu.exec(pos);
+        showTagContextMenu(m_focusIndex, pos);
+    }
+}
+
+void SidebarWidget::contextMenuEvent(QContextMenuEvent *event)
+{
+    for (int i = 0; i < m_folders.size(); i++) {
+        QRect r(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
+        if (r.contains(event->pos())) {
+            showFolderContextMenu(i, event->globalPos());
+            return;
+        }
+    }
+
+    for (int i = 0; i < m_tags.size(); i++) {
+        QRect r(0, m_sectionTagY + kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
+        if (r.contains(event->pos())) {
+            showTagContextMenu(i, event->globalPos());
+            return;
+        }
     }
 }
 
@@ -410,54 +459,4 @@ void SidebarWidget::resizeEvent(QResizeEvent *)
 {
     updateLayout();
     update();
-}
-
-void SidebarWidget::contextMenuEvent(QContextMenuEvent *event)
-{
-    QMenu menu(this);
-    QPalette mPal;
-    mPal.setColor(QPalette::Window, QColor(0x25, 0x25, 0x26));
-    mPal.setColor(QPalette::WindowText, QColor(0xcc, 0xcc, 0xcc));
-    mPal.setColor(QPalette::Highlight, QColor(0x09, 0x47, 0x71));
-    mPal.setColor(QPalette::HighlightedText, QColor(0xcc, 0xcc, 0xcc));
-    menu.setPalette(mPal);
-
-    // Check if clicking on a folder
-    for (int i = 0; i < m_folders.size(); i++) {
-        QRect r(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
-        if (r.contains(event->pos())) {
-            QAction *refreshAction = menu.addAction(QString::fromUtf8("\xe5\x88\xb7\xe6\x96\xb0"));
-            connect(refreshAction, &QAction::triggered, this, [this, i]() {
-                emit folderRefreshRequested(m_folders[i]);
-            });
-            QAction *removeAction = menu.addAction(QString::fromUtf8("\xe4\xbb\x8e\xe5\xba\x93\xe4\xb8\xad\xe7\xa7\xbb\xe9\x99\xa4"));
-            connect(removeAction, &QAction::triggered, this, [this, i]() {
-                emit folderRemoveRequested(m_folders[i]);
-            });
-            menu.addSeparator();
-            QAction *explorerAction = menu.addAction(QString::fromUtf8("\xe5\x9c\xa8\xe8\xb5\x84\xe6\xba\x90\xe7\xae\xa1\xe7\x90\x86\xe5\x99\xa8\xe4\xb8\xad\xe6\x89\x93\xe5\xbc\x80"));
-            connect(explorerAction, &QAction::triggered, this, [this, i]() {
-                QDesktopServices::openUrl(QUrl::fromLocalFile(m_folders[i]));
-            });
-            menu.exec(event->globalPos());
-            return;
-        }
-    }
-
-    // Check if clicking on a tag
-    for (int i = 0; i < m_tags.size(); i++) {
-        QRect r(0, m_sectionTagY + kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
-        if (r.contains(event->pos())) {
-            QAction *editAction = menu.addAction(QString::fromUtf8("\xe7\xbc\x96\xe8\xbe\x91\xe6\xa0\x87\xe7\xad\xbe"));
-            connect(editAction, &QAction::triggered, this, [this, i]() {
-                emit tagEditRequested(m_tags[i].id);
-            });
-            QAction *delAction = menu.addAction(QString::fromUtf8("\xe5\x88\xa0\xe9\x99\xa4\xe6\xa0\x87\xe7\xad\xbe"));
-            connect(delAction, &QAction::triggered, this, [this, i]() {
-                emit tagDeleteRequested(m_tags[i].id);
-            });
-            menu.exec(event->globalPos());
-            return;
-        }
-    }
 }

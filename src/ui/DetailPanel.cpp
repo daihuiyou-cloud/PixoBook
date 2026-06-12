@@ -4,6 +4,7 @@
 #include <QWheelEvent>
 #include <QFileInfo>
 #include "ui/Codicon.h"
+#include "ui/ColorConstants.h"
 
 DetailPanel::DetailPanel(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
@@ -56,10 +57,10 @@ void DetailPanel::paintEvent(QPaintEvent *)
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    p.fillRect(rect(), QColor(0x25, 0x25, 0x26));
+    p.fillRect(rect(), Color::BG_DARK);
 
     if (m_asset.id.isEmpty()) {
-        p.setPen(QColor(0x96, 0x96, 0x96));
+        p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect(), Qt::AlignCenter,
                    QString::fromUtf8("\xe9\x80\x89\xe6\x8b\xa9\xe4\xb8\x80\xe5\xbc\xa0\xe5\x9b\xbe\xe7\x89\x87"
                                        "\xe6\x9f\xa5\xe7\x9c\x8b\xe8\xaf\xa6\xe6\x83\x85"));
@@ -68,7 +69,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
 
     // Close button (top right)
     m_closeBtnRect = QRect(width() - 28, 8, 20, 20);
-    Codicon::draw(p, "close", m_closeBtnRect, QColor(0x96, 0x96, 0x96), 14);
+    Codicon::draw(p, "close", m_closeBtnRect, Color::TEXT_SECONDARY, 14);
 
     int imageBottom = drawImage(p);
     drawSectionDivider(p, imageBottom);
@@ -100,17 +101,17 @@ void DetailPanel::paintEvent(QPaintEvent *)
 
 void DetailPanel::drawSectionDivider(QPainter &p, int y)
 {
-    p.setPen(QColor(0x3c, 0x3c, 0x3c));
+    p.setPen(Color::BORDER);
     p.drawLine(0, y, width(), y);
 }
 
 int DetailPanel::drawImage(QPainter &p)
 {
     QRect imgRect = imageArea();
-    p.fillRect(imgRect, QColor(0x1e, 0x1e, 0x1e));
+    p.fillRect(imgRect, Color::BG_DARKEST);
 
     if (m_fullImage.isNull()) {
-        p.setPen(QColor(0x96, 0x96, 0x96));
+        p.setPen(Color::TEXT_SECONDARY);
         p.drawText(imgRect, Qt::AlignCenter,
                    QString::fromUtf8("\xe6\x97\xa0\xe6\xb3\x95\xe5\x8a\xa0\xe8\xbd\xbd\xe5\x9b\xbe\xe7\x89\x87"));
         return imgRect.bottom();
@@ -131,8 +132,8 @@ int DetailPanel::drawImage(QPainter &p)
 
     // Overlay bar
     QRect infoBg(imgRect.left(), imgRect.bottom() - 28, imgRect.width(), 28);
-    p.fillRect(infoBg, QColor(0, 0, 0, 160));
-    p.setPen(QColor(0xcc, 0xcc, 0xcc));
+    p.fillRect(infoBg, Color::OVERLAY_LIGHT);
+    p.setPen(Color::TEXT_PRIMARY);
     p.drawText(infoBg.adjusted(8, 0, 28, 0), Qt::AlignVCenter,
                QString("%1 x %2  |  %3%")
                    .arg(m_asset.width).arg(m_asset.height)
@@ -140,7 +141,7 @@ int DetailPanel::drawImage(QPainter &p)
 
     // Favorite star button in overlay bar
     m_favStarRect = QRect(infoBg.right() - 24, infoBg.top() + 4, 20, 20);
-    QColor starClr = m_asset.isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x60, 0x60, 0x60);
+    QColor starClr = m_asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
     Codicon::draw(p, "star", m_favStarRect, starClr, 16);
 
     return imgRect.bottom();
@@ -152,7 +153,7 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     hf.setBold(true);
     p.setFont(hf);
     m_fileInfoHeaderRect = QRect(0, y - 18, width(), 22);
-    p.setPen(QColor(0x96, 0x96, 0x96));
+    p.setPen(Color::TEXT_SECONDARY);
     p.drawText(10, y, QString(m_fileInfoExpanded ? QChar(0x25BC) : QChar(0x25B6))
                + "  " + QString::fromUtf8("\xe6\x96\x87\xe4\xbb\xb6\xe4\xbf\xa1\xe6\x81\xaf"));
     if (!m_fileInfoExpanded)
@@ -181,7 +182,7 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     hf.setBold(true);
     p.setFont(hf);
     m_metadataHeaderRect = QRect(0, y - 18, width(), 22);
-    p.setPen(QColor(0x96, 0x96, 0x96));
+    p.setPen(Color::TEXT_SECONDARY);
     p.drawText(10, y, QString(m_metadataExpanded ? QChar(0x25BC) : QChar(0x25B6))
                + "  " + QString::fromUtf8("AI \xe5\x85\x83\xe6\x95\xb0\xe6\x8d\xae"));
     if (!m_metadataExpanded)
@@ -196,9 +197,9 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
 
     // Prompt with toggle
     m_promptHeaderRect = QRect(0, y - 18, width(), 22);
-    p.setPen(QColor(0x96, 0x96, 0x96));
+    p.setPen(Color::TEXT_SECONDARY);
     p.drawText(16, y, QString(m_promptExpanded ? QChar(0x25BC) : QChar(0x25B6)) + "  Prompt");
-    p.setPen(QColor(0xcc, 0xcc, 0xcc));
+    p.setPen(Color::TEXT_PRIMARY);
     QString promptText = m_metadata.prompt.isEmpty()
         ? QString::fromUtf8("\xe2\x80\x94")
         : (m_promptExpanded || m_metadata.prompt.length() < 100
@@ -242,7 +243,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     hf.setBold(true);
     p.setFont(hf);
     m_tagsHeaderRect = QRect(0, y - 18, width(), 22);
-    p.setPen(QColor(0x96, 0x96, 0x96));
+    p.setPen(Color::TEXT_SECONDARY);
     p.drawText(16, y, QString(m_tagsExpanded ? QChar(0x25BC) : QChar(0x25B6))
                + "  " + QString::fromUtf8("\xe6\xa0\x87\xe7\xad\xbe"));
     if (!m_tagsExpanded)
@@ -272,7 +273,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
         p.drawText(tagBg.adjusted(4, 0, -16, 0), Qt::AlignCenter, tag.name);
 
         QRect xRect(tagBg.right() - 14, tagBg.top() + 2, 12, 16);
-        Codicon::draw(p, "close", xRect, QColor(0xcc, 0xcc, 0xcc), 10);
+        Codicon::draw(p, "close", xRect, Color::TEXT_PRIMARY, 10);
         tagX += tw + 6;
     }
 
@@ -280,10 +281,10 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     int addTw = 24;
     if (tagX + addTw > width() - 16) { tagX = 16; y += 24; }
     m_addTagRect = QRect(tagX, y - 2, addTw, 20);
-    p.setBrush(QColor(0x3c, 0x3c, 0x3c));
-    p.setPen(QPen(QColor(0x96, 0x96, 0x96), 1));
+    p.setBrush(Color::BG_INPUT);
+    p.setPen(QPen(Color::TEXT_SECONDARY, 1));
     p.drawRoundedRect(m_addTagRect, 4, 4);
-    Codicon::draw(p, "add", m_addTagRect, QColor(0x96, 0x96, 0x96), 12);
+    Codicon::draw(p, "add", m_addTagRect, Color::TEXT_SECONDARY, 12);
 
     y += 24;
 
@@ -292,10 +293,10 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
 
 void DetailPanel::drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW)
 {
-    p.setPen(QColor(0x96, 0x96, 0x96));
+    p.setPen(Color::TEXT_SECONDARY);
     p.drawText(x, y, label);
 
-    p.setPen(QColor(0xcc, 0xcc, 0xcc));
+    p.setPen(Color::TEXT_PRIMARY);
     p.drawText(x + labelW, y, value.isEmpty() ? QString::fromUtf8("\xe2\x80\x94") : value);
 
     y += 18;

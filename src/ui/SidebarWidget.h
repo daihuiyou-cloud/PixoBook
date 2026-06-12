@@ -44,6 +44,8 @@ private:
     void drawFocusRect(QPainter &p, const QRect &r) const;
     void activateCurrentFocus();
     void showContextMenuForCurrentFocus();
+    void showFolderContextMenu(int idx, const QPoint &pos);
+    void showTagContextMenu(int idx, const QPoint &pos);
 
     QVector<Tag> m_tags;
     QStringList m_folders;

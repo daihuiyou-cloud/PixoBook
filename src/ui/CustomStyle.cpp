@@ -1,4 +1,5 @@
 #include "CustomStyle.h"
+#include "ColorConstants.h"
 #include <QPainter>
 #include <QStyleOption>
 #include <QStyleOptionButton>
@@ -6,6 +7,8 @@
 #include <QStyleOptionSlider>
 #include <QStyleOptionMenuItem>
 #include <QStyleOptionToolBox>
+#include <QStyleOptionProgressBar>
+#include <QProgressBar>
 #include <QApplication>
 
 CustomStyle::CustomStyle()
@@ -16,26 +19,26 @@ CustomStyle::CustomStyle()
 QPalette CustomStyle::standardPalette() const
 {
     QPalette p;
-    p.setColor(QPalette::Window, QColor(0x1e, 0x1e, 0x1e));
-    p.setColor(QPalette::WindowText, QColor(0xcc, 0xcc, 0xcc));
-    p.setColor(QPalette::Base, QColor(0x3c, 0x3c, 0x3c));
-    p.setColor(QPalette::AlternateBase, QColor(0x25, 0x25, 0x26));
-    p.setColor(QPalette::ToolTipBase, QColor(0x25, 0x25, 0x26));
-    p.setColor(QPalette::ToolTipText, QColor(0xcc, 0xcc, 0xcc));
-    p.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
-    p.setColor(QPalette::Button, QColor(0x3c, 0x3c, 0x3c));
-    p.setColor(QPalette::ButtonText, QColor(0xcc, 0xcc, 0xcc));
+    p.setColor(QPalette::Window, Color::BG_DARKEST);
+    p.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
+    p.setColor(QPalette::Base, Color::BG_INPUT);
+    p.setColor(QPalette::AlternateBase, Color::BG_DARK);
+    p.setColor(QPalette::ToolTipBase, Color::BG_DARK);
+    p.setColor(QPalette::ToolTipText, Color::TEXT_PRIMARY);
+    p.setColor(QPalette::Text, Color::TEXT_PRIMARY);
+    p.setColor(QPalette::Button, Color::BG_INPUT);
+    p.setColor(QPalette::ButtonText, Color::TEXT_PRIMARY);
     p.setColor(QPalette::BrightText, Qt::white);
-    p.setColor(QPalette::Highlight, QColor(0x09, 0x47, 0x71));
-    p.setColor(QPalette::HighlightedText, QColor(0xcc, 0xcc, 0xcc));
-    p.setColor(QPalette::Light, QColor(0x4a, 0x4a, 0x4a));
-    p.setColor(QPalette::Midlight, QColor(0x3c, 0x3c, 0x3c));
-    p.setColor(QPalette::Mid, QColor(0x32, 0x32, 0x33));
-    p.setColor(QPalette::Dark, QColor(0x25, 0x25, 0x26));
-    p.setColor(QPalette::Shadow, QColor(0x1e, 0x1e, 0x1e));
-    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor(0x96, 0x96, 0x96));
-    p.setColor(QPalette::Disabled, QPalette::Text, QColor(0x96, 0x96, 0x96));
-    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0x96, 0x96, 0x96));
+    p.setColor(QPalette::Highlight, Color::HIGHLIGHT);
+    p.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
+    p.setColor(QPalette::Light, Color::BG_BUTTON_HOVER);
+    p.setColor(QPalette::Midlight, Color::BG_INPUT);
+    p.setColor(QPalette::Mid, Color::BG_MENUBAR);
+    p.setColor(QPalette::Dark, Color::BG_DARK);
+    p.setColor(QPalette::Shadow, Color::BG_DARKEST);
+    p.setColor(QPalette::Disabled, QPalette::WindowText, Color::TEXT_SECONDARY);
+    p.setColor(QPalette::Disabled, QPalette::Text, Color::TEXT_SECONDARY);
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, Color::TEXT_SECONDARY);
     return p;
 }
 
@@ -106,22 +109,22 @@ void CustomStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *op
         QRect r = lineEditOpt->rect;
         bool hasFocus = lineEditOpt->state & State_HasFocus;
 
-        painter->setBrush(QColor(0x3c, 0x3c, 0x3c));
-        painter->setPen(QPen(hasFocus ? QColor(0x00, 0x7a, 0xcc) : QColor(0x5a, 0x5a, 0x5a), 1));
+        painter->setBrush(Color::BG_INPUT);
+        painter->setPen(QPen(hasFocus ? Color::ACCENT : Color::BORDER_INPUT, 1));
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
         return;
     }
     case PE_PanelTipLabel: {
         QRect r = option->rect;
-        painter->setBrush(QColor(0x25, 0x25, 0x26));
-        painter->setPen(QPen(QColor(0x3c, 0x3c, 0x3c), 1));
+        painter->setBrush(Color::BG_DARK);
+        painter->setPen(QPen(Color::BORDER, 1));
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
         return;
     }
     case PE_FrameMenu: {
         QRect r = option->rect;
         painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(QColor(0x3c, 0x3c, 0x3c), 1));
+        painter->setPen(QPen(Color::BORDER, 1));
         painter->drawRect(r.adjusted(0, 0, -1, -1));
         return;
     }
@@ -130,15 +133,15 @@ void CustomStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *op
         QRect r = option->rect;
         bool hovered = option->state & State_MouseOver;
         bool pressed = option->state & State_Sunken;
-        bool isDefault = btnOpt ? (btnOpt->features & QStyleOptionButton::DefaultButton) : false;
+        Q_UNUSED(btnOpt);
 
         QColor bg;
-        if (pressed) bg = QColor(0x4a, 0x4a, 0x4a);
-        else if (hovered) bg = QColor(0x4a, 0x4a, 0x4a);
-        else bg = QColor(0x3c, 0x3c, 0x3c);
+        if (pressed) bg = Color::BG_BUTTON_HOVER;
+        else if (hovered) bg = Color::BG_BUTTON_HOVER;
+        else bg = Color::BG_INPUT;
 
         painter->setBrush(bg);
-        painter->setPen(QPen(QColor(0x5a, 0x5a, 0x5a), 1));
+        painter->setPen(QPen(Color::BORDER_INPUT, 1));
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
         return;
     }
@@ -164,23 +167,27 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         bool checked = btnOpt->state & State_On;
 
         QColor bg;
-        if (checked) bg = QColor(0x09, 0x47, 0x71);
-        else if (pressed) bg = QColor(0x4a, 0x4a, 0x4a);
-        else if (hovered) bg = QColor(0x4a, 0x4a, 0x4a);
-        else bg = QColor(0x3c, 0x3c, 0x3c);
+        if (checked) bg = Color::HIGHLIGHT;
+        else if (pressed) bg = Color::BG_BUTTON_HOVER;
+        else if (hovered) bg = Color::BG_BUTTON_HOVER;
+        else bg = Color::BG_INPUT;
 
-        QColor border = checked ? QColor(0x00, 0x7a, 0xcc) : QColor(0x5a, 0x5a, 0x5a);
+        QColor border = checked ? Color::ACCENT : Color::BORDER_INPUT;
 
         painter->setBrush(bg);
         painter->setPen(QPen(border, 1));
-        painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
 
-        painter->setPen(checked ? Qt::white : QColor(0xcc, 0xcc, 0xcc));
+        if (pressed)
+            painter->drawRoundedRect(r.adjusted(2, 2, -1, -1), 4, 4);
+        else
+            painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
+
+        painter->setPen(checked ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
         painter->drawText(r, Qt::AlignCenter, btnOpt->text);
         return;
     }
     case CE_MenuBarEmptyArea: {
-        painter->fillRect(option->rect, QColor(0x32, 0x32, 0x33));
+        painter->fillRect(option->rect, Color::BG_MENUBAR);
         return;
     }
     case CE_MenuBarItem: {
@@ -191,9 +198,9 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         bool hovered = menuItem->state & State_Selected;
 
         if (hovered)
-            painter->fillRect(r, QColor(0x09, 0x47, 0x71));
+            painter->fillRect(r, Color::HIGHLIGHT);
 
-        painter->setPen(QColor(0xcc, 0xcc, 0xcc));
+        painter->setPen(Color::TEXT_PRIMARY);
         painter->drawText(r.adjusted(8, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft,
                           menuItem->text);
         return;
@@ -207,15 +214,17 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
 
         if (menuItem->menuItemType == QStyleOptionMenuItem::Separator) {
             int midY = r.center().y();
-            painter->setPen(QColor(0x3c, 0x3c, 0x3c));
+            painter->setPen(Color::BORDER);
             painter->drawLine(r.left() + 8, midY, r.right() - 8, midY);
             return;
         }
 
-        if (selected)
-            painter->fillRect(r, QColor(0x09, 0x47, 0x71));
+        if (selected) {
+            painter->fillRect(r, Color::HIGHLIGHT);
+            painter->fillRect(r.left(), r.top(), 3, r.height(), Color::ACCENT);
+        }
 
-        painter->setPen(QColor(0xcc, 0xcc, 0xcc));
+        painter->setPen(Color::TEXT_PRIMARY);
 
         int iconWidth = 0;
         if (!menuItem->icon.isNull())
@@ -231,16 +240,36 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         return;
     }
     case CE_MenuEmptyArea: {
-        painter->fillRect(option->rect, QColor(0x25, 0x25, 0x26));
+        painter->fillRect(option->rect, Color::BG_DARK);
         return;
     }
     case CE_Splitter: {
         QRect r = option->rect;
-        painter->setPen(QPen(QColor(0x3c, 0x3c, 0x3c), 1));
+        painter->setPen(QPen(Color::BORDER, 1));
         if (r.width() > r.height())
             painter->drawLine(r.left(), r.center().y(), r.right(), r.center().y());
         else
             painter->drawLine(r.center().x(), r.top(), r.center().x(), r.bottom());
+        return;
+    }
+    case CE_ProgressBarGroove: {
+        QRect r = option->rect;
+        painter->setBrush(Color::BG_INPUT);
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(r, 3, 3);
+        return;
+    }
+    case CE_ProgressBarContents: {
+        auto *pbOpt = qstyleoption_cast<const QStyleOptionProgressBar *>(option);
+        if (!pbOpt) break;
+        QRect r = option->rect.adjusted(1, 1, -1, -1);
+        double progress = qBound(0.0, pbOpt->progress / 100.0, 1.0);
+        if (progress > 0) {
+            int fillW = qMax(4, (int)(r.width() * progress));
+            painter->setBrush(Color::ACCENT);
+            painter->setPen(Qt::NoPen);
+            painter->drawRoundedRect(QRect(r.left(), r.top(), fillW, r.height()), 2, 2);
+        }
         return;
     }
     default:
@@ -265,7 +294,7 @@ void CustomStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
         QRect sliderRect = subControlRect(CC_ScrollBar, option, SC_ScrollBarSlider, widget);
         if (sliderRect.isValid() && !sliderRect.isEmpty()) {
             bool hovered = (scrollbar->activeSubControls & SC_ScrollBarSlider);
-            painter->setBrush(hovered ? QColor(0x4f, 0x4f, 0x4f) : QColor(0x42, 0x42, 0x42));
+            painter->setBrush(hovered ? Color::SCROLLBAR_HOVER : Color::SCROLLBAR);
             painter->setPen(Qt::NoPen);
             int radius = horizontal ? (sliderRect.height() / 2) : (sliderRect.width() / 2);
             painter->drawRoundedRect(sliderRect, radius, radius);
@@ -282,15 +311,15 @@ void CustomStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
         bool pressed = cbOpt->state & State_Sunken;
         bool hasFocus = cbOpt->state & State_HasFocus;
 
-        QColor borderColor = hasFocus ? QColor(0x00, 0x7a, 0xcc) : QColor(0x5a, 0x5a, 0x5a);
-        QColor bgColor = pressed ? QColor(0x4a, 0x4a, 0x4a) : (hovered ? QColor(0x4a, 0x4a, 0x4a) : QColor(0x3c, 0x3c, 0x3c));
+        QColor borderColor = hasFocus ? Color::ACCENT : Color::BORDER_INPUT;
+        QColor bgColor = pressed ? Color::BG_BUTTON_HOVER : (hovered ? Color::BG_BUTTON_HOVER : Color::BG_INPUT);
 
         painter->setBrush(bgColor);
         painter->setPen(QPen(borderColor, 1));
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
 
         if (!cbOpt->currentText.isEmpty()) {
-            painter->setPen(QColor(0xcc, 0xcc, 0xcc));
+            painter->setPen(Color::TEXT_PRIMARY);
             QRect textRect = r.adjusted(10, 0, -22, 0);
             painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
                               painter->fontMetrics().elidedText(cbOpt->currentText, Qt::ElideRight, textRect.width()));
@@ -298,7 +327,7 @@ void CustomStyle::drawComplexControl(ComplexControl control, const QStyleOptionC
 
         QRect arrowRect = subControlRect(CC_ComboBox, option, SC_ComboBoxArrow, widget);
         if (arrowRect.isValid() && !arrowRect.isEmpty()) {
-            painter->setPen(QColor(0x96, 0x96, 0x96));
+            painter->setPen(Color::TEXT_SECONDARY);
             QPoint center = arrowRect.center();
             QPolygon arrow;
             arrow << QPoint(center.x() - 3, center.y() - 1)

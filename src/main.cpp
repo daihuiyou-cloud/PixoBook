@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
     app.setOrganizationName("AIMaterialLibrary");
 
     QFont appFont = app.font();
+    appFont.setFamily(QStringLiteral("Segoe UI, Microsoft YaHei UI"));
     appFont.setPointSize(11);
     app.setFont(appFont);
 

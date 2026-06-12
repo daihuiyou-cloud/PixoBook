@@ -4,6 +4,7 @@
 #include <QKeyEvent>
 #include <QToolTip>
 #include "Codicon.h"
+#include "ColorConstants.h"
 
 TabBar::TabBar(QWidget *parent)
     : QWidget(parent)
@@ -77,30 +78,30 @@ void TabBar::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
 
-    p.fillRect(rect(), QColor(0x25, 0x25, 0x26));
+    p.fillRect(rect(), Color::BG_DARK);
 
-    p.fillRect(QRect(0, height() - 1, width(), 1), QColor(0x3c, 0x3c, 0x3c));
+    p.fillRect(QRect(0, height() - 1, width(), 1), Color::BORDER);
 
     for (int i = 0; i < m_tabs.size(); i++) {
         QRect r = tabRect(i);
 
         if (i == m_currentIndex) {
-            p.fillRect(r, QColor(0x1e, 0x1e, 0x1e));
+            p.fillRect(r, Color::BG_DARKEST);
         } else if (i == m_hoveredIndex) {
-            p.fillRect(r, QColor(0x2a, 0x2d, 0x2e));
+            p.fillRect(r, Color::BG_HOVER);
         }
 
         if (i == m_currentIndex) {
-            p.fillRect(QRect(r.left(), r.bottom() - 2, r.width(), 2), QColor(0x00, 0x7a, 0xcc));
+            p.fillRect(QRect(r.left(), r.bottom() - 2, r.width(), 2), Color::ACCENT);
         }
 
         QColor textColor;
         if (i == m_currentIndex) {
-            textColor = QColor(0xff, 0xff, 0xff);
+            textColor = Color::TEXT_BRIGHT;
         } else if (i == m_hoveredIndex) {
-            textColor = QColor(0xcc, 0xcc, 0xcc);
+            textColor = Color::TEXT_PRIMARY;
         } else {
-            textColor = QColor(0x96, 0x96, 0x96);
+            textColor = Color::TEXT_SECONDARY;
         }
 
         Codicon::draw(p, m_tabs[i].icon, QRect(r.left() + 10, 9, 16, 16), textColor, 14);
@@ -113,10 +114,10 @@ void TabBar::paintEvent(QPaintEvent *)
     {
         QRect r = addButtonRect();
         if (m_hoveredAdd) {
-            p.fillRect(r, QColor(0x37, 0x37, 0x3d));
+            p.fillRect(r, Color::BG_SELECTED);
             QToolTip::showText(mapToGlobal(r.center()), QStringLiteral("新建标签页"), this);
         }
-        p.setPen(QColor(0xcc, 0xcc, 0xcc));
+        p.setPen(Color::TEXT_PRIMARY);
         p.drawText(r, Qt::AlignCenter, QStringLiteral("+"));
     }
 }

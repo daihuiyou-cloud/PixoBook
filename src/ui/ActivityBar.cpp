@@ -5,6 +5,7 @@
 #include <QToolTip>
 #include <QEvent>
 #include "Codicon.h"
+#include "ColorConstants.h"
 
 ActivityBar::ActivityBar(QWidget *parent)
     : QWidget(parent)
@@ -44,7 +45,7 @@ void ActivityBar::paintEvent(QPaintEvent *)
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    p.fillRect(rect(), QColor(0x33, 0x33, 0x33));
+    p.fillRect(rect(), Color::BG_ACTIVITYBAR);
 
     for (int i = 0; i < m_icons.size(); i++) {
         QRect r = iconRect(i);
@@ -52,16 +53,16 @@ void ActivityBar::paintEvent(QPaintEvent *)
         bool hovered = (i == m_hovered);
 
         if (active) {
-            p.fillRect(r.left(), r.top(), 3, r.height(), QColor(0x00, 0x7a, 0xcc));
+            p.fillRect(r.left(), r.top(), 3, r.height(), Color::ACCENT);
         }
 
-        QColor bg = active ? QColor(0x25, 0x25, 0x26)
-                  : hovered ? QColor(0x2a, 0x2d, 0x2e)
+        QColor bg = active ? Color::BG_DARK
+                  : hovered ? Color::BG_HOVER
                   : Qt::transparent;
         if (bg != Qt::transparent)
             p.fillRect(r.adjusted(3, 0, 0, 0), bg);
 
-        QColor iconColor = active ? QColor(0xff, 0xff, 0xff) : QColor(0x96, 0x96, 0x96);
+        QColor iconColor = active ? Color::TEXT_BRIGHT : Color::TEXT_SECONDARY;
         Codicon::draw(p, m_icons[i].iconName, r.adjusted(4, 4, -4, -4), iconColor, 24);
     }
 }

@@ -6,6 +6,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include "ui/Codicon.h"
+#include "ui/ColorConstants.h"
 
 SearchBar::SearchBar(QWidget *parent)
     : QWidget(parent)
@@ -17,20 +18,18 @@ SearchBar::SearchBar(QWidget *parent)
     m_searchInput->setPlaceholderText(QString::fromUtf8(
         "\xe6\x90\x9c\xe7\xb4\xa2\xe6\x96\x87\xe4\xbb\xb6\xe5\x90\x8d\xe3\x80\x81\x70\x72\x6f\x6d\x70\x74\x2e\x2e\x2e"));
     QPalette inputPal;
-    inputPal.setColor(QPalette::Base, QColor(0x3c, 0x3c, 0x3c));
-    inputPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
+    inputPal.setColor(QPalette::Base, Color::BG_INPUT);
+    inputPal.setColor(QPalette::Text, Color::TEXT_PRIMARY);
     m_searchInput->setPalette(inputPal);
-    QFont inputFont;
 
     // Search icon
     QPixmap searchPx(22, 22);
     searchPx.fill(Qt::transparent);
     {
         QPainter sp(&searchPx);
-        Codicon::draw(sp, "search", QRect(0, 0, 22, 22), QColor(0x96, 0x96, 0x96), 16);
+        Codicon::draw(sp, "search", QRect(0, 0, 22, 22), Color::TEXT_SECONDARY, 16);
     }
     m_searchInput->addAction(QIcon(searchPx), QLineEdit::LeadingPosition);
-    m_searchInput->setFont(inputFont);
     m_searchInput->setTextMargins(10, 5, 10, 5);
 
     // Clear button (trailing)
@@ -38,7 +37,7 @@ SearchBar::SearchBar(QWidget *parent)
     clearPx.fill(Qt::transparent);
     {
         QPainter cp(&clearPx);
-        Codicon::draw(cp, "close", QRect(0, 0, 16, 16), QColor(0x96, 0x96, 0x96), 14);
+        Codicon::draw(cp, "close", QRect(0, 0, 16, 16), Color::TEXT_SECONDARY, 14);
     }
     m_clearAction = m_searchInput->addAction(QIcon(clearPx), QLineEdit::TrailingPosition);
     m_clearAction->setVisible(false);
@@ -61,10 +60,10 @@ SearchBar::SearchBar(QWidget *parent)
     QFont comboFont;
     m_sourceCombo->setFont(comboFont);
     QPalette comboPal;
-    comboPal.setColor(QPalette::Text, QColor(0xcc, 0xcc, 0xcc));
-    comboPal.setColor(QPalette::Base, QColor(0x25, 0x25, 0x26));
-    comboPal.setColor(QPalette::Highlight, QColor(0x09, 0x47, 0x71));
-    comboPal.setColor(QPalette::HighlightedText, QColor(0xcc, 0xcc, 0xcc));
+    comboPal.setColor(QPalette::Text, Color::TEXT_PRIMARY);
+    comboPal.setColor(QPalette::Base, Color::BG_DARK);
+    comboPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
+    comboPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
     m_sourceCombo->setPalette(comboPal);
     layout->addWidget(m_sourceCombo);
 
@@ -82,9 +81,8 @@ SearchBar::SearchBar(QWidget *parent)
     // Thumbnail size buttons
     auto *sizeLabel = new QLabel(QString::fromUtf8("\xe7\xbc\xa9\xe7\x95\xa5\xe5\x9b\xbe:"));
     QPalette labelPal;
-    labelPal.setColor(QPalette::WindowText, QColor(0x96, 0x96, 0x96));
+    labelPal.setColor(QPalette::WindowText, Color::TEXT_SECONDARY);
     sizeLabel->setPalette(labelPal);
-    sizeLabel->setFont(inputFont);
     layout->addWidget(sizeLabel);
 
     m_sizeSmallBtn = new QPushButton();
@@ -135,7 +133,7 @@ SearchBar::SearchBar(QWidget *parent)
     });
 
     QPalette bgPal;
-    bgPal.setColor(QPalette::Window, QColor(0x25, 0x25, 0x26));
+    bgPal.setColor(QPalette::Window, Color::BG_DARK);
     setPalette(bgPal);
     setAutoFillBackground(true);
 
@@ -157,7 +155,7 @@ void SearchBar::paintEvent(QPaintEvent *event)
 {
     QWidget::paintEvent(event);
     QPainter p(this);
-    p.setPen(QColor(0x3c, 0x3c, 0x3c));
+    p.setPen(Color::BORDER);
     p.drawLine(0, height() - 1, width(), height() - 1);
 }
 

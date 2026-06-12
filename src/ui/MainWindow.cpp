@@ -22,6 +22,7 @@
 #include "ui/ToastNotification.h"
 #include "ui/TagPickerDialog.h"
 #include "ui/Codicon.h"
+#include "ui/ColorConstants.h"
 #include "database/DatabaseManager.h"
 #include "services/ImageCache.h"
 #include "services/FileScanner.h"
@@ -203,7 +204,7 @@ void MainWindow::setupTitleBar()
 void MainWindow::setupStatusBar()
 {
     QPalette sbPal;
-    sbPal.setColor(QPalette::Window, QColor(0x00, 0x7a, 0xcc));
+    sbPal.setColor(QPalette::Window, Color::ACCENT);
     sbPal.setColor(QPalette::WindowText, Qt::white);
     statusBar()->setPalette(sbPal);
     statusBar()->setAutoFillBackground(true);

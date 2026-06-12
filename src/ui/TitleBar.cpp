@@ -5,6 +5,7 @@
 #include <QHelpEvent>
 #include <QApplication>
 #include "Codicon.h"
+#include "ColorConstants.h"
 
 TitleBar::TitleBar(QWidget *parent)
     : QWidget(parent)
@@ -68,23 +69,23 @@ void TitleBar::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
 
-    p.fillRect(rect(), QColor(0x25, 0x25, 0x26));
+    p.fillRect(rect(), Color::BG_DARK);
 
-    p.fillRect(QRect(0, height() - 1, width(), 1), QColor(0x3c, 0x3c, 0x3c));
+    p.fillRect(QRect(0, height() - 1, width(), 1), Color::BORDER);
 
-    Codicon::draw(p, "layout", QRect(8, 5, 24, 22), QColor(0xcc, 0xcc, 0xcc), 18);
+    Codicon::draw(p, "layout", QRect(8, 5, 24, 22), Color::TEXT_PRIMARY, 18);
 
     QFont f = font();
     p.setFont(f);
-    p.setPen(QColor(0xcc, 0xcc, 0xcc));
+    p.setPen(Color::TEXT_PRIMARY);
     p.drawText(QRect(32, 0, 50, kHeight), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("AI\u7d20\u6750\u5e93"));
 
     for (int i = 0; i < m_menus.size(); i++) {
         QRect r = menuItemRect(i);
         if (i == m_hoveredMenu) {
-            p.fillRect(r, QColor(0x37, 0x37, 0x3d));
+            p.fillRect(r, Color::BG_SELECTED);
         }
-        QColor textColor = i == m_hoveredMenu ? QColor(0xff, 0xff, 0xff) : QColor(0xcc, 0xcc, 0xcc);
+        QColor textColor = i == m_hoveredMenu ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
         Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 4, r.top(), 16, r.height()), textColor, 12);
         p.setPen(textColor);
         p.drawText(r.adjusted(22, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);
@@ -93,26 +94,26 @@ void TitleBar::paintEvent(QPaintEvent *)
     {
         QRect r = minimizeBtnRect();
         if (m_hoveredControl == 0) {
-            p.fillRect(r, QColor(0x37, 0x37, 0x3d));
+            p.fillRect(r, Color::BG_SELECTED);
         }
-        Codicon::draw(p, "chrome-minimize", r, QColor(0xcc, 0xcc, 0xcc), 14);
+        Codicon::draw(p, "chrome-minimize", r, Color::TEXT_PRIMARY, 14);
     }
 
     {
         QRect r = maximizeBtnRect();
         if (m_hoveredControl == 1) {
-            p.fillRect(r, QColor(0x37, 0x37, 0x3d));
+            p.fillRect(r, Color::BG_SELECTED);
         }
-        Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", r, QColor(0xcc, 0xcc, 0xcc), 14);
+        Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", r, Color::TEXT_PRIMARY, 14);
     }
 
     {
         QRect r = closeBtnRect();
         if (m_hoveredControl == 2) {
-            p.fillRect(r, QColor(0xe8, 0x11, 0x23));
+            p.fillRect(r, Color::CLOSE_HOVER);
             Codicon::draw(p, "chrome-close", r, Qt::white, 14);
         } else {
-            Codicon::draw(p, "chrome-close", r, QColor(0xcc, 0xcc, 0xcc), 14);
+            Codicon::draw(p, "chrome-close", r, Color::TEXT_PRIMARY, 14);
         }
     }
 }

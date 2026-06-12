@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include "ui/Codicon.h"
+#include "ui/ColorConstants.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QApplication>
@@ -96,10 +97,10 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    p.fillRect(rect(), QColor(0x1e, 0x1e, 0x1e));
+    p.fillRect(rect(), Color::BG_DARKEST);
 
     if (m_currentPixmap.isNull() || m_currentIndex < 0) {
-        p.setPen(QColor(0x96, 0x96, 0x96));
+        p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect(), Qt::AlignCenter,
                    m_assets.isEmpty()
                        ? "No images"
@@ -122,7 +123,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
 
     QRect shadowRect(drawX - 4, drawY - 4, drawW + 8, drawH + 8);
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0, 0, 0, 60));
+    p.setBrush(Color::OVERLAY_SHADOW);
     p.drawRoundedRect(shadowRect, 6, 6);
 
     p.drawPixmap(drawX, drawY, drawW, drawH, m_currentPixmap);
@@ -135,32 +136,32 @@ void LightboxWidget::paintEvent(QPaintEvent *)
 
     // Top bar
     QRect topBar(0, 0, width(), 40);
-    p.fillRect(topBar, QColor(0, 0, 0, 180));
+    p.fillRect(topBar, Color::OVERLAY_BG);
 
-    p.setPen(QColor(0xcc, 0xcc, 0xcc));
+    p.setPen(Color::TEXT_PRIMARY);
     const Asset &asset = m_assets[m_currentIndex];
     QString fileName = QFileInfo(asset.filePath).fileName();
     p.drawText(topBar.adjusted(12, 0, 0, 0), Qt::AlignVCenter, fileName);
 
     m_closeBtnRect = QRect(width() - 36, 8, 24, 24);
-    Codicon::draw(p, "close", m_closeBtnRect, QColor(0xcc, 0xcc, 0xcc), 18);
+    Codicon::draw(p, "close", m_closeBtnRect, Color::TEXT_PRIMARY, 18);
 
     // Bottom bar
     QRect bottomBar(0, height() - 50, width(), 50);
-    p.fillRect(bottomBar, QColor(0, 0, 0, 180));
+    p.fillRect(bottomBar, Color::OVERLAY_BG);
     f.setPointSize(10);
     p.setFont(f);
 
     int cx = width() / 2;
 
     m_prevBtnRect = QRect(cx - 200, height() - 44, 36, 36);
-    QColor prevClr = (m_currentIndex > 0) ? QColor(0xcc, 0xcc, 0xcc) : QColor(0x50, 0x50, 0x50);
+    QColor prevClr = (m_currentIndex > 0) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
     Codicon::draw(p, "chevron-left", m_prevBtnRect, prevClr, 18);
 
     QFont nf = p.font();
     nf.setPointSize(10);
     p.setFont(nf);
-    p.setPen(QColor(0xcc, 0xcc, 0xcc));
+    p.setPen(Color::TEXT_PRIMARY);
     QString info = QString("%1 x %2 | %3 | %4 KB")
                        .arg(asset.width)
                        .arg(asset.height)
@@ -170,24 +171,24 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     p.drawText(infoRect, Qt::AlignCenter, info);
 
     m_favBtnRect = QRect(cx + 160, height() - 44, 36, 36);
-    QColor favClr = asset.isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x96, 0x96, 0x96);
+    QColor favClr = asset.isFavorite ? Color::FAVORITE_ON : Color::TEXT_SECONDARY;
     Codicon::draw(p, "star", m_favBtnRect, favClr, 18);
 
-    p.setPen(QColor(0x96, 0x96, 0x96));
+    p.setPen(Color::TEXT_SECONDARY);
     nf.setPointSize(10);
     p.setFont(nf);
     p.drawText(cx + 210, height() - 44, 60, 36, Qt::AlignVCenter,
                QString("%1%").arg((int)(m_zoom * 100)));
 
-    p.setPen(QColor(0x96, 0x96, 0x96));
+    p.setPen(Color::TEXT_SECONDARY);
     p.drawText(cx - 280, height() - 44, 60, 36, Qt::AlignVCenter,
                QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size()));
 
     m_nextBtnRect = QRect(cx + 280, height() - 44, 36, 36);
-    QColor nextClr = (m_currentIndex < m_assets.size() - 1) ? QColor(0xcc, 0xcc, 0xcc) : QColor(0x50, 0x50, 0x50);
+    QColor nextClr = (m_currentIndex < m_assets.size() - 1) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
     Codicon::draw(p, "chevron-right", m_nextBtnRect, nextClr, 18);
 
-    p.setPen(QColor(0x3c, 0x3c, 0x3c));
+    p.setPen(Color::BORDER);
     p.drawLine(0, 40, width(), 40);
     p.drawLine(0, height() - 50, width(), height() - 50);
 }

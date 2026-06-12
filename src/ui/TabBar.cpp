@@ -1,6 +1,7 @@
 #include "TabBar.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QToolTip>
 #include "Codicon.h"
 
 TabBar::TabBar(QWidget *parent)
@@ -111,6 +112,7 @@ void TabBar::paintEvent(QPaintEvent *)
         QRect r = addButtonRect();
         if (m_hoveredAdd) {
             p.fillRect(r, QColor(0x37, 0x37, 0x3d));
+            QToolTip::showText(mapToGlobal(r.center()), QStringLiteral("新建标签页"), this);
         }
         p.setPen(QColor(0xcc, 0xcc, 0xcc));
         p.drawText(r, Qt::AlignCenter, QStringLiteral("+"));

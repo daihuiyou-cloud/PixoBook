@@ -41,6 +41,9 @@ private:
     bool m_isPanning = false;
     QPoint m_lastPanPos;
 
+    int m_scrollOffset = 0;
+    int m_maxScrollOffset = 0;
+
     bool m_promptExpanded = true;
     bool m_fileInfoExpanded = true;
     bool m_metadataExpanded = true;

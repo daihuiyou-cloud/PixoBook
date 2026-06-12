@@ -148,7 +148,20 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
     p.fillRect(rect(), QColor(0x1e, 0x1e, 0x1e));
 
-    if (m_assets.isEmpty() || m_columns == 0) return;
+    if (m_assets.isEmpty() || m_columns == 0) {
+        p.setPen(QColor(0x96, 0x96, 0x96));
+        QFont emptyFont = p.font();
+        emptyFont.setPointSize(14);
+        p.setFont(emptyFont);
+        if (!m_searchKeyword.isEmpty()) {
+            QString msg = QStringLiteral("没有符合 \"%1\" 的素材").arg(m_searchKeyword);
+            p.drawText(rect(), Qt::AlignCenter, msg);
+        } else {
+            p.drawText(rect(), Qt::AlignCenter,
+                       QStringLiteral("将素材文件夹拖拽到这里，或通过菜单导入"));
+        }
+        return;
+    }
 
     int itemH = m_itemHeight();
     int firstRow = qMax(0, m_scrollOffset / itemH);
@@ -226,7 +239,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         }
 
         // Favorite star
-        QRect starRect(r.right() - 24, r.bottom() - 24, 20, 20);
+        QRect starRect(r.right() - 26, r.bottom() - 24, 22, 22);
         QColor starColor = m_assets[i].isFavorite ? QColor(0xff, 0xcc, 0x00) : QColor(0x60, 0x60, 0x60);
         Codicon::draw(p, "star", starRect, starColor, 14);
     }
@@ -304,7 +317,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
     // Favorite star toggle on card
     if (idx >= 0) {
         QRect r = itemRect(idx);
-        QRect starRect(r.right() - 22, r.bottom() - 22, 18, 18);
+        QRect starRect(r.right() - 28, r.bottom() - 26, 26, 26);
         if (starRect.contains(event->pos())) {
             QString assetId = m_assets[idx].id;
             bool newFav = !m_assets[idx].isFavorite;
@@ -375,6 +388,12 @@ void GalleryWidget::wheelEvent(QWheelEvent *event)
 {
     m_scrollOffset -= event->angleDelta().y() / 8;
     m_scrollOffset = qBound(0, m_scrollOffset, qMax(0, m_totalHeight - height()));
+    // Snap to nearest row for clean alignment
+    int itemH = m_itemHeight();
+    if (itemH > 0) {
+        int snapRow = (m_scrollOffset + itemH / 2) / itemH;
+        m_scrollOffset = qBound(0, snapRow * itemH, qMax(0, m_totalHeight - height()));
+    }
     update();
 }
 

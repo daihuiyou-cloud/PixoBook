@@ -101,12 +101,24 @@ SearchBar::SearchBar(QWidget *parent)
     { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "star-empty", QRect(0, 0, 16, 16), QColor(0xcc, 0xcc, 0xcc), 14); m_favButton->setIcon(QIcon(px)); m_favButton->setIconSize(QSize(16, 16)); }
     layout->addWidget(m_favButton);
 
+    // Debounced real-time search
+    m_debounceTimer = new QTimer(this);
+    m_debounceTimer->setSingleShot(true);
+    m_debounceTimer->setInterval(300);
+    connect(m_debounceTimer, &QTimer::timeout, this, &SearchBar::searchRequested);
+    connect(m_searchInput, &QLineEdit::textChanged, this, [this]() {
+        m_debounceTimer->start();
+    });
+    connect(m_searchInput, &QLineEdit::returnPressed, this, [this]() {
+        m_debounceTimer->stop();
+        emit searchRequested();
+    });
+
     QPalette bgPal;
     bgPal.setColor(QPalette::Window, QColor(0x25, 0x25, 0x26));
     setPalette(bgPal);
     setAutoFillBackground(true);
 
-    connect(m_searchInput, &QLineEdit::returnPressed, this, &SearchBar::searchRequested);
     connect(m_sourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { if (m_ready) emit filterChanged(); });
     connect(m_sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),

@@ -21,7 +21,9 @@ TagPickerDialog::TagPickerDialog(const QVector<Tag> &existingTags, QWidget *pare
 
     m_list = new QListWidget(this);
     for (const auto &t : existingTags) {
-        m_list->addItem(t.name);
+        auto *item = new QListWidgetItem(t.name);
+        item->setData(Qt::UserRole, t.id);
+        m_list->addItem(item);
     }
     layout->addWidget(m_list);
 
@@ -55,7 +57,7 @@ TagPickerDialog::TagPickerDialog(const QVector<Tag> &existingTags, QWidget *pare
     connect(okBtn, &QPushButton::clicked, this, [this]() {
         auto items = m_list->selectedItems();
         if (items.isEmpty()) return;
-        m_selectedTagId = -1; // caller must resolve id by name
+        m_selectedTagId = items[0]->data(Qt::UserRole).toInt();
         m_isNewTag = false;
         accept();
     });
@@ -64,7 +66,7 @@ TagPickerDialog::TagPickerDialog(const QVector<Tag> &existingTags, QWidget *pare
 
     connect(m_list, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
         if (item) {
-            m_selectedTagId = -1;
+            m_selectedTagId = item->data(Qt::UserRole).toInt();
             m_isNewTag = false;
             accept();
         }
@@ -73,6 +75,7 @@ TagPickerDialog::TagPickerDialog(const QVector<Tag> &existingTags, QWidget *pare
 
 int TagPickerDialog::pickTag(QWidget *parent, const QVector<Tag> &tags, QString *outNewName)
 {
+    Q_UNUSED(tags)
     TagPickerDialog dlg(tags, parent);
     if (dlg.exec() == QDialog::Accepted) {
         if (dlg.isNewTag()) {
@@ -80,14 +83,7 @@ int TagPickerDialog::pickTag(QWidget *parent, const QVector<Tag> &tags, QString 
                 *outNewName = dlg.newTagName();
             return -1; // signals "create new"
         }
-        auto items = dlg.m_list->selectedItems();
-        if (!items.isEmpty()) {
-            QString selectedName = items[0]->text();
-            for (const auto &t : tags) {
-                if (t.name == selectedName)
-                    return t.id;
-            }
-        }
+        return dlg.m_selectedTagId;
     }
     return -2; // cancelled
 }

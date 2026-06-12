@@ -19,7 +19,7 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
     m_tags = tags;
     m_zoom = 1.0;
     m_panOffset = {};
-    m_promptExpanded = true;
+    m_scrollOffset = 0;
 
     m_fullImage = QPixmap(asset.filePath);
     if (m_fullImage.isNull())
@@ -35,6 +35,8 @@ void DetailPanel::clear()
     m_tags.clear();
     m_fullImage = QPixmap();
     m_closeBtnRect = QRect();
+    m_scrollOffset = 0;
+    m_maxScrollOffset = 0;
     update();
 }
 
@@ -68,16 +70,32 @@ void DetailPanel::paintEvent(QPaintEvent *)
     m_closeBtnRect = QRect(width() - 28, 8, 20, 20);
     Codicon::draw(p, "close", m_closeBtnRect, QColor(0x96, 0x96, 0x96), 14);
 
-    int y = drawImage(p);
-    drawSectionDivider(p, y);
-    y += 2;
-    y = drawFileInfo(p, y + 16);
+    int imageBottom = drawImage(p);
+    drawSectionDivider(p, imageBottom);
+
+    // Scrollable content area below image
+    int scrollTop = imageBottom + 2;
+    int scrollHeight = height() - scrollTop;
+
+    // Draw scrollable content with offset
+    p.save();
+    p.setClipRect(0, scrollTop, width(), scrollHeight);
+
+    int contentY = scrollTop + 16 - m_scrollOffset;
+    int y = drawFileInfo(p, contentY);
     drawSectionDivider(p, y);
     y += 2;
     y = drawMetadataSection(p, y + 16);
     drawSectionDivider(p, y);
     y += 2;
     drawTagsSection(p, y + 16);
+
+    p.restore();
+
+    // Update scroll bounds based on actual content height
+    int totalContent = y - scrollTop + 8;
+    m_maxScrollOffset = qMax(0, totalContent - scrollHeight);
+    m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
 }
 
 void DetailPanel::drawSectionDivider(QPainter &p, int y)
@@ -367,6 +385,10 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
     if (imageArea().contains(event->pos())) {
         double factor = event->angleDelta().y() > 0 ? 1.1 : 0.9;
         m_zoom = qBound(0.1, m_zoom * factor, 10.0);
+        update();
+    } else if (m_maxScrollOffset > 0) {
+        m_scrollOffset -= event->angleDelta().y() / 8;
+        m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
         update();
     }
 }

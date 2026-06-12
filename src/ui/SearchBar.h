@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QPushButton>
+#include <QTimer>
 
 class SearchBar : public QWidget
 {
@@ -38,6 +39,7 @@ private:
     QPushButton *m_sizeMediumBtn;
     QPushButton *m_sizeLargeBtn;
     QPushButton *m_favButton;
+    QTimer *m_debounceTimer;
     bool m_onlyFavorites = false;
     bool m_ready = false;
 };

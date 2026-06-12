@@ -27,10 +27,13 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
+    void ensureVisible();
+
     QLineEdit *m_input;
     QVector<Command> m_commands;
     QVector<int> m_filtered;
     int m_selectedIdx = 0;
+    int m_scrollOffset = 0;
 };
 
 #endif

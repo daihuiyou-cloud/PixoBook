@@ -406,6 +406,7 @@ void MainWindow::setupConnections()
             loadAssets();
             break;
         case ActivityBar::Settings:
+            ToastNotification::show(this, QStringLiteral("设置功能即将推出"));
             break;
         }
     });
@@ -598,8 +599,8 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, long *r
 
     if (msg->message == WM_GETMINMAXINFO) {
         MINMAXINFO *mmi = reinterpret_cast<MINMAXINFO *>(msg->lParam);
-        mmi->ptMinTrackSize.x = 1000;
-        mmi->ptMinTrackSize.y = 700;
+        mmi->ptMinTrackSize.x = 800;
+        mmi->ptMinTrackSize.y = 500;
         *result = 0;
         return true;
     }

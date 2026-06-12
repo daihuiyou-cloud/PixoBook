@@ -114,7 +114,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
 
                 p.setPen(QColor(0xcc, 0xcc, 0xcc));
                 p.drawText(itemRect.adjusted(22, 0, 0, 0), Qt::AlignVCenter,
-                           p.fontMetrics().elidedText(m_folders[i], Qt::ElideMiddle, width() - 30));
+                           p.fontMetrics().elidedText(m_folders[i], Qt::ElideLeft, width() - 30));
             }
         }
     }

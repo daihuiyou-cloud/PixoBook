@@ -267,10 +267,13 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
             setCursor(Qt::ClosedHandCursor);
             overlayHit = true;
         } else {
-            if (event->pos().x() < imgArea.center().x())
+            int margin = imgArea.width() / 5;
+            if (event->pos().x() < imgArea.left() + margin)
                 navigateTo(m_currentIndex - 1);
-            else
+            else if (event->pos().x() > imgArea.right() - margin)
                 navigateTo(m_currentIndex + 1);
+            else
+                overlayHit = true;
             return;
         }
     }

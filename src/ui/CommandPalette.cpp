@@ -52,11 +52,18 @@ void CommandPalette::show(const QVector<Command> &commands)
     for (int i = 0; i < m_commands.size(); i++)
         m_filtered.append(i);
     m_selectedIdx = 0;
+    m_scrollOffset = 0;
     m_input->clear();
+
+    // Auto-size height based on item count, capped at 400
+    int itemCount = qMin(m_filtered.size(), 14);
+    int newHeight = 44 + itemCount * 28 + 8;
+    setFixedSize(500, qBound(200, newHeight, 400));
 
     if (parentWidget()) {
         QPoint center = parentWidget()->rect().center();
-        QPoint pos = parentWidget()->mapToGlobal(QPoint(center.x() - width() / 2, 120));
+        int yPos = qMax(60, parentWidget()->height() / 6);
+        QPoint pos = parentWidget()->mapToGlobal(QPoint(center.x() - width() / 2, yPos));
         move(pos);
     }
 
@@ -80,13 +87,23 @@ void CommandPalette::paintEvent(QPaintEvent *)
     p.drawLine(0, 36, width(), 36);
 
     // Filtered commands
-
     int y = 44;
-    int visibleCount = qMin(m_filtered.size(), 10);
+    int maxVisible = (height() - 44) / 28;
+    int totalFiltered = m_filtered.size();
+
+    if (totalFiltered == 0) {
+        p.setPen(QColor(0x96, 0x96, 0x96));
+        p.drawText(rect().adjusted(0, 36, 0, 0), Qt::AlignCenter,
+                   QStringLiteral("无匹配命令"));
+        return;
+    }
+
+    int visibleCount = qMin(totalFiltered - m_scrollOffset, maxVisible);
     for (int i = 0; i < visibleCount; i++) {
-        int idx = m_filtered[i];
+        int listIdx = m_scrollOffset + i;
+        int idx = m_filtered[listIdx];
         QRect itemRect(0, y, width(), 28);
-        bool selected = (i == m_selectedIdx);
+        bool selected = (listIdx == m_selectedIdx);
 
         if (selected)
             p.fillRect(itemRect, QColor(0x09, 0x47, 0x71));
@@ -114,6 +131,7 @@ void CommandPalette::keyPressEvent(QKeyEvent *event)
     if (event->key() == Qt::Key_Down) {
         if (m_selectedIdx < m_filtered.size() - 1) {
             m_selectedIdx++;
+            ensureVisible();
             update();
         }
         return;
@@ -121,9 +139,33 @@ void CommandPalette::keyPressEvent(QKeyEvent *event)
     if (event->key() == Qt::Key_Up) {
         if (m_selectedIdx > 0) {
             m_selectedIdx--;
+            ensureVisible();
             update();
         }
         return;
     }
+    if (event->key() == Qt::Key_PageDown) {
+        int maxVisible = (height() - 44) / 28;
+        m_selectedIdx = qMin(m_selectedIdx + maxVisible, m_filtered.size() - 1);
+        ensureVisible();
+        update();
+        return;
+    }
+    if (event->key() == Qt::Key_PageUp) {
+        int maxVisible = (height() - 44) / 28;
+        m_selectedIdx = qMax(m_selectedIdx - maxVisible, 0);
+        ensureVisible();
+        update();
+        return;
+    }
     QWidget::keyPressEvent(event);
+}
+
+void CommandPalette::ensureVisible()
+{
+    int maxVisible = (height() - 44) / 28;
+    if (m_selectedIdx < m_scrollOffset)
+        m_scrollOffset = m_selectedIdx;
+    else if (m_selectedIdx >= m_scrollOffset + maxVisible)
+        m_scrollOffset = m_selectedIdx - maxVisible + 1;
 }

@@ -78,7 +78,7 @@ void TitleBar::paintEvent(QPaintEvent *)
 
         QColor textColor = i == m_hoveredMenu ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
         Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 8, r.top(), 16, r.height()),
-                      textColor, 12);
+                      textColor, 14);
         p.setFont(f);
         p.setPen(textColor);
         p.drawText(r.adjusted(28, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);

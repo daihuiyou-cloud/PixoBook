@@ -3,6 +3,7 @@
 
 #include <QPixmap>
 #include <QHash>
+#include <QList>
 #include <QString>
 #include <QMutex>
 #include <functional>
@@ -38,6 +39,7 @@ public:
 
 private:
     QHash<CacheKey, QPixmap> m_cache;
+    mutable QList<CacheKey> m_accessOrder;
     int m_maxEntries;
     mutable QMutex m_mutex;
 };

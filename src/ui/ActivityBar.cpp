@@ -1,5 +1,6 @@
 #include "ActivityBar.h"
 #include <QPainter>
+#include <QPainterPath>
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QToolTip>
@@ -7,6 +8,7 @@
 #include <QHelpEvent>
 #include "Codicon.h"
 #include "ColorConstants.h"
+#include "VisualConstants.h"
 
 ActivityBar::ActivityBar(QWidget *parent)
     : QWidget(parent)
@@ -55,8 +57,11 @@ void ActivityBar::paintEvent(QPaintEvent *)
 
         if (active)
             p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
-        else if (hovered)
-            p.fillRect(r.adjusted(4, 6, -4, -6), Color::BG_HOVER);
+        else if (hovered) {
+            QPainterPath hoverPath;
+            hoverPath.addRoundedRect(QRectF(r.adjusted(4, 6, -4, -6)), Visual::RadiusSmall, Visual::RadiusSmall);
+            p.fillPath(hoverPath, Color::BG_HOVER);
+        }
 
         QColor iconColor = active ? Color::TEXT_BRIGHT
                          : hovered ? Color::TEXT_PRIMARY

@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QCryptographicHash>
+#include <QtConcurrent>
 
 FileScanner::FileScanner(QObject *parent)
     : QObject(parent)
@@ -15,13 +16,15 @@ FileScanner::FileScanner(QObject *parent)
 
 void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
 {
-    auto assets = scanDirectorySync(dirPath, recursive);
-    int total = assets.size();
-    for (int i = 0; i < assets.size(); i++) {
-        emit assetFound(assets[i]);
-        emit scanProgress(i + 1, total);
-    }
-    emit scanFinished();
+    QtConcurrent::run([this, dirPath, recursive]() {
+        auto assets = scanDirectorySync(dirPath, recursive);
+        int total = assets.size();
+        for (int i = 0; i < assets.size(); i++) {
+            emit assetFound(assets[i]);
+            emit scanProgress(i + 1, total);
+        }
+        emit scanFinished();
+    });
 }
 
 QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recursive)

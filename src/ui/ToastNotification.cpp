@@ -3,6 +3,8 @@
 #include <QVBoxLayout>
 #include <QApplication>
 
+static ToastNotification *s_currentToast = nullptr;
+
 ToastNotification::ToastNotification(QWidget *parent)
     : QWidget(parent)
 {
@@ -26,7 +28,11 @@ ToastNotification::ToastNotification(QWidget *parent)
         anim->setStartValue(1.0);
         anim->setEndValue(0.0);
         connect(anim, &QPropertyAnimation::finished, this, &QWidget::hide);
-        connect(anim, &QPropertyAnimation::finished, this, &QWidget::deleteLater);
+        connect(anim, &QPropertyAnimation::finished, this, [this]() {
+            if (s_currentToast == this)
+                s_currentToast = nullptr;
+            deleteLater();
+        });
         anim->start(QAbstractAnimation::DeleteWhenStopped);
     });
 }
@@ -34,7 +40,13 @@ ToastNotification::ToastNotification(QWidget *parent)
 void ToastNotification::show(QWidget *parent, const QString &message, int durationMs)
 {
     if (!parent) return;
+    if (s_currentToast) {
+        s_currentToast->m_timer->stop();
+        s_currentToast->hide();
+        s_currentToast->deleteLater();
+    }
     auto *toast = new ToastNotification(parent);
+    s_currentToast = toast;
     toast->showMessage(message, durationMs);
 }
 

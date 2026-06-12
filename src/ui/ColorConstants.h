@@ -21,6 +21,7 @@ inline const QColor BG_MENUBAR      = QColor(0x32, 0x32, 0x33);
 inline const QColor BG_LOADING      = QColor(0x3c, 0x3c, 0x3f);
 inline const QColor BG_CARD         = QColor(0x24, 0x24, 0x27);
 inline const QColor BG_CARD_HOVER   = QColor(0x2a, 0x2a, 0x2d);
+inline const QColor BG_CARD_SUBTLE  = QColor(0x21, 0x21, 0x23);
 inline const QColor BG_PREVIEW      = QColor(0x18, 0x18, 0x18);
 inline const QColor BG_PANEL_HEADER = QColor(0x25, 0x25, 0x26);
 
@@ -41,6 +42,7 @@ inline const QColor BORDER_INPUT    = QColor(0x5a, 0x5a, 0x5a);
 inline const QColor BORDER_CARD     = QColor(0x3c, 0x3c, 0x3c);
 inline const QColor BORDER_SUBTLE   = QColor(0x45, 0x45, 0x45);
 inline const QColor BORDER_MUTED    = QColor(0x32, 0x32, 0x35);
+inline const QColor BORDER_FAINT    = QColor(0x2a, 0x2a, 0x2d);
 
 // Special
 inline const QColor FAVORITE_ON     = QColor(0xff, 0xcc, 0x00);

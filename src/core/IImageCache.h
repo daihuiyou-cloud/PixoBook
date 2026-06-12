@@ -9,10 +9,11 @@
 class IImageCache : public QObject
 {
     Q_OBJECT
-public:
+protected:
     explicit IImageCache(QObject *parent = nullptr) : QObject(parent) {}
     ~IImageCache() override = default;
 
+public:
     virtual QPixmap get(const QString &filePath, const QSize &size) const = 0;
     virtual void insert(const QString &filePath, const QSize &size, const QPixmap &pixmap) = 0;
     virtual void invalidate(const QString &filePath) = 0;

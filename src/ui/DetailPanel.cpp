@@ -6,6 +6,8 @@
 #include <QPainter>
 #include <QTextOption>
 #include <QWheelEvent>
+#include <QCursor>
+#include <QLinearGradient>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
@@ -68,8 +70,14 @@ void DetailPanel::paintEvent(QPaintEvent *)
         return;
     }
 
-    m_closeBtnRect = QRect(width() - 30, 8, 22, 22);
-    Codicon::draw(p, "close", m_closeBtnRect, Color::TEXT_SECONDARY, 14);
+    m_closeBtnRect = QRect(width() - 34, 6, 26, 26);
+    bool closeHovered = m_closeBtnRect.contains(mapFromGlobal(QCursor::pos()));
+    if (closeHovered) {
+        QColor closeBg = Color::CLOSE_HOVER;
+        closeBg.setAlpha(30);
+        p.fillRect(m_closeBtnRect, closeBg);
+    }
+    Codicon::draw(p, "close", m_closeBtnRect, closeHovered ? Color::CLOSE_HOVER : Color::TEXT_SECONDARY, 15);
 
     int imageBottom = drawImage(p);
     drawSectionDivider(p, imageBottom);
@@ -120,7 +128,10 @@ int DetailPanel::drawImage(QPainter &p)
     p.drawPixmap(imgX, imgY, drawW, drawH, m_fullImage);
 
     QRect infoBg(imgRect.left(), imgRect.bottom() - 30, imgRect.width(), 30);
-    p.fillRect(infoBg, Color::OVERLAY_LIGHT);
+    QLinearGradient grad(infoBg.topLeft(), infoBg.topRight());
+    grad.setColorAt(0.0, Color::OVERLAY_LIGHT);
+    grad.setColorAt(1.0, Qt::transparent);
+    p.fillRect(infoBg, grad);
     QFont f = p.font();
     f.setPixelSize(Visual::FontMeta);
     p.setFont(f);
@@ -150,11 +161,11 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     y += 24;
 
     QFileInfo fi(m_asset.filePath);
-    drawField(p, 16, y, QStringLiteral("名称"), m_asset.fileName);
-    drawField(p, 16, y, QStringLiteral("大小"), QString::number(m_asset.fileSize / 1024) + " KB");
-    drawField(p, 16, y, QStringLiteral("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height));
-    drawField(p, 16, y, QStringLiteral("格式"), m_asset.format.toUpper());
-    drawField(p, 16, y, QStringLiteral("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"));
+    drawField(p, 16, y, QStringLiteral("名称"), m_asset.fileName, 64);
+    drawField(p, 16, y, QStringLiteral("大小"), QString::number(m_asset.fileSize / 1024) + " KB", 64);
+    drawField(p, 16, y, QStringLiteral("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height), 64);
+    drawField(p, 16, y, QStringLiteral("格式"), m_asset.format.toUpper(), 64);
+    drawField(p, 16, y, QStringLiteral("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), 64);
     return y + 8;
 }
 
@@ -268,11 +279,11 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
         bg.setAlpha(34);
         p.setBrush(bg);
         p.setPen(QPen(tag.color, 1));
-        p.drawRoundedRect(tagBg, Visual::RadiusSmall, Visual::RadiusSmall);
+        p.drawRoundedRect(tagBg, Visual::RadiusMedium, Visual::RadiusMedium);
         p.setPen(tag.color);
         p.drawText(tagBg.adjusted(7, 0, -16, 0), Qt::AlignVCenter, tag.name);
-        Codicon::draw(p, "close", QRect(tagBg.right() - 16, tagBg.top() + 3, 12, 16),
-                      Color::TEXT_PRIMARY, 9);
+        Codicon::draw(p, "close", QRect(tagBg.right() - 18, tagBg.top() + 2, 14, 18),
+                      Color::TEXT_PRIMARY, 10);
         tagX += tw + 6;
     }
 
@@ -282,7 +293,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     m_addTagRect = QRect(tagX, y - 2, addW, 22);
     p.setBrush(m_addTagHovered ? Color::BG_BUTTON_HOVER : Color::BG_DARK);
     p.setPen(QPen(m_addTagHovered ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
-    p.drawRoundedRect(m_addTagRect, Visual::RadiusSmall, Visual::RadiusSmall);
+    p.drawRoundedRect(m_addTagRect, Visual::RadiusMedium, Visual::RadiusMedium);
     QColor addColor = m_addTagHovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
     Codicon::draw(p, "add", QRect(m_addTagRect.left() + 6, m_addTagRect.top(), 14, m_addTagRect.height()),
                   addColor, 11);

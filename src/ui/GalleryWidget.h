@@ -59,9 +59,9 @@ private:
     void navigateTo(int index);
 
     int m_thumbSize = 180;
-    static constexpr int kPadding = 12;
-    static constexpr int kGap = 12;
-    static constexpr int kLabelHeight = 46;
+    static constexpr int kPadding = 14;
+    static constexpr int kGap = 14;
+    static constexpr int kLabelHeight = 38;
     int m_itemWidth() const { return m_thumbSize + kPadding * 2; }
     int m_itemHeight() const { return m_thumbSize + kPadding * 2 + kLabelHeight; }
 

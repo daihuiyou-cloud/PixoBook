@@ -43,10 +43,15 @@ public:
     QVector<Tag> getTagsForAsset(const QString &assetId) const override;
     QVector<Asset> getAssetsByTag(int tagId) const override;
 
+    bool beginTransaction() override;
+    bool commitTransaction() override;
+    bool rollbackTransaction() override;
+
 private:
     void createSchema();
     void migrate();
     QSqlDatabase m_db;
+    QString m_connectionName;
 };
 
 #endif

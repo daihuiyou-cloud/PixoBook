@@ -60,12 +60,12 @@ void SidebarWidget::updateLayout()
 void SidebarWidget::drawFolderIcon(QPainter &p, const QRect &r, bool hovered, bool active) const
 {
     QColor fc = active ? Color::TEXT_BRIGHT : (hovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY);
-    Codicon::draw(p, "folder", QRect(r.x() + 12, r.y(), 18, r.height()), fc, 15);
+    Codicon::draw(p, "folder", QRect(r.x() + 12, r.y(), 18, r.height()), fc, 16);
 }
 
 void SidebarWidget::drawTagDot(QPainter &p, const QPoint &center, const QColor &color) const
 {
-    Codicon::draw(p, "tag", QRect(center.x() - 8, center.y() - 8, 16, 16), color, 14);
+    Codicon::draw(p, "tag", QRect(center.x() - 8, center.y() - 8, 16, 16), color, 16);
 }
 
 void SidebarWidget::paintEvent(QPaintEvent *)
@@ -84,15 +84,15 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     p.setFont(sectionFont);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_foldersExpanded ? "chevron-down" : "chevron-right",
-                  QRect(8, 0, 14, kSectionHeight), Color::TEXT_SECONDARY, 12);
+                  QRect(8, 0, 14, kSectionHeight), Color::TEXT_SECONDARY, 14);
     p.setFont(sectionFont);
     p.drawText(folderHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, QStringLiteral("素材文件夹"));
 
     QRect addRect(width() - 30, 5, 22, 22);
     if (m_hoveredAddButton)
-        p.fillRect(addRect, Color::BG_SELECTED);
+        p.fillRect(addRect, Color::BG_BUTTON_HOVER);
     Codicon::draw(p, "add", addRect, Color::TEXT_SECONDARY, 13);
-    p.setPen(Color::BORDER);
+    p.setPen(Color::BORDER_MUTED);
     p.drawLine(12, folderHeader.bottom(), width() - 12, folderHeader.bottom());
 
     if (m_foldersExpanded) {
@@ -130,10 +130,10 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     p.setFont(sectionFont);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right",
-                  QRect(8, tagHeader.top(), 14, kSectionHeight), Color::TEXT_SECONDARY, 12);
+                  QRect(8, tagHeader.top(), 14, kSectionHeight), Color::TEXT_SECONDARY, 14);
     p.setFont(sectionFont);
     p.drawText(tagHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, QStringLiteral("标签"));
-    p.setPen(Color::BORDER);
+    p.setPen(Color::BORDER_MUTED);
     p.drawLine(12, tagHeader.bottom(), width() - 12, tagHeader.bottom());
 
     if (m_tagsExpanded) {

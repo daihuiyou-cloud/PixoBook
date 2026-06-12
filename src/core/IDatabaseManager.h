@@ -45,6 +45,11 @@ public:
     virtual QVector<int> getTagIdsForAsset(const QString &assetId) const = 0;
     virtual QVector<Tag> getTagsForAsset(const QString &assetId) const = 0;
     virtual QVector<Asset> getAssetsByTag(int tagId) const = 0;
+
+    // Transaction support
+    virtual bool beginTransaction() = 0;
+    virtual bool commitTransaction() = 0;
+    virtual bool rollbackTransaction() = 0;
 };
 
 #endif

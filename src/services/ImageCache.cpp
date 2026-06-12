@@ -13,37 +13,53 @@ ImageCache::ImageCache(int maxEntries, QObject *parent)
 QPixmap ImageCache::get(const QString &filePath, const QSize &size) const
 {
     QMutexLocker lock(&m_mutex);
-    return m_cache.value({filePath, size});
+    CacheKey key{filePath, size};
+    auto it = m_cache.find(key);
+    if (it != m_cache.end()) {
+        m_accessOrder.removeAll(key);
+        m_accessOrder.append(key);
+        return it.value();
+    }
+    return {};
 }
 
 void ImageCache::insert(const QString &filePath, const QSize &size, const QPixmap &pixmap)
 {
     QMutexLocker lock(&m_mutex);
-    if (m_cache.size() >= m_maxEntries) {
-        int toRemove = qMax(1, m_cache.size() / 4);
-        auto keys = m_cache.keys();
-        for (int i = 0; i < toRemove && i < keys.size(); i++)
-            m_cache.remove(keys[i]);
+    CacheKey key{filePath, size};
+    if (m_cache.contains(key)) {
+        m_cache[key] = pixmap;
+        m_accessOrder.removeAll(key);
+        m_accessOrder.append(key);
+        return;
     }
-    m_cache.insert({filePath, size}, pixmap);
+    while (m_cache.size() >= m_maxEntries) {
+        CacheKey oldest = m_accessOrder.takeFirst();
+        m_cache.remove(oldest);
+    }
+    m_cache.insert(key, pixmap);
+    m_accessOrder.append(key);
 }
 
 void ImageCache::invalidate(const QString &filePath)
 {
     QMutexLocker lock(&m_mutex);
-    QList<CacheKey> toRemove;
-    for (auto it = m_cache.constBegin(); it != m_cache.constEnd(); ++it) {
-        if (it.key().filePath == filePath)
-            toRemove.append(it.key());
+    auto it = m_cache.begin();
+    while (it != m_cache.end()) {
+        if (it.key().filePath == filePath) {
+            m_accessOrder.removeAll(it.key());
+            it = m_cache.erase(it);
+        } else {
+            ++it;
+        }
     }
-    for (const auto &key : toRemove)
-        m_cache.remove(key);
 }
 
 void ImageCache::clear()
 {
     QMutexLocker lock(&m_mutex);
     m_cache.clear();
+    m_accessOrder.clear();
 }
 
 void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)

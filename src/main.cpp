@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QFont>
+#include <QFile>
 #include <memory>
 #include "ui/MainWindow.h"
 #include "ui/CustomStyle.h"
@@ -33,6 +34,12 @@ int main(int argc, char *argv[])
     ParserRegistry::instance().registerParser(std::make_unique<DALLEParser>());
 
     app.setStyle(new CustomStyle());
+
+    QFile styleFile(":/styles/main.qss");
+    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+        app.setStyleSheet(styleFile.readAll());
+        styleFile.close();
+    }
 
     MainWindow window;
     window.setWindowTitle(QStringLiteral("AI 素材库"));

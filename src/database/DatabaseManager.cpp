@@ -7,7 +7,8 @@
 
 DatabaseManager::DatabaseManager(const QString &dbPath)
 {
-    m_db = QSqlDatabase::addDatabase("QSQLITE");
+    m_connectionName = QStringLiteral("aimaterial_%1").arg(dbPath);
+    m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
     m_db.setDatabaseName(dbPath);
 }
 
@@ -15,6 +16,8 @@ DatabaseManager::~DatabaseManager()
 {
     if (m_db.isOpen())
         m_db.close();
+    if (QSqlDatabase::connectionNames().contains(m_connectionName))
+        QSqlDatabase::removeDatabase(m_connectionName);
 }
 
 bool DatabaseManager::initialize()
@@ -307,6 +310,9 @@ Asset DatabaseManager::findByPath(const QString &filePath) const
         a.format = q.value("format").toString();
         a.hash = q.value("hash").toString();
         a.isFavorite = q.value("is_favorite").toInt() != 0;
+        a.folderId = q.value("folder_id").toString();
+        a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
+        a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
     }
     return a;
 }
@@ -328,6 +334,9 @@ Asset DatabaseManager::findByHash(const QString &hash) const
         a.format = q.value("format").toString();
         a.hash = q.value("hash").toString();
         a.isFavorite = q.value("is_favorite").toInt() != 0;
+        a.folderId = q.value("folder_id").toString();
+        a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
+        a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
     }
     return a;
 }
@@ -489,4 +498,19 @@ QVector<Asset> DatabaseManager::getAssetsByTag(int tagId) const
         }
     }
     return assets;
+}
+
+bool DatabaseManager::beginTransaction()
+{
+    return m_db.transaction();
+}
+
+bool DatabaseManager::commitTransaction()
+{
+    return m_db.commit();
+}
+
+bool DatabaseManager::rollbackTransaction()
+{
+    return m_db.rollback();
 }

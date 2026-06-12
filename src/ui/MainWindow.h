@@ -16,6 +16,7 @@
 #include "ui/TabBar.h"
 #include "services/LibraryController.h"
 #include "services/ImageCache.h"
+#include "core/IDatabaseManager.h"
 #include "database/DatabaseManager.h"
 
 class MainWindow : public QMainWindow
@@ -61,7 +62,7 @@ private:
     QLabel *m_statusCount;
 
     // Controller & Dependencies
-    DatabaseManager *m_db;
+    IDatabaseManager *m_db;
     LibraryController *m_library;
     ImageCache *m_concreteCache;
 

@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QFileSystemWatcher>
 #include <QStringList>
+#include <QSet>
+#include <QTimer>
 
 class FileWatcher : public QObject
 {
@@ -25,9 +27,14 @@ private slots:
     void onFileChanged(const QString &path);
 
 private:
-    QFileSystemWatcher *m_watcher;
+    void watchDirectoryTree(const QString &rootPath);
+    void unwatchDirectoryTree(const QString &rootPath);
     void checkForNewFiles(const QString &dirPath);
+    QFileSystemWatcher *m_watcher;
     QStringList m_knownFiles;
+    QSet<QString> m_watchedDirs;
+    QTimer m_debounceTimer;
+    QStringList m_pendingDirs;
 };
 
 #endif

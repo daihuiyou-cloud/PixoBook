@@ -2,6 +2,29 @@ QToolTip {
     background-color: #252526;
     color: #cccccc;
     border: 1px solid #3c3c3c;
+    border-radius: 4px;
     padding: 4px 8px;
+    font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", "PingFang SC", sans-serif;
     font-size: 12px;
+}
+
+QComboBox QListView, QComboBox QTableView {
+    background-color: #252526;
+    color: #cccccc;
+    selection-background-color: #094771;
+    selection-color: #cccccc;
+    border: 1px solid #3c3c3c;
+    outline: none;
+    font-family: "Microsoft YaHei UI", "Noto Sans CJK SC", "PingFang SC", sans-serif;
+    font-size: 13px;
+}
+
+QComboBox QListView::item, QComboBox QTableView::item {
+    padding: 4px 8px;
+    min-height: 24px;
+}
+
+QComboBox QListView::item:hover, QComboBox QTableView::item:hover {
+    background-color: #094771;
+    color: #cccccc;
 }

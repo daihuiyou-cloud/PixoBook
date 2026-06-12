@@ -211,17 +211,27 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         bool isHovered = (i == m_hoveredIndex);
         bool isSelected = m_selectedIndices.contains(i) || m_selectedAsset.id == asset.id;
 
+        if (isSelected || isHovered) {
+            QRect shadowRect = r.adjusted(2, 2, 2, 6);
+            p.setPen(Qt::NoPen);
+            p.setBrush(Color::OVERLAY_SHADOW);
+            p.drawRoundedRect(shadowRect, Visual::RadiusMedium, Visual::RadiusMedium);
+        }
+
         QPainterPath cardPath;
         cardPath.addRoundedRect(QRectF(r), Visual::RadiusMedium, Visual::RadiusMedium);
         p.fillPath(cardPath, isSelected ? Color::BG_CARD_HOVER
                                         : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
         p.setPen(QPen(isSelected ? Color::ACCENT
-                                 : (isHovered ? Color::BORDER_SUBTLE : Color::BORDER_MUTED),
+                                 : (isHovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT),
                       isSelected ? 2 : 1));
         p.drawPath(cardPath);
 
-        if (isSelected)
+        if (isSelected) {
             p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
+            p.setPen(QPen(Color::WHITE_15, 1));
+            p.drawLine(r.left() + 4, r.top() + 2, r.right() - 4, r.top() + 2);
+        }
 
         QRect thumbArea(r.left() + kPadding, r.top() + kPadding, m_thumbSize, m_thumbSize);
         QPainterPath thumbPath;
@@ -251,7 +261,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.drawPath(thumbPath);
 
         QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 8,
-                        r.width() - kPadding * 2 - 28, 18);
+                        r.width() - kPadding * 2 - 32, 16);
         p.setFont(labelFont);
         QString fileName = asset.fileName;
         QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
@@ -261,13 +271,13 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.setPen(isSelected ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
         p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
-        QRect metaRect(labelRect.left(), labelRect.bottom() + 2, r.width() - kPadding * 2 - 28, 16);
+        QRect metaRect(labelRect.left(), labelRect.bottom() + 1, r.width() - kPadding * 2 - 32, 14);
         p.setFont(metaFont);
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
                    p.fontMetrics().elidedText(metaLine(asset), Qt::ElideRight, metaRect.width()));
 
-        QRect starRect(r.right() - 34, r.bottom() - 34, 26, 26);
+        QRect starRect(r.right() - 40, r.bottom() - 40, 32, 32);
         if (asset.isFavorite || isHovered || isSelected) {
             QColor starColor = asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
             if (isHovered || isSelected)
@@ -348,7 +358,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
 
     if (idx >= 0) {
         QRect r = itemRect(idx);
-        QRect starRect(r.right() - 36, r.bottom() - 36, 32, 32);
+        QRect starRect(r.right() - 42, r.bottom() - 42, 38, 38);
         if (starRect.contains(event->pos())) {
             QString assetId = m_assets[idx].id;
             bool newFav = !m_assets[idx].isFavorite;

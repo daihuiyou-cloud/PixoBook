@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("AIMaterialLibrary");
 
-    QFont appFont("Segoe UI", 10);
-    appFont.setStyleStrategy(QFont::PreferAntialias);
+    QFont appFont = app.font();
+    appFont.setPointSize(10);
     app.setFont(appFont);
 
     Codicon::init();

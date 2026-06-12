@@ -1,4 +1,6 @@
 #include "DetailPanel.h"
+#include <QApplication>
+#include <QClipboard>
 #include <QFileInfo>
 #include <QMouseEvent>
 #include <QPainter>
@@ -12,7 +14,7 @@ DetailPanel::DetailPanel(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
 {
     setMouseTracking(true);
-    setMinimumWidth(320);
+    setMinimumWidth(340);
 }
 
 void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const QVector<Tag> &tags)
@@ -37,6 +39,7 @@ void DetailPanel::clear()
     m_tags.clear();
     m_fullImage = QPixmap();
     m_closeBtnRect = QRect();
+    m_copyPromptRect = QRect();
     m_scrollOffset = 0;
     m_maxScrollOffset = 0;
     update();
@@ -44,7 +47,7 @@ void DetailPanel::clear()
 
 QRect DetailPanel::imageArea() const
 {
-    return QRect(0, 0, width(), qMin(width() * 4 / 5, height() * 2 / 5));
+    return QRect(0, 0, width(), qBound(220, height() / 3, 340));
 }
 
 void DetailPanel::paintEvent(QPaintEvent *)
@@ -57,8 +60,11 @@ void DetailPanel::paintEvent(QPaintEvent *)
         QFont f = p.font();
         f.setPixelSize(Visual::FontBody);
         p.setFont(f);
+        Codicon::draw(p, "info", QRect(width() / 2 - 18, height() / 2 - 48, 36, 36),
+                      Color::TEXT_SECONDARY, 28);
         p.setPen(Color::TEXT_SECONDARY);
-        p.drawText(rect(), Qt::AlignCenter, QStringLiteral("选择一张素材查看详情"));
+        p.drawText(rect().adjusted(24, 18, -24, 0), Qt::AlignCenter,
+                   QStringLiteral("选择一张素材查看详情"));
         return;
     }
 
@@ -74,7 +80,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
     p.save();
     p.setClipRect(0, scrollTop, width(), scrollHeight);
 
-    int contentY = scrollTop + 16 - m_scrollOffset;
+    int contentY = scrollTop + 14 - m_scrollOffset;
     int y = drawFileInfo(p, contentY);
     drawSectionDivider(p, y);
     y = drawMetadataSection(p, y + 18);
@@ -90,14 +96,14 @@ void DetailPanel::paintEvent(QPaintEvent *)
 
 void DetailPanel::drawSectionDivider(QPainter &p, int y)
 {
-    p.setPen(Color::BORDER);
+    p.setPen(Color::BORDER_MUTED);
     p.drawLine(0, y, width(), y);
 }
 
 int DetailPanel::drawImage(QPainter &p)
 {
     QRect imgRect = imageArea();
-    p.fillRect(imgRect, Color::BG_DARKEST);
+    p.fillRect(imgRect, Color::BG_PREVIEW);
 
     if (m_fullImage.isNull()) {
         p.setPen(Color::TEXT_SECONDARY);
@@ -123,7 +129,8 @@ int DetailPanel::drawImage(QPainter &p)
                QString("%1 x %2  |  %3%").arg(m_asset.width).arg(m_asset.height).arg((int)(m_zoom * 100)));
 
     m_favStarRect = QRect(infoBg.right() - 28, infoBg.top() + 4, 22, 22);
-    Codicon::draw(p, "star", m_favStarRect, m_asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF, 16);
+    Codicon::draw(p, m_asset.isFavorite ? "star" : "star-empty", m_favStarRect,
+                  m_asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF, 16);
     return imgRect.bottom();
 }
 
@@ -135,7 +142,8 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     p.setFont(hf);
     m_fileInfoHeaderRect = QRect(0, y - 18, width(), 24);
     p.setPen(Color::TEXT_SECONDARY);
-    Codicon::draw(p, m_fileInfoExpanded ? "chevron-down" : "chevron-right", QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
+    Codicon::draw(p, m_fileInfoExpanded ? "chevron-down" : "chevron-right",
+                  QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     p.setFont(hf);
     p.drawText(36, y, QStringLiteral("文件信息"));
     if (!m_fileInfoExpanded) return y + 8;
@@ -161,7 +169,8 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     p.setFont(hf);
     m_metadataHeaderRect = QRect(0, y - 18, width(), 24);
     p.setPen(Color::TEXT_SECONDARY);
-    Codicon::draw(p, m_metadataExpanded ? "chevron-down" : "chevron-right", QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
+    Codicon::draw(p, m_metadataExpanded ? "chevron-down" : "chevron-right",
+                  QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     p.setFont(hf);
     p.drawText(36, y, QStringLiteral("AI 元数据"));
     if (!m_metadataExpanded) return y + 8;
@@ -175,23 +184,29 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
 
     m_promptHeaderRect = QRect(0, y - 18, width(), 24);
     p.setPen(Color::TEXT_SECONDARY);
-    Codicon::draw(p, m_promptExpanded ? "chevron-down" : "chevron-right", QRect(18, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
+    Codicon::draw(p, m_promptExpanded ? "chevron-down" : "chevron-right",
+                  QRect(18, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     QFont body = p.font();
     body.setPixelSize(Visual::FontBody);
     body.setBold(false);
     p.setFont(body);
     p.drawText(40, y, "Prompt");
 
-    QString promptText = m_metadata.prompt.isEmpty() ? QStringLiteral("—") : m_metadata.prompt;
-    QRect promptRect(104, y - 14, width() - 120, m_promptExpanded ? 96 : 22);
-    p.setPen(Color::TEXT_PRIMARY);
+    m_copyPromptRect = QRect(width() - 42, y - 18, 24, 22);
+    Codicon::draw(p, "copy", m_copyPromptRect,
+                  m_metadata.prompt.isEmpty() ? Color::TEXT_DISABLED : Color::TEXT_SECONDARY, 12);
+
+    QString promptText = m_metadata.prompt.isEmpty() ? QStringLiteral("暂无 Prompt") : m_metadata.prompt;
+    QRect promptRect(104, y - 14, width() - 122, m_promptExpanded ? 96 : 22);
+    p.setPen(m_metadata.prompt.isEmpty() ? Color::TEXT_SECONDARY : Color::TEXT_PRIMARY);
     if (m_promptExpanded) {
+        promptRect.setRight(width() - 18);
         QTextOption opt;
         opt.setWrapMode(QTextOption::WordWrap);
         p.drawText(promptRect, promptText, opt);
         int promptH = p.fontMetrics().boundingRect(QRect(0, 0, promptRect.width(), 300),
                                                    Qt::TextWordWrap, promptText).height();
-        y += qBound(24, promptH + 8, 104);
+        y += qBound(28, promptH + 10, 108);
     } else {
         p.drawText(promptRect, Qt::AlignLeft | Qt::AlignVCenter,
                    p.fontMetrics().elidedText(promptText, Qt::ElideRight, promptRect.width()));
@@ -221,7 +236,8 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     p.setFont(hf);
     m_tagsHeaderRect = QRect(0, y - 18, width(), 24);
     p.setPen(Color::TEXT_SECONDARY);
-    Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right", QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
+    Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right",
+                  QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     p.setFont(hf);
     p.drawText(36, y, QStringLiteral("标签"));
     if (!m_tagsExpanded) return y + 8;
@@ -255,7 +271,8 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
         p.drawRoundedRect(tagBg, Visual::RadiusSmall, Visual::RadiusSmall);
         p.setPen(tag.color);
         p.drawText(tagBg.adjusted(7, 0, -16, 0), Qt::AlignVCenter, tag.name);
-        Codicon::draw(p, "close", QRect(tagBg.right() - 16, tagBg.top() + 3, 12, 16), Color::TEXT_PRIMARY, 9);
+        Codicon::draw(p, "close", QRect(tagBg.right() - 16, tagBg.top() + 3, 12, 16),
+                      Color::TEXT_PRIMARY, 9);
         tagX += tw + 6;
     }
 
@@ -267,7 +284,8 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     p.setPen(QPen(m_addTagHovered ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
     p.drawRoundedRect(m_addTagRect, Visual::RadiusSmall, Visual::RadiusSmall);
     QColor addColor = m_addTagHovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
-    Codicon::draw(p, "add", QRect(m_addTagRect.left() + 6, m_addTagRect.top(), 14, m_addTagRect.height()), addColor, 11);
+    Codicon::draw(p, "add", QRect(m_addTagRect.left() + 6, m_addTagRect.top(), 14, m_addTagRect.height()),
+                  addColor, 11);
     p.setPen(addColor);
     p.drawText(m_addTagRect.adjusted(24, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, addText);
     return y + 30;
@@ -302,6 +320,10 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
         m_asset.isFavorite = !m_asset.isFavorite;
         emit favoriteToggled(m_asset.id, m_asset.isFavorite);
         update();
+        return;
+    }
+    if (m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty()) {
+        QApplication::clipboard()->setText(m_metadata.prompt);
         return;
     }
     if (m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty()) {

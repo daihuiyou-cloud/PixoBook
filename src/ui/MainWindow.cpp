@@ -9,6 +9,7 @@
 #endif
 #include <QStatusBar>
 #include <QApplication>
+#include <QFont>
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileDialog>
@@ -23,6 +24,7 @@
 #include "ui/TagPickerDialog.h"
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
+#include "ui/VisualConstants.h"
 #include "database/DatabaseManager.h"
 #include "services/ImageCache.h"
 #include "services/FileScanner.h"
@@ -126,7 +128,7 @@ void MainWindow::setupUI()
     m_mainSplitter->setStretchFactor(0, 0);
     m_mainSplitter->setStretchFactor(1, 1);
     m_mainSplitter->setStretchFactor(2, 0);
-    m_mainSplitter->setSizes({220, 700, 0});
+    m_mainSplitter->setSizes({Visual::SidebarWidth, 1008, 0});
 
     mainLayout->addWidget(contentWidget, 1);
 
@@ -211,10 +213,14 @@ void MainWindow::setupStatusBar()
 
     m_statusMsg = new QLabel(QStringLiteral("就绪"));
     m_statusMsg->setPalette(sbPal);
+    QFont sf = m_statusMsg->font();
+    sf.setPixelSize(Visual::FontControl);
+    m_statusMsg->setFont(sf);
     statusBar()->addWidget(m_statusMsg, 1);
 
     m_statusCount = new QLabel();
     m_statusCount->setPalette(sbPal);
+    m_statusCount->setFont(sf);
     statusBar()->addPermanentWidget(m_statusCount);
 }
 
@@ -289,8 +295,10 @@ void MainWindow::setupConnections()
         m_detailPanel->showAsset(asset, meta, tags);
         m_detailPanel->setVisible(true);
         auto sizes = m_mainSplitter->sizes();
-        if (sizes[2] < 300)
-            m_mainSplitter->setSizes({220, sizes[1] - 300, 300});
+        if (sizes[2] < Visual::DetailPanelWidth)
+            m_mainSplitter->setSizes({Visual::SidebarWidth,
+                                      qMax(480, sizes[1] - Visual::DetailPanelWidth),
+                                      Visual::DetailPanelWidth});
     });
 
     connect(m_gallery, &GalleryWidget::assetDoubleClicked, this, [this](const Asset &asset) {
@@ -657,8 +665,8 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, long *r
 
     if (msg->message == WM_GETMINMAXINFO) {
         MINMAXINFO *mmi = reinterpret_cast<MINMAXINFO *>(msg->lParam);
-        mmi->ptMinTrackSize.x = 800;
-        mmi->ptMinTrackSize.y = 500;
+        mmi->ptMinTrackSize.x = 1000;
+        mmi->ptMinTrackSize.y = 700;
         *result = 0;
         return true;
     }

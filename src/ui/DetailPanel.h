@@ -53,6 +53,7 @@ private:
     QRect m_favStarRect;
     QRect m_addTagRect;
     QRect m_closeBtnRect;
+    QRect m_copyPromptRect;
     QRect m_promptHeaderRect;
     QRect m_fileInfoHeaderRect;
     QRect m_metadataHeaderRect;

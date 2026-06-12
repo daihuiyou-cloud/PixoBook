@@ -61,7 +61,7 @@ private:
     int m_thumbSize = 180;
     static constexpr int kPadding = 12;
     static constexpr int kGap = 12;
-    static constexpr int kLabelHeight = 30;
+    static constexpr int kLabelHeight = 46;
     int m_itemWidth() const { return m_thumbSize + kPadding * 2; }
     int m_itemHeight() const { return m_thumbSize + kPadding * 2 + kLabelHeight; }
 

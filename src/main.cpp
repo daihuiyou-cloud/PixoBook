@@ -13,7 +13,9 @@ int main(int argc, char *argv[])
 {
 #if defined(Q_OS_WIN)
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
+
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("AI 素材库"));
     app.setApplicationVersion("1.0.0");

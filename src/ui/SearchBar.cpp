@@ -26,8 +26,8 @@ SearchBar::SearchBar(QWidget *parent)
     setFixedHeight(Visual::ToolbarHeight);
 
     auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(12, 6, 12, 6);
-    layout->setSpacing(10);
+    layout->setContentsMargins(12, 6, 10, 6);
+    layout->setSpacing(8);
 
     QFont controlFont = font();
     controlFont.setPixelSize(Visual::FontControl);
@@ -62,16 +62,17 @@ SearchBar::SearchBar(QWidget *parent)
     comboPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
     comboPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
 
-    auto *sourceLabel = new QLabel(QStringLiteral("来源"));
-    sourceLabel->setFont(controlFont);
     QPalette labelPal;
     labelPal.setColor(QPalette::WindowText, Color::TEXT_SECONDARY);
+
+    auto *sourceLabel = new QLabel(QStringLiteral("来源"));
+    sourceLabel->setFont(controlFont);
     sourceLabel->setPalette(labelPal);
     layout->addWidget(sourceLabel);
 
     m_sourceCombo = new QComboBox();
     m_sourceCombo->setMinimumHeight(Visual::ControlHeight);
-    m_sourceCombo->setMinimumWidth(128);
+    m_sourceCombo->setMinimumWidth(120);
     m_sourceCombo->setFont(controlFont);
     m_sourceCombo->setPalette(comboPal);
     m_sourceCombo->addItem(QStringLiteral("全部来源"), "");
@@ -87,7 +88,7 @@ SearchBar::SearchBar(QWidget *parent)
 
     m_sortCombo = new QComboBox();
     m_sortCombo->setMinimumHeight(Visual::ControlHeight);
-    m_sortCombo->setMinimumWidth(104);
+    m_sortCombo->setMinimumWidth(100);
     m_sortCombo->setFont(controlFont);
     m_sortCombo->setPalette(comboPal);
     m_sortCombo->addItem(QStringLiteral("时间↓"), "created_at|DESC");
@@ -155,7 +156,7 @@ SearchBar::SearchBar(QWidget *parent)
     m_favButton = new QPushButton(iconFor("star-empty", Color::TEXT_PRIMARY, 14), QStringLiteral("收藏"));
     m_favButton->setCheckable(true);
     m_favButton->setMinimumHeight(Visual::ControlHeight);
-    m_favButton->setMinimumWidth(74);
+    m_favButton->setMinimumWidth(70);
     m_favButton->setFont(controlFont);
     m_favButton->setCursor(Qt::PointingHandCursor);
     m_favButton->setProperty("toolbarButton", true);
@@ -187,6 +188,7 @@ SearchBar::SearchBar(QWidget *parent)
         m_onlyFavorites = checked;
         m_favButton->setIcon(iconFor(checked ? "star" : "star-empty",
                                      checked ? Color::FAVORITE_ON : Color::TEXT_PRIMARY, 14));
+        m_favButton->setText(QStringLiteral("收藏"));
         if (m_ready) emit filterChanged();
     });
 

@@ -18,7 +18,7 @@ SidebarWidget::SidebarWidget(QWidget *parent)
     : QWidget(parent)
 {
     setMouseTracking(true);
-    setFixedWidth(232);
+    setFixedWidth(Visual::SidebarWidth);
     setMinimumHeight(200);
     setFocusPolicy(Qt::StrongFocus);
 }
@@ -53,7 +53,8 @@ void SidebarWidget::setActiveTag(int tagId)
 
 void SidebarWidget::updateLayout()
 {
-    m_sectionTagY = kSectionHeight + (m_foldersExpanded ? m_folders.size() * kItemHeight : 0) + 8;
+    int folderRows = m_foldersExpanded ? qMax(1, m_folders.size()) * kItemHeight : 0;
+    m_sectionTagY = kSectionHeight + folderRows + 8;
 }
 
 void SidebarWidget::drawFolderIcon(QPainter &p, const QRect &r, bool hovered, bool active) const
@@ -96,6 +97,11 @@ void SidebarWidget::paintEvent(QPaintEvent *)
 
     if (m_foldersExpanded) {
         p.setFont(itemFont);
+        if (m_folders.isEmpty()) {
+            p.setPen(Color::TEXT_SECONDARY);
+            p.drawText(QRect(16, kSectionHeight + 4, width() - 32, kItemHeight),
+                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("暂无文件夹"));
+        }
         for (int i = 0; i < m_folders.size(); i++) {
             QRect itemRect(0, kSectionHeight + i * kItemHeight, width(), kItemHeight);
             bool isHovered = i == m_hoveredFolder;
@@ -132,6 +138,11 @@ void SidebarWidget::paintEvent(QPaintEvent *)
 
     if (m_tagsExpanded) {
         p.setFont(itemFont);
+        if (m_tags.isEmpty()) {
+            p.setPen(Color::TEXT_SECONDARY);
+            p.drawText(QRect(16, m_sectionTagY + kSectionHeight + 4, width() - 32, kItemHeight),
+                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("暂无标签"));
+        }
         for (int i = 0; i < m_tags.size(); i++) {
             QRect itemRect(0, m_sectionTagY + kSectionHeight + i * kItemHeight, width(), kItemHeight);
             bool isHovered = i == m_hoveredTag;

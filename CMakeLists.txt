@@ -8,6 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Sql Concurrent Test)
+enable_testing()
 
 file(GLOB_RECURSE LIB_SOURCES src/*.cpp)
 list(REMOVE_ITEM LIB_SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")

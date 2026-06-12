@@ -19,6 +19,29 @@
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
 
+namespace {
+QString metaLine(const Asset &asset)
+{
+    QStringList parts;
+    if (asset.width > 0 && asset.height > 0)
+        parts << QString("%1 x %2").arg(asset.width).arg(asset.height);
+    if (!asset.format.isEmpty())
+        parts << asset.format.toUpper();
+    if (asset.fileSize > 0)
+        parts << QString("%1 KB").arg(qMax<qint64>(1, asset.fileSize / 1024));
+    return parts.join("  |  ");
+}
+
+QIcon menuIcon(const QString &name, const QColor &color)
+{
+    QPixmap px(16, 16);
+    px.fill(Qt::transparent);
+    QPainter p(&px);
+    Codicon::draw(p, name, QRect(0, 0, 16, 16), color, 14);
+    return QIcon(px);
+}
+}
+
 GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
 {
@@ -141,24 +164,33 @@ void GalleryWidget::paintEvent(QPaintEvent *)
     p.fillRect(rect(), Color::BG_DARKEST);
 
     if (m_assets.isEmpty() || m_columns == 0) {
-        QFont emptyFont = p.font();
-        emptyFont.setPixelSize(Visual::FontTitle);
-        p.setFont(emptyFont);
+        QRect center = rect().adjusted(32, 0, -32, 0);
+        Codicon::draw(p, m_searchKeyword.isEmpty() ? "images" : "search",
+                      QRect(center.center().x() - 22, center.center().y() - 78, 44, 44),
+                      Color::TEXT_SECONDARY, 34);
+
+        QFont title = p.font();
+        title.setPixelSize(Visual::FontHeading);
+        title.setBold(true);
+        p.setFont(title);
         p.setPen(Color::TEXT_PRIMARY);
         if (!m_searchKeyword.isEmpty()) {
-            p.drawText(rect().adjusted(0, -18, 0, 0), Qt::AlignCenter,
-                       QStringLiteral("没有找到匹配 “%1” 的素材").arg(m_searchKeyword));
+            p.drawText(center.adjusted(0, -24, 0, 0), Qt::AlignCenter,
+                       QStringLiteral("没有找到匹配 \"%1\" 的素材").arg(m_searchKeyword));
         } else {
-            QRect center = rect().adjusted(24, 0, -24, 0);
             p.drawText(center.adjusted(0, -24, 0, 0), Qt::AlignCenter,
                        QStringLiteral("拖入图片或文件夹，开始整理 AI 素材"));
-            QFont subFont = p.font();
-            subFont.setPixelSize(Visual::FontBody);
-            p.setFont(subFont);
-            p.setPen(Color::TEXT_SECONDARY);
-            p.drawText(center.adjusted(0, 22, 0, 0), Qt::AlignCenter,
-                       QStringLiteral("也可以通过 文件 > 导入 添加素材库目录"));
         }
+
+        QFont body = p.font();
+        body.setPixelSize(Visual::FontBody);
+        body.setBold(false);
+        p.setFont(body);
+        p.setPen(Color::TEXT_SECONDARY);
+        p.drawText(center.adjusted(0, 18, 0, 0), Qt::AlignCenter,
+                   m_searchKeyword.isEmpty()
+                       ? QStringLiteral("也可以通过 文件 > 导入 添加素材库目录")
+                       : QStringLiteral("试试放宽来源、收藏或关键词筛选"));
         return;
     }
 
@@ -170,69 +202,77 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
     QFont labelFont = p.font();
     labelFont.setPixelSize(Visual::FontBody);
+    QFont metaFont = p.font();
+    metaFont.setPixelSize(Visual::FontCaption);
 
     for (int i = startIdx; i < endIdx; i++) {
+        const Asset &asset = m_assets[i];
         QRect r = itemRect(i);
         bool isHovered = (i == m_hoveredIndex);
-        bool isSelected = m_selectedIndices.contains(i) || m_selectedAsset.id == m_assets[i].id;
+        bool isSelected = m_selectedIndices.contains(i) || m_selectedAsset.id == asset.id;
 
         QPainterPath cardPath;
         cardPath.addRoundedRect(QRectF(r), Visual::RadiusMedium, Visual::RadiusMedium);
-        if (isSelected)
-            p.fillPath(cardPath, Color::BG_SELECTED);
-        else if (isHovered)
-            p.fillPath(cardPath, Color::BG_HOVER);
-        else
-            p.fillPath(cardPath, QColor(0x28, 0x28, 0x2b));
-
-        p.setPen(QPen(isSelected ? Color::ACCENT : (isHovered ? Color::BORDER_INPUT : Color::BORDER),
+        p.fillPath(cardPath, isSelected ? Color::BG_CARD_HOVER
+                                        : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
+        p.setPen(QPen(isSelected ? Color::ACCENT
+                                 : (isHovered ? Color::BORDER_SUBTLE : Color::BORDER_MUTED),
                       isSelected ? 2 : 1));
         p.drawPath(cardPath);
 
+        if (isSelected)
+            p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
+
         QRect thumbArea(r.left() + kPadding, r.top() + kPadding, m_thumbSize, m_thumbSize);
+        QPainterPath thumbPath;
+        thumbPath.addRoundedRect(QRectF(thumbArea), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(thumbPath, Color::BG_PREVIEW);
+
         QSize thumbSize(m_thumbSize, m_thumbSize);
-        bool fileExists = QFileInfo::exists(m_assets[i].filePath);
+        bool fileExists = QFileInfo::exists(asset.filePath);
         if (!fileExists) {
-            p.fillRect(thumbArea, Color::ERROR_BG);
             p.setPen(Color::ERROR_TEXT);
             p.drawText(thumbArea, Qt::AlignCenter, QStringLiteral("文件不存在"));
         } else {
-            QPixmap thumb = m_cache->get(m_assets[i].filePath, thumbSize);
+            QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
             if (thumb.isNull()) {
-                m_cache->requestThumbnail(m_assets[i].filePath, thumbSize);
-                p.fillRect(thumbArea, Color::BG_LOADING);
+                m_cache->requestThumbnail(asset.filePath, thumbSize);
                 p.setPen(Color::TEXT_SECONDARY);
-                p.drawText(thumbArea, Qt::AlignCenter, m_assets[i].format.toUpper());
+                p.drawText(thumbArea, Qt::AlignCenter,
+                           asset.format.isEmpty() ? QStringLiteral("加载中") : asset.format.toUpper());
             } else {
-                p.setPen(QPen(Color::BORDER, 1));
-                p.setBrush(Qt::NoBrush);
-                p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
-                QPainterPath clipPath;
-                clipPath.addRoundedRect(QRectF(thumbArea), Visual::RadiusSmall, Visual::RadiusSmall);
-                p.setClipPath(clipPath);
+                p.save();
+                p.setClipPath(thumbPath);
                 p.drawPixmap(thumbArea.topLeft(), thumb);
-                p.setClipping(false);
+                p.restore();
             }
         }
+        p.setPen(QPen(Color::BORDER_MUTED, 1));
+        p.drawPath(thumbPath);
 
-        QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 7,
-                        r.width() - kPadding * 2 - 28, kLabelHeight - 6);
+        QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 8,
+                        r.width() - kPadding * 2 - 28, 18);
         p.setFont(labelFont);
-        QString fileName = m_assets[i].fileName;
+        QString fileName = asset.fileName;
         QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
-
         if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive)) {
-            QRect bgRect = labelRect;
-            bgRect.setHeight(p.fontMetrics().height());
-            p.fillRect(bgRect, Color::SEARCH_HIGHLIGHT);
+            p.fillRect(labelRect.adjusted(0, 2, 0, -2), Color::SEARCH_HIGHLIGHT);
         }
-        p.setPen(Color::TEXT_PRIMARY);
+        p.setPen(isSelected ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
         p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
-        QRect starRect(r.right() - 31, r.bottom() - 31, 24, 24);
-        if (m_assets[i].isFavorite || isHovered || isSelected) {
-            QColor starColor = m_assets[i].isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
-            Codicon::draw(p, m_assets[i].isFavorite ? "star" : "star-empty", starRect, starColor, 15);
+        QRect metaRect(labelRect.left(), labelRect.bottom() + 2, r.width() - kPadding * 2 - 28, 16);
+        p.setFont(metaFont);
+        p.setPen(Color::TEXT_SECONDARY);
+        p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
+                   p.fontMetrics().elidedText(metaLine(asset), Qt::ElideRight, metaRect.width()));
+
+        QRect starRect(r.right() - 34, r.bottom() - 34, 26, 26);
+        if (asset.isFavorite || isHovered || isSelected) {
+            QColor starColor = asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
+            if (isHovered || isSelected)
+                p.fillRect(starRect.adjusted(2, 2, -2, -2), QColor(0, 0, 0, 80));
+            Codicon::draw(p, asset.isFavorite ? "star" : "star-empty", starRect, starColor, 15);
         }
     }
 }
@@ -308,7 +348,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
 
     if (idx >= 0) {
         QRect r = itemRect(idx);
-        QRect starRect(r.right() - 33, r.bottom() - 33, 30, 30);
+        QRect starRect(r.right() - 36, r.bottom() - 36, 32, 32);
         if (starRect.contains(event->pos())) {
             QString assetId = m_assets[idx].id;
             bool newFav = !m_assets[idx].isFavorite;
@@ -404,10 +444,8 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
     if (sel.size() == 1) {
         bool isFav = sel[0].isFavorite;
         QAction *favAction = menu.addAction(isFav ? QStringLiteral("取消收藏") : QStringLiteral("收藏"));
-        QPixmap favPx(16, 16);
-        favPx.fill(Qt::transparent);
-        { QPainter sp(&favPx); Codicon::draw(sp, "star", QRect(0, 0, 16, 16), isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON, 14); }
-        favAction->setIcon(QIcon(favPx));
+        favAction->setIcon(menuIcon(isFav ? "star-empty" : "star",
+                                    isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON));
         connect(favAction, &QAction::triggered, this, [this, sel]() {
             emit favoriteToggled(sel[0].id, !sel[0].isFavorite);
         });
@@ -415,7 +453,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
     if (!sel.isEmpty()) {
         menu.addSeparator();
         QAction *tagAction = menu.addAction(QStringLiteral("添加标签..."));
-        { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "tag", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); tagAction->setIcon(QIcon(px)); }
+        tagAction->setIcon(menuIcon("tag", Color::TEXT_PRIMARY));
         connect(tagAction, &QAction::triggered, this, [this, sel]() {
             QVector<QString> ids;
             for (const auto &a : sel) ids.append(a.id);
@@ -423,7 +461,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
         });
         menu.addSeparator();
         QAction *delAction = menu.addAction(QStringLiteral("删除"));
-        { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "trash", QRect(0, 0, 16, 16), Color::TEXT_PRIMARY, 14); delAction->setIcon(QIcon(px)); }
+        delAction->setIcon(menuIcon("trash", Color::TEXT_PRIMARY));
         delAction->setShortcut(QKeySequence::Delete);
         connect(delAction, &QAction::triggered, this, [this, sel]() {
             emit deleteRequested(sel);
@@ -461,11 +499,9 @@ bool GalleryWidget::event(QEvent *event)
         int idx = indexAt(he->pos());
         if (idx >= 0 && idx < m_assets.size()) {
             const Asset &a = m_assets[idx];
-            QString tip = QString("%1\n%2 x %3  |  %4 KB")
+            QString tip = QString("%1\n%2")
                               .arg(a.fileName)
-                              .arg(a.width).arg(a.height)
-                              .arg(a.fileSize / 1024);
-            if (!a.format.isEmpty()) tip += QString("  |  %1").arg(a.format.toUpper());
+                              .arg(metaLine(a));
             QToolTip::showText(he->globalPos(), tip, this);
         } else {
             QToolTip::hideText();

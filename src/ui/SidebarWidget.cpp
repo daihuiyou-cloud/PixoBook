@@ -82,7 +82,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         // Add folder button
         if (m_foldersExpanded) {
             QRect addRect(width() - 26, sectionY + 4, 18, 18);
-            bool isAddHovered = m_hoveredFolder == -2;
+            bool isAddHovered = m_hoveredAddButton;
             if (isAddHovered)
                 p.fillRect(addRect, QColor(0xff, 0xff, 0xff, 15));
             p.setPen(QColor(0x96, 0x96, 0x96));
@@ -119,7 +119,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
 
                 p.setPen(QColor(0xcc, 0xcc, 0xcc));
                 p.drawText(itemRect.adjusted(22, 0, 0, 0), Qt::AlignVCenter,
-                           p.fontMetrics().elidedText(m_folders[i], Qt::ElideRight, width() - 30));
+                           p.fontMetrics().elidedText(m_folders[i], Qt::ElideMiddle, width() - 30));
             }
         }
     }
@@ -170,13 +170,15 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
 {
     int oldHoverFolder = m_hoveredFolder;
     int oldHoverTag = m_hoveredTag;
+    bool oldHoverAdd = m_hoveredAddButton;
     m_hoveredFolder = -1;
     m_hoveredTag = -1;
+    m_hoveredAddButton = false;
 
     // Check add button
     QRect addRect(width() - 26, 6, 20, 20);
     if (addRect.contains(event->pos()))
-        m_hoveredFolder = -2;
+        m_hoveredAddButton = true;
 
     for (int i = 0; i < m_folders.size(); i++) {
         QRect r(0, kSectionHeight + 1 + i * kItemHeight, width(), kItemHeight);
@@ -193,7 +195,7 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
         }
     }
 
-    if (oldHoverFolder != m_hoveredFolder || oldHoverTag != m_hoveredTag)
+    if (oldHoverFolder != m_hoveredFolder || oldHoverTag != m_hoveredTag || oldHoverAdd != m_hoveredAddButton)
         update();
 }
 
@@ -246,6 +248,7 @@ void SidebarWidget::mousePressEvent(QMouseEvent *event)
 
 void SidebarWidget::resizeEvent(QResizeEvent *)
 {
+    updateLayout();
     update();
 }
 

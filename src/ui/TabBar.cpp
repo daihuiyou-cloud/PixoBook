@@ -34,22 +34,28 @@ void TabBar::setTabs(const QVector<Tab> &tabs)
 
 QRect TabBar::tabRect(int index) const
 {
+    QFont f = font();
+    f.setPixelSize(12);
+    QFontMetrics fm(f);
     int x = 0;
     for (int i = 0; i < index && i < m_tabs.size(); i++) {
-        int labelWidth = m_tabs[i].label.size() * 12;
+        int labelWidth = fm.horizontalAdvance(m_tabs[i].label);
         int tabWidth = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 16);
         x += tabWidth;
     }
-    int labelWidth = m_tabs[index].label.size() * 12;
+    int labelWidth = fm.horizontalAdvance(m_tabs[index].label);
     int width = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 16);
     return QRect(x, 0, width, kTabHeight);
 }
 
 QRect TabBar::addButtonRect() const
 {
+    QFont f = font();
+    f.setPixelSize(12);
+    QFontMetrics fm(f);
     int x = 4;
     for (int i = 0; i < m_tabs.size(); i++) {
-        int labelWidth = m_tabs[i].label.size() * 12;
+        int labelWidth = fm.horizontalAdvance(m_tabs[i].label);
         int tabWidth = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 16);
         x += tabWidth;
     }
@@ -137,7 +143,10 @@ void TabBar::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() != Qt::LeftButton) return;
 
-    if (addButtonRect().contains(event->pos())) return;
+    if (addButtonRect().contains(event->pos())) {
+        emit addTabRequested();
+        return;
+    }
 
     int idx = indexAt(event->pos());
     if (idx >= 0 && idx != m_currentIndex) {

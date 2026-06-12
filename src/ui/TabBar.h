@@ -22,6 +22,7 @@ public:
 
 signals:
     void currentChanged(int index);
+    void addTabRequested();
 
 protected:
     void paintEvent(QPaintEvent *event) override;

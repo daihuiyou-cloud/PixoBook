@@ -51,6 +51,7 @@ private:
 
     int m_hoveredFolder = -1;
     int m_hoveredTag = -1;
+    bool m_hoveredAddButton = false;
 
     void updateLayout();
 };

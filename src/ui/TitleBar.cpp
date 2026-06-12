@@ -11,10 +11,10 @@ TitleBar::TitleBar(QWidget *parent)
     setMouseTracking(true);
 
     m_menus = {
-        { QStringLiteral("\u6587\u4ef6"), 0 },
-        { QStringLiteral("\u7f16\u8f91"), 1 },
-        { QStringLiteral("\u67e5\u770b"), 2 },
-        { QStringLiteral("\u5e2e\u52a9"), 3 },
+        { QStringLiteral("\u6587\u4ef6") },
+        { QStringLiteral("\u7f16\u8f91") },
+        { QStringLiteral("\u67e5\u770b") },
+        { QStringLiteral("\u5e2e\u52a9") },
     };
 }
 
@@ -26,11 +26,14 @@ void TitleBar::setMaximized(bool maximized)
 
 QRect TitleBar::menuItemRect(int idx) const
 {
+    QFont f = font();
+    f.setPixelSize(12);
+    QFontMetrics fm(f);
     int x = 80;
     for (int i = 0; i < idx && i < m_menus.size(); i++) {
-        x += m_menus[i].text.length() * 12 + 24;
+        x += fm.horizontalAdvance(m_menus[i].text) + 24;
     }
-    int labelWidth = m_menus[idx].text.length() * 12;
+    int labelWidth = fm.horizontalAdvance(m_menus[idx].text);
     return QRect(x, 0, labelWidth + 24, kHeight);
 }
 

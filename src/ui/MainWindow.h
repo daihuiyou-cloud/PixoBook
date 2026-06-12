@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QEvent>
 #include <QSplitter>
 #include <QLabel>
 #include "ui/GalleryWidget.h"
@@ -23,6 +24,7 @@ public:
     ~MainWindow() override;
 
     void closeEvent(QCloseEvent *event) override;
+    void changeEvent(QEvent *event) override;
 #if defined(Q_OS_WIN)
     bool nativeEvent(const QByteArray &eventType, void *message, long *result) override;
 #endif

@@ -56,6 +56,15 @@ void MainWindow::closeEvent(QCloseEvent *event)
     QMainWindow::closeEvent(event);
 }
 
+void MainWindow::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::WindowStateChange) {
+        if (m_titleBar)
+            m_titleBar->setMaximized(isMaximized());
+    }
+    QMainWindow::changeEvent(event);
+}
+
 void MainWindow::setupUI()
 {
     auto *central = new QWidget();
@@ -513,9 +522,7 @@ void MainWindow::saveSettings()
     for (int s : sizes) sl.append(s);
     settings.setValue("splitterSizes", sl);
 
-    // Save window state
     settings.setValue("windowGeometry", saveGeometry());
-    settings.setValue("windowMaximized", m_titleBar ? m_titleBar->isMaximized() : isMaximized());
 }
 
 void MainWindow::loadSettings()
@@ -537,16 +544,9 @@ void MainWindow::loadSettings()
             m_library->addFolder(dir);
     }
 
-    // Restore window state
     QByteArray geo = settings.value("windowGeometry").toByteArray();
     if (!geo.isEmpty())
         restoreGeometry(geo);
-    bool maximized = settings.value("windowMaximized", false).toBool();
-    if (maximized) {
-        showMaximized();
-        if (m_titleBar)
-            m_titleBar->setMaximized(true);
-    }
 }
 
 #if defined(Q_OS_WIN)

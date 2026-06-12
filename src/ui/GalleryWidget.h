@@ -23,6 +23,7 @@ public:
     QVector<Asset> allAssets() const;
 
     void setThumbnailSize(int size);
+    int thumbnailSize() const { return m_thumbSize; }
     void setSearchKeyword(const QString &keyword) { m_searchKeyword = keyword; update(); }
     QString searchKeyword() const { return m_searchKeyword; }
 

@@ -86,11 +86,11 @@ SearchBar::SearchBar(QWidget *parent)
     { QPixmap px(16, 16); px.fill(Qt::transparent); QPainter sp(&px); Codicon::draw(sp, "screen-full", QRect(0, 0, 16, 16), QColor(0xcc, 0xcc, 0xcc), 14); m_sizeLargeBtn->setIcon(QIcon(px)); m_sizeLargeBtn->setIconSize(QSize(16, 16)); }
     layout->addWidget(m_sizeLargeBtn);
 
-    auto sizeGroup = new QButtonGroup(this);
-    sizeGroup->addButton(m_sizeSmallBtn, 0);
-    sizeGroup->addButton(m_sizeMediumBtn, 1);
-    sizeGroup->addButton(m_sizeLargeBtn, 2);
-    connect(sizeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked),
+    m_sizeGroup = new QButtonGroup(this);
+    m_sizeGroup->addButton(m_sizeSmallBtn, 0);
+    m_sizeGroup->addButton(m_sizeMediumBtn, 1);
+    m_sizeGroup->addButton(m_sizeLargeBtn, 2);
+    connect(m_sizeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked),
             this, [this](int id) {
         static const int sizes[] = {100, 180, 280};
         if (id >= 0 && id < 3) emit thumbnailSizeChanged(sizes[id]);
@@ -151,3 +151,14 @@ bool SearchBar::onlyFavorites() const { return m_onlyFavorites; }
 void SearchBar::focusSearch() { m_searchInput->setFocus(); m_searchInput->selectAll(); }
 void SearchBar::setFavFilter(bool on) { m_favButton->setChecked(on); }
 void SearchBar::clearFavFilter() { m_favButton->setChecked(false); }
+void SearchBar::setThumbnailSizeSelection(int size)
+{
+    static const int sizes[] = {100, 180, 280};
+    for (int i = 0; i < 3; i++) {
+        if (sizes[i] == size) {
+            auto *btn = m_sizeGroup->button(i);
+            if (btn) btn->setChecked(true);
+            break;
+        }
+    }
+}

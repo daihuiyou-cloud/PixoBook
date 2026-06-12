@@ -229,16 +229,15 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         QString fileName = m_assets[i].fileName;
         QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
 
-        if (!m_searchKeyword.isEmpty() && elided.contains(m_searchKeyword, Qt::CaseInsensitive)) {
+        if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive)) {
             QRect bgRect = labelRect;
             bgRect.setHeight(p.fontMetrics().height());
-            p.fillRect(bgRect, QColor(0x2a, 0x2a, 0x2d));
+            p.fillRect(bgRect, QColor(0x09, 0x47, 0x71, 40));
             p.setPen(QColor(0xcc, 0xcc, 0xcc));
-            p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
         } else {
             p.setPen(QColor(0xcc, 0xcc, 0xcc));
-            p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
         }
+        p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
         // Favorite star
         QRect starRect(r.right() - 26, r.bottom() - 24, 22, 22);

@@ -2,6 +2,7 @@
 #include <QVBoxLayout>
 #include <QWindow>
 #include <QScreen>
+#include <QGuiApplication>
 #if defined(Q_OS_WIN)
 #include <windows.h>
 #include <windowsx.h>
@@ -560,6 +561,8 @@ void MainWindow::saveSettings()
     settings.setValue("splitterSizes", sl);
 
     settings.setValue("windowGeometry", saveGeometry());
+    settings.setValue("thumbnailSize", m_gallery->thumbnailSize());
+    settings.setValue("activeTab", m_tabBar->currentIndex());
 }
 
 void MainWindow::loadSettings()
@@ -581,9 +584,31 @@ void MainWindow::loadSettings()
             m_library->addFolder(dir);
     }
 
+    // Restore thumbnail size
+    int thumbSize = settings.value("thumbnailSize", 180).toInt();
+    m_gallery->setThumbnailSize(thumbSize);
+    m_searchBar->setThumbnailSizeSelection(thumbSize);
+
+    // Restore active tab
+    int tabIdx = settings.value("activeTab", 0).toInt();
+    m_tabBar->setCurrentIndex(tabIdx);
+
     QByteArray geo = settings.value("windowGeometry").toByteArray();
-    if (!geo.isEmpty())
+    if (!geo.isEmpty()) {
         restoreGeometry(geo);
+        // Ensure window is visible on an available screen
+        QRect geom = geometry();
+        bool onScreen = false;
+        for (const auto *screen : QGuiApplication::screens()) {
+            if (screen->availableGeometry().intersects(geom)) {
+                onScreen = true;
+                break;
+            }
+        }
+        if (!onScreen) {
+            move(QGuiApplication::primaryScreen()->availableGeometry().topLeft());
+        }
+    }
 }
 
 #if defined(Q_OS_WIN)

@@ -33,13 +33,16 @@ int main(int argc, char *argv[])
     ParserRegistry::instance().registerParser(std::make_unique<MJParser>());
     ParserRegistry::instance().registerParser(std::make_unique<DALLEParser>());
 
-    app.setStyle(new CustomStyle());
+    auto *style = new CustomStyle();
+    app.setStyle(style);
 
     QFile styleFile(":/styles/main.qss");
     if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
         app.setStyleSheet(styleFile.readAll());
         styleFile.close();
     }
+
+    app.setPalette(style->standardPalette());
 
     MainWindow window;
     window.setWindowTitle(QStringLiteral("AI 素材库"));

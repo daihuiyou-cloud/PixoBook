@@ -122,9 +122,13 @@ void CustomStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *op
         painter->drawRoundedRect(r.adjusted(1, 1, -1, -1), 4, 4);
         return;
     }
+    case PE_PanelMenu: {
+        painter->fillRect(option->rect, Color::BG_DARK);
+        return;
+    }
     case PE_FrameMenu: {
         QRect r = option->rect;
-        painter->setBrush(Qt::NoBrush);
+        painter->setBrush(Color::BG_DARK);
         painter->setPen(QPen(Color::BORDER, 1));
         painter->drawRect(r.adjusted(0, 0, -1, -1));
         return;
@@ -265,32 +269,51 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
 
         QRect r = menuItem->rect;
         bool selected = menuItem->state & State_Selected;
+        bool disabled = !(menuItem->state & State_Enabled);
+        bool checked = menuItem->checked;
+        bool isCheckable = menuItem->checkType != QStyleOptionMenuItem::NotCheckable;
 
         if (menuItem->menuItemType == QStyleOptionMenuItem::Separator) {
-            int midY = r.center().y();
+            painter->fillRect(r, Color::BG_DARK);
             painter->setPen(Color::BORDER);
-            painter->drawLine(r.left() + 8, midY, r.right() - 8, midY);
+            painter->drawLine(r.left() + 8, r.center().y(), r.right() - 8, r.center().y());
             return;
         }
 
-        if (selected) {
+        painter->fillRect(r, Color::BG_DARK);
+        if (selected)
             painter->fillRect(r, Color::HIGHLIGHT);
-            painter->fillRect(r.left(), r.top(), 3, r.height(), Color::ACCENT);
+
+        QColor textColor = disabled ? Color::TEXT_DISABLED : Color::TEXT_PRIMARY;
+        painter->setPen(textColor);
+
+        int leftMargin = 12;
+
+        if (isCheckable) {
+            QRect checkRect(r.left() + 4, r.top(), 20, r.height());
+            painter->setPen(Color::TEXT_SECONDARY);
+            painter->drawRect(QRect(checkRect.center().x() - 5, checkRect.center().y() - 5, 10, 10));
+            if (checked) {
+                painter->setPen(QPen(Color::FAVORITE_ON, 2));
+                QPolygon check;
+                check << QPoint(checkRect.center().x() - 3, checkRect.center().y() - 1)
+                      << QPoint(checkRect.center().x() - 1, checkRect.center().y() + 3)
+                      << QPoint(checkRect.center().x() + 4, checkRect.center().y() - 3);
+                painter->drawPolyline(check);
+            }
+            leftMargin = 28;
         }
 
-        painter->setPen(Color::TEXT_PRIMARY);
-
         int iconWidth = 0;
-        if (!menuItem->icon.isNull())
+        if (!menuItem->icon.isNull() && !isCheckable)
             iconWidth = menuItem->icon.availableSizes().value(0, QSize(16, 16)).width() + 6;
 
-        QRect textRect = r.adjusted(12 + iconWidth, 0, -30, 0);
+        QRect textRect = r.adjusted(leftMargin + iconWidth, 0, -30, 0);
         painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
                           menuItem->fontMetrics.elidedText(menuItem->text, Qt::ElideRight, textRect.width()));
 
-        if (menuItem->menuItemType == QStyleOptionMenuItem::SubMenu) {
+        if (menuItem->menuItemType == QStyleOptionMenuItem::SubMenu)
             painter->drawText(r.adjusted(0, 0, -8, 0), Qt::AlignVCenter | Qt::AlignRight, QString(QChar(0x25B6)));
-        }
         return;
     }
     case CE_MenuEmptyArea: {

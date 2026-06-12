@@ -58,7 +58,9 @@ SearchBar::SearchBar(QWidget *parent)
 
     QPalette comboPal;
     comboPal.setColor(QPalette::Text, Color::TEXT_PRIMARY);
+    comboPal.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
     comboPal.setColor(QPalette::Base, Color::BG_DARK);
+    comboPal.setColor(QPalette::Window, Color::BG_DARK);
     comboPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
     comboPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
 

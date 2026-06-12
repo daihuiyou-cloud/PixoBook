@@ -60,6 +60,7 @@ private:
     QRect m_tagsHeaderRect;
     QVector<QPair<int, QRect>> m_tagRects;
     bool m_addTagHovered = false;
+    bool m_copyPromptHovered = false;
 
     IImageCache *m_cache;
 

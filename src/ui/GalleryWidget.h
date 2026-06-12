@@ -4,8 +4,11 @@
 #include <QWidget>
 #include <QVector>
 #include <QSet>
+#include "ui/VisualConstants.h"
 #include "models/Asset.h"
 #include "core/IImageCache.h"
+
+class QPainter;
 
 class GalleryWidget : public QWidget
 {
@@ -37,6 +40,8 @@ signals:
     void deleteRequested(const QVector<Asset> &assets);
     void favoriteToggled(const QString &assetId, bool isFavorite);
     void tagAddRequested(const QVector<QString> &assetIds);
+    void importFolderRequested();
+    void importFilesRequested();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -57,11 +62,14 @@ private:
     QRect itemRect(int index) const;
     int indexAt(const QPoint &pos) const;
     void navigateTo(int index);
+    void drawEmptyState(QPainter &p);
+    QRect emptyFolderButtonRect() const;
+    QRect emptyFilesButtonRect() const;
 
     int m_thumbSize = 180;
-    static constexpr int kPadding = 14;
-    static constexpr int kGap = 14;
-    static constexpr int kLabelHeight = 38;
+    static constexpr int kPadding = Visual::GalleryCardPadding;
+    static constexpr int kGap = Visual::GalleryCardGap;
+    static constexpr int kLabelHeight = Visual::GalleryLabelHeight;
     int m_itemWidth() const { return m_thumbSize + kPadding * 2; }
     int m_itemHeight() const { return m_thumbSize + kPadding * 2 + kLabelHeight; }
 

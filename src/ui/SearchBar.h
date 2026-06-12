@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QButtonGroup>
 #include <QAction>
+#include <QLabel>
 #include <QTimer>
 
 class SearchBar : public QWidget
@@ -25,6 +26,7 @@ public:
     void setFavFilter(bool on);
     void clearFavFilter();
     void setThumbnailSizeSelection(int size);
+    void setResultSummary(const QString &text);
 
 signals:
     void searchRequested();
@@ -44,6 +46,7 @@ private:
     QButtonGroup *m_sizeGroup;
     QAction *m_clearAction;
     QPushButton *m_favButton;
+    QLabel *m_resultSummary;
     QTimer *m_debounceTimer;
     bool m_onlyFavorites = false;
     bool m_ready = false;

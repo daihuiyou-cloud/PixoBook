@@ -28,6 +28,7 @@ signals:
     void folderOpenInExplorer(const QString &path);
     void tagEditRequested(int tagId);
     void tagDeleteRequested(int tagId);
+    void tagCreateRequested();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -61,6 +62,8 @@ private:
     int m_hoveredFolder = -1;
     int m_hoveredTag = -1;
     bool m_hoveredAddButton = false;
+    bool m_hoveredAddTagButton = false;
+    QRect m_addTagRect;
 
     FocusSection m_focusSection = FocusNone;
     int m_focusIndex = -1;

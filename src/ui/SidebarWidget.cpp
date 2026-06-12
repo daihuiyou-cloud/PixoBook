@@ -90,7 +90,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
 
     QRect addRect(width() - 30, 5, 22, 22);
     if (m_hoveredAddButton)
-        p.fillRect(addRect, Color::BG_BUTTON_HOVER);
+        p.fillRect(addRect.adjusted(1, 1, -1, -1), Color::BG_BUTTON_HOVER);
     Codicon::draw(p, "add", addRect, Color::TEXT_SECONDARY, 13);
     p.setPen(Color::BORDER_MUTED);
     p.drawLine(12, folderHeader.bottom(), width() - 12, folderHeader.bottom());
@@ -100,7 +100,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         if (m_folders.isEmpty()) {
             p.setPen(Color::TEXT_SECONDARY);
             p.drawText(QRect(16, kSectionHeight + 4, width() - 32, kItemHeight),
-                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("暂无文件夹"));
+                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("添加素材文件夹"));
         }
         for (int i = 0; i < m_folders.size(); i++) {
             QRect itemRect(0, kSectionHeight + i * kItemHeight, width(), kItemHeight);
@@ -142,6 +142,20 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             p.setPen(Color::TEXT_SECONDARY);
             p.drawText(QRect(16, m_sectionTagY + kSectionHeight + 4, width() - 32, kItemHeight),
                        Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("暂无标签"));
+            m_addTagRect = QRect(16, m_sectionTagY + kSectionHeight + kItemHeight + 4, width() - 32, 26);
+            QPainterPath addPath;
+            addPath.addRoundedRect(QRectF(m_addTagRect), Visual::RadiusSmall, Visual::RadiusSmall);
+            p.fillPath(addPath, m_hoveredAddTagButton ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON);
+            p.setPen(QPen(m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
+            p.drawPath(addPath);
+            QColor addColor = m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
+            Codicon::draw(p, "add", QRect(m_addTagRect.left() + 8, m_addTagRect.top(), 14, m_addTagRect.height()),
+                          addColor, 12);
+            p.setPen(addColor);
+            p.drawText(m_addTagRect.adjusted(28, 0, -8, 0),
+                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("添加标签"));
+        } else {
+            m_addTagRect = {};
         }
         for (int i = 0; i < m_tags.size(); i++) {
             QRect itemRect(0, m_sectionTagY + kSectionHeight + i * kItemHeight, width(), kItemHeight);
@@ -171,13 +185,17 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
     int oldHoverFolder = m_hoveredFolder;
     int oldHoverTag = m_hoveredTag;
     bool oldHoverAdd = m_hoveredAddButton;
+    bool oldHoverAddTag = m_hoveredAddTagButton;
     m_hoveredFolder = -1;
     m_hoveredTag = -1;
     m_hoveredAddButton = false;
+    m_hoveredAddTagButton = false;
 
     QRect addRect(width() - 30, 5, 22, 22);
     if (addRect.contains(event->pos()))
         m_hoveredAddButton = true;
+    if (m_addTagRect.contains(event->pos()))
+        m_hoveredAddTagButton = true;
 
     if (m_foldersExpanded) {
         for (int i = 0; i < m_folders.size(); i++) {
@@ -202,7 +220,8 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
     if (m_hoveredFolder < 0)
         QToolTip::hideText();
 
-    if (oldHoverFolder != m_hoveredFolder || oldHoverTag != m_hoveredTag || oldHoverAdd != m_hoveredAddButton)
+    if (oldHoverFolder != m_hoveredFolder || oldHoverTag != m_hoveredTag
+        || oldHoverAdd != m_hoveredAddButton || oldHoverAddTag != m_hoveredAddTagButton)
         update();
 }
 
@@ -211,6 +230,10 @@ void SidebarWidget::mousePressEvent(QMouseEvent *event)
     QRect addRect(width() - 30, 5, 22, 22);
     if (addRect.contains(event->pos())) {
         emit addFolderClicked();
+        return;
+    }
+    if (m_addTagRect.contains(event->pos())) {
+        emit tagCreateRequested();
         return;
     }
 

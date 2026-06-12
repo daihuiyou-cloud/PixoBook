@@ -3,6 +3,7 @@
 #include <QButtonGroup>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QSizePolicy>
 #include <QPainter>
 #include <QPaintEvent>
 #include "ui/Codicon.h"
@@ -27,7 +28,7 @@ SearchBar::SearchBar(QWidget *parent)
 
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(12, 6, 10, 6);
-    layout->setSpacing(8);
+    layout->setSpacing(Visual::ToolbarGroupGap);
 
     QFont controlFont = font();
     controlFont.setPixelSize(Visual::FontControl);
@@ -165,6 +166,14 @@ SearchBar::SearchBar(QWidget *parent)
     m_favButton->setToolTip(QStringLiteral("仅显示收藏素材"));
     layout->addWidget(m_favButton);
 
+    m_resultSummary = new QLabel();
+    m_resultSummary->setFont(controlFont);
+    m_resultSummary->setPalette(labelPal);
+    m_resultSummary->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+    m_resultSummary->setMinimumWidth(120);
+    m_resultSummary->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
+    layout->addWidget(m_resultSummary);
+
     m_debounceTimer = new QTimer(this);
     m_debounceTimer->setSingleShot(true);
     m_debounceTimer->setInterval(300);
@@ -224,4 +233,10 @@ void SearchBar::setThumbnailSizeSelection(int size)
             break;
         }
     }
+}
+
+void SearchBar::setResultSummary(const QString &text)
+{
+    m_resultSummary->setText(text);
+    m_resultSummary->setToolTip(text);
 }

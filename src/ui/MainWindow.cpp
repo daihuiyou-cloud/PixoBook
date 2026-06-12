@@ -246,6 +246,17 @@ void MainWindow::setupConnections()
 
     // Sidebar
     connect(m_sidebar, &SidebarWidget::tagEditRequested, this, &MainWindow::onTagEditRequested);
+    connect(m_sidebar, &SidebarWidget::tagCreateRequested, this, [this]() {
+        bool ok = false;
+        QString name = QInputDialog::getText(this,
+            QStringLiteral("添加标签"),
+            QStringLiteral("标签名称："),
+            QLineEdit::Normal, QString(), &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            m_library->createTag(name.trimmed());
+            loadAssets();
+        }
+    });
     connect(m_sidebar, &SidebarWidget::tagDeleteRequested, this, [this](int tagId) {
         auto reply = QMessageBox::question(this,
             QStringLiteral("删除标签"),
@@ -348,6 +359,8 @@ void MainWindow::setupConnections()
         }
         loadAssets();
     });
+    connect(m_gallery, &GalleryWidget::importFolderRequested, this, &MainWindow::onImportFolder);
+    connect(m_gallery, &GalleryWidget::importFilesRequested, this, &MainWindow::onImportFile);
 
     // Search bar
     connect(m_searchBar, &SearchBar::searchRequested, this, [this]() {
@@ -530,6 +543,28 @@ void MainWindow::loadAssets()
 
     m_statusCount->setText(
         QStringLiteral("%1 张图片").arg(assets.size()));
+
+    QStringList summary;
+    summary << QStringLiteral("%1 张图片").arg(assets.size());
+    if (tabIdx == 1)
+        summary << QStringLiteral("收藏夹");
+    else if (tabIdx == 2)
+        summary << QStringLiteral("最近导入");
+    else
+        summary << QStringLiteral("所有素材");
+
+    if (!source.isEmpty()) {
+        QString sourceName = source;
+        if (source == "stable-diffusion") sourceName = "Stable Diffusion";
+        else if (source == "midjourney") sourceName = "Midjourney";
+        else if (source == "dalle") sourceName = "DALL-E";
+        summary << sourceName;
+    }
+    if (onlyFavs)
+        summary << QStringLiteral("仅收藏");
+    if (m_activeTagId >= 0)
+        summary << QStringLiteral("标签筛选");
+    m_searchBar->setResultSummary(summary.join(QStringLiteral(" / ")));
 }
 
 int MainWindow::pickTagId(const QVector<QString> &assetIds)

@@ -32,6 +32,13 @@ QString metaLine(const Asset &asset)
     return parts.join("  |  ");
 }
 
+QString compactFileName(const QString &fileName)
+{
+    QFileInfo info(fileName);
+    QString base = info.completeBaseName();
+    return base.isEmpty() ? fileName : base;
+}
+
 QIcon menuIcon(const QString &name, const QColor &color)
 {
     QPixmap px(16, 16);
@@ -116,9 +123,9 @@ QVector<Asset> GalleryWidget::allAssets() const { return m_assets; }
 
 void GalleryWidget::layoutItems()
 {
-    m_columns = qMax(1, (width() - kPadding) / (m_itemWidth() + kGap));
+    m_columns = qMax(1, (width() - Visual::GalleryTopPadding) / (m_itemWidth() + kGap));
     int rows = (m_assets.size() + m_columns - 1) / m_columns;
-    m_totalHeight = rows * (m_itemHeight() + kGap) + kPadding;
+    m_totalHeight = rows * (m_itemHeight() + kGap) + Visual::GalleryTopPadding;
 }
 
 QRect GalleryWidget::itemRect(int index) const
@@ -126,8 +133,8 @@ QRect GalleryWidget::itemRect(int index) const
     if (index < 0 || index >= m_assets.size()) return {};
     int row = index / m_columns;
     int col = index % m_columns;
-    int x = kPadding + col * (m_itemWidth() + kGap);
-    int y = kPadding + row * (m_itemHeight() + kGap) - m_scrollOffset;
+    int x = Visual::GalleryTopPadding + col * (m_itemWidth() + kGap);
+    int y = Visual::GalleryTopPadding + row * (m_itemHeight() + kGap) - m_scrollOffset;
     return QRect(x, y, m_itemWidth(), m_itemHeight());
 }
 
@@ -138,6 +145,77 @@ int GalleryWidget::indexAt(const QPoint &pos) const
             return i;
     }
     return -1;
+}
+
+QRect GalleryWidget::emptyFolderButtonRect() const
+{
+    const int totalW = Visual::GalleryEmptyButtonWidth * 2 + Visual::SpaceSm;
+    const int x = rect().center().x() - totalW / 2;
+    const int y = rect().center().y() + 62;
+    return QRect(x, y, Visual::GalleryEmptyButtonWidth, Visual::GalleryEmptyButtonHeight);
+}
+
+QRect GalleryWidget::emptyFilesButtonRect() const
+{
+    return emptyFolderButtonRect().translated(Visual::GalleryEmptyButtonWidth + Visual::SpaceSm, 0);
+}
+
+void GalleryWidget::drawEmptyState(QPainter &p)
+{
+    QRect center = rect().adjusted(40, 0, -40, 0);
+    const bool searching = !m_searchKeyword.isEmpty();
+
+    Codicon::draw(p, searching ? "search" : "images",
+                  QRect(center.center().x() - 24, center.center().y() - 100, 48, 48),
+                  Color::TEXT_SECONDARY, 36);
+
+    QFont title = p.font();
+    title.setPixelSize(Visual::FontHeading);
+    title.setBold(true);
+    p.setFont(title);
+    p.setPen(Color::TEXT_PRIMARY);
+    p.drawText(center.adjusted(0, -44, 0, 0), Qt::AlignCenter,
+               searching
+                   ? QStringLiteral("没有找到匹配 \"%1\" 的素材").arg(m_searchKeyword)
+                   : QStringLiteral("把 AI 素材放进来，开始整理"));
+
+    QFont body = p.font();
+    body.setPixelSize(Visual::FontBody);
+    body.setBold(false);
+    p.setFont(body);
+    p.setPen(Color::TEXT_SECONDARY);
+    p.drawText(center.adjusted(0, -4, 0, 0), Qt::AlignCenter,
+               searching
+                   ? QStringLiteral("试试放宽来源、收藏或关键词筛选")
+                   : QStringLiteral("导入文件夹会持续整理素材；导入图片适合临时收集"));
+
+    if (searching)
+        return;
+
+    const QVector<QPair<QRect, QString>> buttons = {
+        { emptyFolderButtonRect(), QStringLiteral("导入文件夹") },
+        { emptyFilesButtonRect(), QStringLiteral("导入图片") }
+    };
+    const QVector<QString> icons = { "folder-opened", "file-media" };
+
+    QFont buttonFont = p.font();
+    buttonFont.setPixelSize(Visual::FontControl);
+    p.setFont(buttonFont);
+
+    for (int i = 0; i < buttons.size(); i++) {
+        QRect r = buttons[i].first;
+        bool hovered = r.contains(mapFromGlobal(QCursor::pos()));
+        QPainterPath path;
+        path.addRoundedRect(QRectF(r), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(path, i == 0 ? Color::ACCENT : (hovered ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON));
+        p.setPen(QPen(i == 0 ? Color::FOCUS_BORDER : Color::BORDER_SUBTLE, 1));
+        p.drawPath(path);
+
+        QColor textColor = i == 0 ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
+        Codicon::draw(p, icons[i], QRect(r.left() + 12, r.top(), 16, r.height()), textColor, 13);
+        p.setPen(textColor);
+        p.drawText(r.adjusted(34, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, buttons[i].second);
+    }
 }
 
 void GalleryWidget::navigateTo(int index)
@@ -164,33 +242,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
     p.fillRect(rect(), Color::BG_DARKEST);
 
     if (m_assets.isEmpty() || m_columns == 0) {
-        QRect center = rect().adjusted(32, 0, -32, 0);
-        Codicon::draw(p, m_searchKeyword.isEmpty() ? "images" : "search",
-                      QRect(center.center().x() - 22, center.center().y() - 78, 44, 44),
-                      Color::TEXT_SECONDARY, 34);
-
-        QFont title = p.font();
-        title.setPixelSize(Visual::FontHeading);
-        title.setBold(true);
-        p.setFont(title);
-        p.setPen(Color::TEXT_PRIMARY);
-        if (!m_searchKeyword.isEmpty()) {
-            p.drawText(center.adjusted(0, -24, 0, 0), Qt::AlignCenter,
-                       QStringLiteral("没有找到匹配 \"%1\" 的素材").arg(m_searchKeyword));
-        } else {
-            p.drawText(center.adjusted(0, -24, 0, 0), Qt::AlignCenter,
-                       QStringLiteral("拖入图片或文件夹，开始整理 AI 素材"));
-        }
-
-        QFont body = p.font();
-        body.setPixelSize(Visual::FontBody);
-        body.setBold(false);
-        p.setFont(body);
-        p.setPen(Color::TEXT_SECONDARY);
-        p.drawText(center.adjusted(0, 18, 0, 0), Qt::AlignCenter,
-                   m_searchKeyword.isEmpty()
-                       ? QStringLiteral("也可以通过 文件 > 导入 添加素材库目录")
-                       : QStringLiteral("试试放宽来源、收藏或关键词筛选"));
+        drawEmptyState(p);
         return;
     }
 
@@ -263,7 +315,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 8,
                         r.width() - kPadding * 2 - 32, 16);
         p.setFont(labelFont);
-        QString fileName = asset.fileName;
+        QString fileName = compactFileName(asset.fileName);
         QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
         if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive)) {
             p.fillRect(labelRect.adjusted(0, 2, 0, -2), Color::SEARCH_HIGHLIGHT);
@@ -348,12 +400,24 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
 {
     int oldHover = m_hoveredIndex;
     m_hoveredIndex = indexAt(event->pos());
-    if (oldHover != m_hoveredIndex) update();
+    if (oldHover != m_hoveredIndex || m_assets.isEmpty()) update();
 }
 
 void GalleryWidget::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() != Qt::LeftButton) return;
+
+    if (m_assets.isEmpty() && m_searchKeyword.isEmpty()) {
+        if (emptyFolderButtonRect().contains(event->pos())) {
+            emit importFolderRequested();
+            return;
+        }
+        if (emptyFilesButtonRect().contains(event->pos())) {
+            emit importFilesRequested();
+            return;
+        }
+    }
+
     int idx = indexAt(event->pos());
 
     if (idx >= 0) {

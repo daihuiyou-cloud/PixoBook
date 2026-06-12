@@ -5,6 +5,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QTextOption>
+#include <QToolTip>
 #include <QWheelEvent>
 #include <QCursor>
 #include <QLinearGradient>
@@ -49,7 +50,7 @@ void DetailPanel::clear()
 
 QRect DetailPanel::imageArea() const
 {
-    return QRect(0, 0, width(), qBound(220, height() / 3, 340));
+    return QRect(0, 0, width(), qBound(260, (height() * 2) / 5, 420));
 }
 
 void DetailPanel::paintEvent(QPaintEvent *)
@@ -89,9 +90,9 @@ void DetailPanel::paintEvent(QPaintEvent *)
     p.setClipRect(0, scrollTop, width(), scrollHeight);
 
     int contentY = scrollTop + 14 - m_scrollOffset;
-    int y = drawFileInfo(p, contentY);
+    int y = drawMetadataSection(p, contentY);
     drawSectionDivider(p, y);
-    y = drawMetadataSection(p, y + 18);
+    y = drawFileInfo(p, y + 18);
     drawSectionDivider(p, y);
     y = drawTagsSection(p, y + 18);
 
@@ -161,11 +162,11 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     y += 24;
 
     QFileInfo fi(m_asset.filePath);
-    drawField(p, 16, y, QStringLiteral("名称"), m_asset.fileName, 64);
-    drawField(p, 16, y, QStringLiteral("大小"), QString::number(m_asset.fileSize / 1024) + " KB", 64);
-    drawField(p, 16, y, QStringLiteral("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height), 64);
-    drawField(p, 16, y, QStringLiteral("格式"), m_asset.format.toUpper(), 64);
-    drawField(p, 16, y, QStringLiteral("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), 64);
+    drawField(p, 16, y, QStringLiteral("名称"), m_asset.fileName, Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, QStringLiteral("大小"), QString::number(m_asset.fileSize / 1024) + " KB", Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, QStringLiteral("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, QStringLiteral("格式"), m_asset.format.toUpper(), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, QStringLiteral("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), Visual::DetailFieldLabelWidth);
     return y + 8;
 }
 
@@ -191,7 +192,11 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     if (sourceDisplay == "stable-diffusion") sourceDisplay = "Stable Diffusion";
     else if (sourceDisplay == "midjourney") sourceDisplay = "Midjourney";
     else if (sourceDisplay == "dalle") sourceDisplay = "DALL-E";
-    drawField(p, 16, y, QStringLiteral("来源"), sourceDisplay);
+    drawField(p, 16, y, QStringLiteral("来源"), sourceDisplay, Visual::DetailFieldLabelWidth);
+    if (!m_metadata.modelName.isEmpty())
+        drawField(p, 16, y, "Model", m_metadata.modelName, Visual::DetailFieldLabelWidth);
+    if (m_metadata.seed > 0)
+        drawField(p, 16, y, "Seed", QString::number(m_metadata.seed), Visual::DetailFieldLabelWidth);
 
     m_promptHeaderRect = QRect(0, y - 18, width(), 24);
     p.setPen(Color::TEXT_SECONDARY);
@@ -204,20 +209,23 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     p.drawText(40, y, "Prompt");
 
     m_copyPromptRect = QRect(width() - 42, y - 18, 24, 22);
+    if (m_copyPromptHovered && !m_metadata.prompt.isEmpty())
+        p.fillRect(m_copyPromptRect.adjusted(1, 1, -1, -1), Color::BG_BUTTON_HOVER);
     Codicon::draw(p, "copy", m_copyPromptRect,
-                  m_metadata.prompt.isEmpty() ? Color::TEXT_DISABLED : Color::TEXT_SECONDARY, 12);
+                  m_metadata.prompt.isEmpty() ? Color::TEXT_DISABLED
+                                              : (m_copyPromptHovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY),
+                  12);
 
     QString promptText = m_metadata.prompt.isEmpty() ? QStringLiteral("暂无 Prompt") : m_metadata.prompt;
-    QRect promptRect(104, y - 14, width() - 122, m_promptExpanded ? 96 : 22);
+    QRect promptRect(16, y + 8, width() - 34, m_promptExpanded ? Visual::DetailPromptHeight : 22);
     p.setPen(m_metadata.prompt.isEmpty() ? Color::TEXT_SECONDARY : Color::TEXT_PRIMARY);
     if (m_promptExpanded) {
-        promptRect.setRight(width() - 18);
         QTextOption opt;
         opt.setWrapMode(QTextOption::WordWrap);
         p.drawText(promptRect, promptText, opt);
         int promptH = p.fontMetrics().boundingRect(QRect(0, 0, promptRect.width(), 300),
                                                    Qt::TextWordWrap, promptText).height();
-        y += qBound(28, promptH + 10, 108);
+        y += qBound(58, promptH + 40, Visual::DetailPromptHeight + 34);
     } else {
         p.drawText(promptRect, Qt::AlignLeft | Qt::AlignVCenter,
                    p.fontMetrics().elidedText(promptText, Qt::ElideRight, promptRect.width()));
@@ -225,17 +233,13 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     }
 
     if (!m_metadata.negativePrompt.isEmpty())
-        drawField(p, 16, y, "Negative", m_metadata.negativePrompt);
-    if (m_metadata.seed > 0)
-        drawField(p, 16, y, "Seed", QString::number(m_metadata.seed));
+        drawField(p, 16, y, "Negative", m_metadata.negativePrompt, Visual::DetailFieldLabelWidth);
     if (m_metadata.steps > 0)
-        drawField(p, 16, y, "Steps", QString::number(m_metadata.steps));
+        drawField(p, 16, y, "Steps", QString::number(m_metadata.steps), Visual::DetailFieldLabelWidth);
     if (m_metadata.cfgScale > 0.0)
-        drawField(p, 16, y, "CFG", QString::number(m_metadata.cfgScale, 'f', 1));
-    if (!m_metadata.modelName.isEmpty())
-        drawField(p, 16, y, "Model", m_metadata.modelName);
+        drawField(p, 16, y, "CFG", QString::number(m_metadata.cfgScale, 'f', 1), Visual::DetailFieldLabelWidth);
     if (!m_metadata.sampler.isEmpty())
-        drawField(p, 16, y, "Sampler", m_metadata.sampler);
+        drawField(p, 16, y, "Sampler", m_metadata.sampler, Visual::DetailFieldLabelWidth);
     return y + 8;
 }
 
@@ -335,6 +339,7 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
     }
     if (m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty()) {
         QApplication::clipboard()->setText(m_metadata.prompt);
+        QToolTip::showText(event->globalPos(), QStringLiteral("已复制 Prompt"), this);
         return;
     }
     if (m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
@@ -368,8 +373,10 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
 void DetailPanel::mouseMoveEvent(QMouseEvent *event)
 {
     bool oldAddHover = m_addTagHovered;
+    bool oldCopyHover = m_copyPromptHovered;
     m_addTagHovered = m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty();
-    if (oldAddHover != m_addTagHovered)
+    m_copyPromptHovered = m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty();
+    if (oldAddHover != m_addTagHovered || oldCopyHover != m_copyPromptHovered)
         update();
 
     if (m_isPanning) {
@@ -403,8 +410,9 @@ void DetailPanel::resizeEvent(QResizeEvent *) { update(); }
 
 void DetailPanel::leaveEvent(QEvent *)
 {
-    if (m_addTagHovered) {
+    if (m_addTagHovered || m_copyPromptHovered) {
         m_addTagHovered = false;
+        m_copyPromptHovered = false;
         update();
     }
 }

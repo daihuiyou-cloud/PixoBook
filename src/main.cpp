@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QStyleFactory>
+#include <QFont>
 #include "ui/MainWindow.h"
 #include "ui/CustomStyle.h"
 #include "ui/Codicon.h"
@@ -13,6 +14,10 @@ int main(int argc, char *argv[])
     app.setApplicationName("AI素材库");
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("AIMaterialLibrary");
+
+    QFont appFont("Segoe UI", 10);
+    appFont.setStyleStrategy(QFont::PreferAntialias);
+    app.setFont(appFont);
 
     Codicon::init();
 

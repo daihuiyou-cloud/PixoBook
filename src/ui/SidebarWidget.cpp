@@ -36,12 +36,14 @@ void SidebarWidget::setFolders(const QStringList &folders)
 void SidebarWidget::setActiveFolder(const QString &folder)
 {
     m_activeFolder = folder;
+    m_activeTagId = -1;
     update();
 }
 
 void SidebarWidget::setActiveTag(int tagId)
 {
     m_activeTagId = tagId;
+    m_activeFolder.clear();
     update();
 }
 

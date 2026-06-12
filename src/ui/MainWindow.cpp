@@ -171,12 +171,16 @@ void MainWindow::setupTitleBar()
         }
         case 2: { // View
             QMenu menu(this);
+            int curSize = m_gallery->thumbnailSize();
             QAction *smallThumb = menu.addAction(QStringLiteral("\u5c0f\u7f29\u7565\u56fe (100px)"));
-            connect(smallThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(100); });
+            smallThumb->setCheckable(true); smallThumb->setChecked(curSize <= 100);
+            connect(smallThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(100); m_searchBar->setThumbnailSizeSelection(100); });
             QAction *mediumThumb = menu.addAction(QStringLiteral("\u4e2d\u7f29\u7565\u56fe (180px)"));
-            connect(mediumThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(180); });
+            mediumThumb->setCheckable(true); mediumThumb->setChecked(curSize > 100 && curSize <= 200);
+            connect(mediumThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(180); m_searchBar->setThumbnailSizeSelection(180); });
             QAction *largeThumb = menu.addAction(QStringLiteral("\u5927\u7f29\u7565\u56fe (280px)"));
-            connect(largeThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(280); });
+            largeThumb->setCheckable(true); largeThumb->setChecked(curSize >= 280);
+            connect(largeThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(280); m_searchBar->setThumbnailSizeSelection(280); });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(2).left(), m_titleBar->menuItemRect(2).bottom()));
             menu.exec(pos);
             break;

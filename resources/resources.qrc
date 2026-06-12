@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>codicon.ttf</file>
+        <file>codicon.css</file>
+        <file>styles/main.qss</file>
+    </qresource>
+</RCC>

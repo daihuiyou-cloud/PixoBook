@@ -1,0 +1,176 @@
+#include "LibraryController.h"
+#include "parsers/MetadataParser.h"
+
+LibraryController::LibraryController(QObject *parent)
+    : QObject(parent)
+    , m_db(nullptr)
+    , m_cache(nullptr)
+    , m_scanner(nullptr)
+    , m_watcher(nullptr)
+{
+}
+
+LibraryController::~LibraryController()
+{
+    delete m_db;
+}
+
+bool LibraryController::initialize(const QString &dbPath)
+{
+    m_db = new DatabaseManager(dbPath);
+    if (!m_db->initialize()) {
+        return false;
+    }
+
+    m_cache = new ImageCache(500, this);
+    m_scanner = new FileScanner(this);
+    m_watcher = new FileWatcher(this);
+
+    connect(m_scanner, &FileScanner::assetFound, this, [this](const Asset &asset) {
+        Asset existing = m_db->findByPath(asset.filePath);
+        if (existing.id.isEmpty() && m_db->findByHash(asset.hash).id.isEmpty()) {
+            m_db->insertAsset(asset);
+            Metadata meta = MetadataParser::parse(asset.filePath);
+            if (!meta.source.isEmpty()) {
+                meta.assetId = asset.id;
+                m_db->upsertMetadata(meta);
+            }
+        }
+    });
+
+    connect(m_scanner, &FileScanner::scanProgress, this, &LibraryController::scanProgress);
+    connect(m_scanner, &FileScanner::scanFinished, this, [this]() {
+        emit assetCountChanged(m_db->getAllAssets().size());
+        emit scanFinished();
+        emit dataChanged();
+    });
+
+    connect(m_watcher, &FileWatcher::fileAdded, this, [this](const QString &path) {
+        if (FileScanner::isSupportedFormat(path)) {
+            scanAndInsertFile(path);
+            emit dataChanged();
+        }
+    });
+
+    connect(m_watcher, &FileWatcher::fileRemoved, this, [this](const QString &path) {
+        Asset a = m_db->findByPath(path);
+        if (!a.id.isEmpty()) {
+            m_db->deleteAsset(a.id);
+            emit dataChanged();
+        }
+    });
+
+    return true;
+}
+
+QVector<Asset> LibraryController::loadAssets(const QString &keyword, const QString &source,
+                                              const QVector<int> &tagIds, bool onlyFavorites,
+                                              const QString &sortField, bool sortAscending)
+{
+    return m_db->searchAssets(keyword, source, tagIds, onlyFavorites, sortField, sortAscending);
+}
+
+Asset LibraryController::getAsset(const QString &id)
+{
+    return m_db->getAsset(id);
+}
+
+Metadata LibraryController::getMetadata(const QString &assetId)
+{
+    return m_db->getMetadata(assetId);
+}
+
+QVector<Tag> LibraryController::getTagsForAsset(const QString &assetId)
+{
+    return m_db->getTagsForAsset(assetId);
+}
+
+QVector<Tag> LibraryController::getAllTags()
+{
+    return m_db->getAllTags();
+}
+
+int LibraryController::createTag(const QString &name, const QColor &color)
+{
+    Tag tag;
+    tag.name = name;
+    tag.color = color;
+    return m_db->insertTag(tag);
+}
+
+bool LibraryController::renameTag(int tagId, const QString &newName)
+{
+    auto allTags = m_db->getAllTags();
+    for (auto &t : allTags) {
+        if (t.id == tagId) {
+            t.name = newName;
+            return m_db->updateTag(t);
+        }
+    }
+    return false;
+}
+
+bool LibraryController::deleteTag(int tagId)
+{
+    return m_db->deleteTag(tagId);
+}
+
+void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tagId)
+{
+    for (const auto &aid : assetIds)
+        m_db->addTagToAsset(aid, tagId);
+}
+
+void LibraryController::removeTagFromAsset(const QString &assetId, int tagId)
+{
+    m_db->removeTagFromAsset(assetId, tagId);
+}
+
+void LibraryController::addFolder(const QString &dir)
+{
+    if (!m_folders.contains(dir)) {
+        m_folders.append(dir);
+    }
+    m_watcher->addWatchPath(dir);
+}
+
+void LibraryController::scanFolder(const QString &dir)
+{
+    addFolder(dir);
+    m_cache->clear();
+    m_scanner->scanDirectory(dir, true);
+}
+
+void LibraryController::removeFolder(const QString &dir)
+{
+    m_folders.removeAll(dir);
+    emit dataChanged();
+}
+
+void LibraryController::scanAndInsertFile(const QString &path)
+{
+    Asset asset = FileScanner::scanSingleFile(path);
+    if (asset.id.isEmpty()) return;
+    if (!m_db->findByHash(asset.hash).id.isEmpty()) return;
+
+    m_db->insertAsset(asset);
+    Metadata meta = MetadataParser::parse(asset.filePath);
+    if (!meta.source.isEmpty()) {
+        meta.assetId = asset.id;
+        m_db->upsertMetadata(meta);
+    }
+}
+
+bool LibraryController::deleteAssets(const QVector<Asset> &assets)
+{
+    for (const auto &a : assets)
+        m_db->deleteAsset(a.id);
+    emit dataChanged();
+    return true;
+}
+
+void LibraryController::toggleFavorite(const QString &assetId, bool isFavorite)
+{
+    m_db->updateAssetFavorite(assetId, isFavorite);
+    emit dataChanged();
+}

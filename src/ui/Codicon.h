@@ -1,0 +1,74 @@
+#ifndef CODICON_H
+#define CODICON_H
+
+#include <QFont>
+#include <QFontDatabase>
+#include <QPainter>
+#include <QString>
+#include <QHash>
+
+class Codicon {
+public:
+    static QFont font(int pixelSize = 16) {
+        QFont f("codicon");
+        f.setPixelSize(pixelSize);
+        return f;
+    }
+
+    static void init() {
+        QFontDatabase::addApplicationFont(":/codicon.ttf");
+    }
+
+    static QString icon(const QString &name) {
+        static const QHash<QString, QString> map = {
+            { "add",          QString(QChar(0xea60)) },
+            { "plus",         QString(QChar(0xea60)) },
+            { "tag",          QString(QChar(0xea66)) },
+            { "star",         QString(QChar(0xea6a)) },
+            { "star-empty",   QString(QChar(0xea6a)) },
+            { "search",       QString(QChar(0xea6d)) },
+            { "close",        QString(QChar(0xea76)) },
+            { "x",            QString(QChar(0xea76)) },
+            { "file",         QString(QChar(0xea7b)) },
+            { "edit",         QString(QChar(0xea73)) },
+            { "pencil",       QString(QChar(0xea73)) },
+            { "trash",        QString(QChar(0xea81)) },
+            { "delete",       QString(QChar(0xea81)) },
+            { "folder",       QString(QChar(0xea83)) },
+            { "terminal",     QString(QChar(0xea85)) },
+            { "check",        QString(QChar(0xeab2)) },
+            { "chevron-down", QString(QChar(0xeab4)) },
+            { "chevron-left", QString(QChar(0xeab5)) },
+            { "chevron-right",QString(QChar(0xeab6)) },
+            { "chevron-up",   QString(QChar(0xeab7)) },
+            { "filter",       QString(QChar(0xeaf1)) },
+            { "gear",         QString(QChar(0xeaf8)) },
+            { "settings",     QString(QChar(0xeb52)) },
+            { "home",         QString(QChar(0xeb06)) },
+            { "fullscreen",   QString(QChar(0xeb4c)) },
+            { "screen-normal",QString(QChar(0xeb4d)) },
+            { "image",        QString(QChar(0xeada)) },
+            { "camera",       QString(QChar(0xeada)) },
+            { "layout",       QString(QChar(0xebeb)) },
+            { "star-filled",  QString(QChar(0xea6a)) },
+            { "symbol-field", QString(QChar(0xeb5f)) },
+            { "symbol-misc",  QString(QChar(0xeb63)) },
+            { "ellipsis",     QString(QChar(0xea7c)) },
+            { "arrow-left",   QString(QChar(0xea9b)) },
+            { "arrow-right",  QString(QChar(0xea9c)) },
+            { "arrow-up",     QString(QChar(0xeaa1)) },
+            { "arrow-down",   QString(QChar(0xea9a)) },
+            { "clear-all",    QString(QChar(0xeabf)) },
+        };
+        return map.value(name, QString(QChar(0xea7b)));
+    }
+
+    static void draw(QPainter &p, const QString &iconName, const QRect &r,
+                     const QColor &color = QColor(0xcc, 0xcc, 0xcc), int size = 16) {
+        p.setFont(font(size));
+        p.setPen(color);
+        p.drawText(r, Qt::AlignCenter, icon(iconName));
+    }
+};
+
+#endif

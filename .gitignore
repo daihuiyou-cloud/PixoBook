@@ -1,0 +1,12 @@
+build/
+*.o
+*.obj
+*.exe
+moc_*.cpp
+CMakeCache.txt
+CMakeFiles/
+.vs/
+*.user
+*.pro.user
+node_modules/
+*.autogen.sources

@@ -38,7 +38,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Create dependencies
     m_db = new DatabaseManager(dbPath);
     if (!m_db->initialize()) {
-        QMessageBox::critical(this, "Error", "Failed to initialize database");
+        QMessageBox::critical(this, QStringLiteral("错误"), QStringLiteral("数据库初始化失败"));
         return;
     }
 
@@ -140,20 +140,20 @@ void MainWindow::setupTitleBar()
         switch (menuIndex) {
         case 0: { // File
             QMenu menu(this);
-            QMenu *importSub = menu.addMenu(QStringLiteral("\u5bfc\u5165"));
-            QAction *importFolder = importSub->addAction(QStringLiteral("\u5bfc\u5165\u6587\u4ef6\u5939..."));
+            QMenu *importSub = menu.addMenu(QStringLiteral("导入"));
+            QAction *importFolder = importSub->addAction(QStringLiteral("导入文件夹..."));
             connect(importFolder, &QAction::triggered, this, [this]() {
                 QString dir = QFileDialog::getExistingDirectory(this,
-                    QStringLiteral("\u9009\u62e9\u7d20\u6750\u6587\u4ef6\u5939"));
+                    QStringLiteral("选择素材文件夹"));
                 if (!dir.isEmpty()) {
                     m_library->scanFolder(dir);
                     m_sidebar->setFolders(m_library->folders());
                 }
             });
-            QAction *importFile = importSub->addAction(QStringLiteral("\u5bfc\u5165\u56fe\u7247..."));
+            QAction *importFile = importSub->addAction(QStringLiteral("导入图片..."));
             connect(importFile, &QAction::triggered, this, &MainWindow::onImportFile);
             menu.addSeparator();
-            QAction *exit = menu.addAction(QStringLiteral("\u9000\u51fa"));
+            QAction *exit = menu.addAction(QStringLiteral("退出"));
             connect(exit, &QAction::triggered, qApp, &QApplication::quit);
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(0).left(), m_titleBar->menuItemRect(0).bottom()));
             menu.exec(pos);
@@ -161,7 +161,7 @@ void MainWindow::setupTitleBar()
         }
         case 1: { // Edit
             QMenu menu(this);
-            QAction *selectAll = menu.addAction(QStringLiteral("\u5168\u9009"));
+            QAction *selectAll = menu.addAction(QStringLiteral("全选"));
             connect(selectAll, &QAction::triggered, this, [this]() {
                 QKeyEvent ev(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
                 QApplication::sendEvent(m_gallery, &ev);
@@ -173,13 +173,13 @@ void MainWindow::setupTitleBar()
         case 2: { // View
             QMenu menu(this);
             int curSize = m_gallery->thumbnailSize();
-            QAction *smallThumb = menu.addAction(QStringLiteral("\u5c0f\u7f29\u7565\u56fe (100px)"));
+            QAction *smallThumb = menu.addAction(QStringLiteral("小缩略图 (100px)"));
             smallThumb->setCheckable(true); smallThumb->setChecked(curSize <= 100);
             connect(smallThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(100); m_searchBar->setThumbnailSizeSelection(100); });
-            QAction *mediumThumb = menu.addAction(QStringLiteral("\u4e2d\u7f29\u7565\u56fe (180px)"));
+            QAction *mediumThumb = menu.addAction(QStringLiteral("中缩略图 (180px)"));
             mediumThumb->setCheckable(true); mediumThumb->setChecked(curSize > 100 && curSize <= 200);
             connect(mediumThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(180); m_searchBar->setThumbnailSizeSelection(180); });
-            QAction *largeThumb = menu.addAction(QStringLiteral("\u5927\u7f29\u7565\u56fe (280px)"));
+            QAction *largeThumb = menu.addAction(QStringLiteral("大缩略图 (280px)"));
             largeThumb->setCheckable(true); largeThumb->setChecked(curSize >= 280);
             connect(largeThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(280); m_searchBar->setThumbnailSizeSelection(280); });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(2).left(), m_titleBar->menuItemRect(2).bottom()));
@@ -188,10 +188,10 @@ void MainWindow::setupTitleBar()
         }
         case 3: { // Help
             QMenu menu(this);
-            QAction *about = menu.addAction(QStringLiteral("\u5173\u4e8e AI\u7d20\u6750\u5e93"));
+            QAction *about = menu.addAction(QStringLiteral("关于 AI 素材库"));
             connect(about, &QAction::triggered, this, [this]() {
-                QMessageBox::about(this, QStringLiteral("\u5173\u4e8e"),
-                    QStringLiteral("AI\u7d20\u6750\u5e93 v1.0.0\nAI \u751f\u6210\u7d20\u6750\u7ba1\u7406\u5de5\u5177"));
+                QMessageBox::about(this, QStringLiteral("关于"),
+                    QStringLiteral("AI 素材库 v1.0.0\nAI 生成素材管理工具"));
             });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(3).left(), m_titleBar->menuItemRect(3).bottom()));
             menu.exec(pos);
@@ -209,7 +209,7 @@ void MainWindow::setupStatusBar()
     statusBar()->setPalette(sbPal);
     statusBar()->setAutoFillBackground(true);
 
-    m_statusMsg = new QLabel(QStringLiteral("\u5c31\u7eea"));
+    m_statusMsg = new QLabel(QStringLiteral("就绪"));
     m_statusMsg->setPalette(sbPal);
     statusBar()->addWidget(m_statusMsg, 1);
 
@@ -222,17 +222,17 @@ void MainWindow::setupConnections()
 {
     // Library signals
     connect(m_library, &LibraryController::scanProgress, this, [this](int cur, int total) {
-        m_statusMsg->setText(QStringLiteral("\u626b\u63cf\u4e2d %1/%2...").arg(cur).arg(total));
+        m_statusMsg->setText(QStringLiteral("扫描中 %1/%2...").arg(cur).arg(total));
     });
 
     connect(m_library, &LibraryController::scanFinished, this, [this]() {
-        m_statusMsg->setText(QStringLiteral("\u5c31\u7eea"));
+        m_statusMsg->setText(QStringLiteral("就绪"));
         loadAssets();
     });
 
     connect(m_library, &LibraryController::dataChanged, this, [this]() {
         m_statusCount->setText(
-            QStringLiteral("%1 \u5f20\u56fe\u7247").arg(m_gallery->assetCount()));
+            QStringLiteral("%1 张图片").arg(m_gallery->assetCount()));
     });
 
     // Cache thumbnail ready -> gallery update
@@ -242,8 +242,8 @@ void MainWindow::setupConnections()
     connect(m_sidebar, &SidebarWidget::tagEditRequested, this, &MainWindow::onTagEditRequested);
     connect(m_sidebar, &SidebarWidget::tagDeleteRequested, this, [this](int tagId) {
         auto reply = QMessageBox::question(this,
-            QStringLiteral("\u5220\u9664\u6807\u7b7e"),
-            QStringLiteral("\u786e\u5b9a\u5220\u9664\u8be5\u6807\u7b7e\uff1f"),
+            QStringLiteral("删除标签"),
+            QStringLiteral("确定删除该标签？"),
             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
             m_library->deleteTag(tagId);
@@ -257,7 +257,7 @@ void MainWindow::setupConnections()
     });
     connect(m_sidebar, &SidebarWidget::addFolderClicked, this, [this]() {
         QString dir = QFileDialog::getExistingDirectory(this,
-            QStringLiteral("\u9009\u62e9\u7d20\u6750\u6587\u4ef6\u5939"));
+            QStringLiteral("选择素材文件夹"));
         if (!dir.isEmpty()) {
             m_library->scanFolder(dir);
             m_sidebar->setFolders(m_library->folders());
@@ -302,9 +302,9 @@ void MainWindow::setupConnections()
     connect(m_gallery, &GalleryWidget::deleteRequested, this, [this](const QVector<Asset> &assets) {
         if (assets.isEmpty()) return;
         QString msg = assets.size() == 1
-            ? QStringLiteral("\u786e\u5b9a\u5220\u9664\u8be5\u9879\uff1f")
-            : QStringLiteral("\u786e\u5b9a\u5220\u9664\u8fd9 %1 \u4e2a\u9879\u76ee\uff1f").arg(assets.size());
-        auto reply = QMessageBox::question(this, QStringLiteral("\u5220\u9664"), msg,
+            ? QStringLiteral("确定删除该项目？")
+            : QStringLiteral("确定删除这 %1 个项目？").arg(assets.size());
+        auto reply = QMessageBox::question(this, QStringLiteral("删除"), msg,
                                             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
             m_library->deleteAssets(assets);
@@ -444,22 +444,22 @@ void MainWindow::setupShortcuts()
     auto *cpShortcut = new QShortcut(QKeySequence("Ctrl+Shift+P"), this);
     connect(cpShortcut, &QShortcut::activated, this, [this]() {
         QVector<CommandPalette::Command> cmds;
-        cmds.append({QStringLiteral("\u5bfc\u5165\u6587\u4ef6\u5939..."), "Ctrl+O",
+        cmds.append({QStringLiteral("导入文件夹..."), "Ctrl+O",
                      [this]() {
                          QString dir = QFileDialog::getExistingDirectory(this,
-                             QStringLiteral("\u9009\u62e9\u7d20\u6750\u6587\u4ef6\u5939"));
+                             QStringLiteral("选择素材文件夹"));
                          if (!dir.isEmpty()) m_library->scanFolder(dir);
                      }});
-        cmds.append({QStringLiteral("\u5bfc\u5165\u56fe\u7247..."), "Ctrl+I",
+        cmds.append({QStringLiteral("导入图片..."), "Ctrl+I",
                      [this]() { MainWindow::onImportFile(); }});
-        cmds.append({QStringLiteral("\u641c\u7d22..."), "Ctrl+F",
+        cmds.append({QStringLiteral("搜索..."), "Ctrl+F",
                      [this]() { m_searchBar->focusSearch(); }});
-        cmds.append({QStringLiteral("\u5168\u9009"), "Ctrl+A",
+        cmds.append({QStringLiteral("全选"), "Ctrl+A",
                      [this]() {
                          QKeyEvent ev(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
                          QApplication::sendEvent(m_gallery, &ev);
                      }});
-        cmds.append({QStringLiteral("\u4ec5\u663e\u793a\u6536\u85cf"), "",
+        cmds.append({QStringLiteral("仅显示收藏"), "",
                      [this]() { m_searchBar->setFavFilter(!m_searchBar->onlyFavorites()); }});
         m_commandPalette->show(cmds);
     });
@@ -472,7 +472,7 @@ void MainWindow::setupShortcuts()
 void MainWindow::onImportFolder()
 {
     QString dir = QFileDialog::getExistingDirectory(this,
-        QStringLiteral("\u9009\u62e9\u7d20\u6750\u6587\u4ef6\u5939"));
+        QStringLiteral("选择素材文件夹"));
     if (!dir.isEmpty()) {
         m_library->scanFolder(dir);
         m_sidebar->setFolders(m_library->folders());
@@ -482,14 +482,14 @@ void MainWindow::onImportFolder()
 void MainWindow::onImportFile()
 {
     QString file = QFileDialog::getOpenFileName(this,
-        QStringLiteral("\u5bfc\u5165\u56fe\u7247"),
+        QStringLiteral("导入图片"),
         QString(),
-        QStringLiteral("\u56fe\u7247 (*.png *.jpg *.jpeg *.webp)"));
+        QStringLiteral("图片 (*.png *.jpg *.jpeg *.webp)"));
     if (!file.isEmpty()) {
         m_library->scanAndInsertFile(file);
         loadAssets();
-        m_statusMsg->setText(QStringLiteral("\u5c31\u7eea"));
-        ToastNotification::show(this, QStringLiteral("\u5df2\u5bfc\u5165 1 \u5f20\u56fe\u7247"));
+        m_statusMsg->setText(QStringLiteral("就绪"));
+        ToastNotification::show(this, QStringLiteral("已导入 1 张图片"));
     }
 }
 
@@ -521,7 +521,7 @@ void MainWindow::loadAssets()
     m_sidebar->setTags(m_library->getAllTags());
 
     m_statusCount->setText(
-        QStringLiteral("%1 \u5f20\u56fe\u7247").arg(assets.size()));
+        QStringLiteral("%1 张图片").arg(assets.size()));
 }
 
 int MainWindow::pickTagId(const QVector<QString> &assetIds)
@@ -547,8 +547,8 @@ void MainWindow::onTagEditRequested(int tagId)
 
     bool ok;
     QString newName = QInputDialog::getText(this,
-        QStringLiteral("\u7f16\u8f91\u6807\u7b7e"),
-        QStringLiteral("\u6807\u7b7e\u540d\u79f0\uff1a"),
+        QStringLiteral("编辑标签"),
+        QStringLiteral("标签名称："),
         QLineEdit::Normal, tag.name, &ok);
     if (ok && !newName.isEmpty() && newName != tag.name) {
         m_library->renameTag(tagId, newName);

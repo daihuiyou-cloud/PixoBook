@@ -61,13 +61,12 @@ private:
     IImageCache *m_cache;
 
     QRect imageArea() const;
-    QRect metadataArea() const;
     int drawImage(QPainter &p);
     int drawFileInfo(QPainter &p, int y);
     int drawMetadataSection(QPainter &p, int y);
     int drawTagsSection(QPainter &p, int y);
     void drawSectionDivider(QPainter &p, int y);
-    void drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW = 80);
+    void drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW = 88);
 };
 
 #endif

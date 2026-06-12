@@ -1,11 +1,12 @@
 #include "TitleBar.h"
-#include <QPainter>
-#include <QMouseEvent>
-#include <QToolTip>
-#include <QHelpEvent>
 #include <QApplication>
+#include <QHelpEvent>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QToolTip>
 #include "Codicon.h"
 #include "ColorConstants.h"
+#include "VisualConstants.h"
 
 TitleBar::TitleBar(QWidget *parent)
     : QWidget(parent)
@@ -14,10 +15,10 @@ TitleBar::TitleBar(QWidget *parent)
     setMouseTracking(true);
 
     m_menus = {
-        { QStringLiteral("\u6587\u4ef6"), "file" },
-        { QStringLiteral("\u7f16\u8f91"), "edit" },
-        { QStringLiteral("\u67e5\u770b"), "eye" },
-        { QStringLiteral("\u5e2e\u52a9"), "question" },
+        { QStringLiteral("文件"), "file" },
+        { QStringLiteral("编辑"), "edit" },
+        { QStringLiteral("查看"), "eye" },
+        { QStringLiteral("帮助"), "question" },
     };
 }
 
@@ -30,29 +31,19 @@ void TitleBar::setMaximized(bool maximized)
 QRect TitleBar::menuItemRect(int idx) const
 {
     QFont f = font();
+    f.setPixelSize(Visual::FontControl);
     QFontMetrics fm(f);
-    int x = 80;
-    for (int i = 0; i < idx && i < m_menus.size(); i++) {
-        x += fm.horizontalAdvance(m_menus[i].text) + 24;
-    }
+    int x = 118;
+    for (int i = 0; i < idx && i < m_menus.size(); i++)
+        x += fm.horizontalAdvance(m_menus[i].text) + 34;
+
     int labelWidth = fm.horizontalAdvance(m_menus[idx].text);
-    return QRect(x, 0, labelWidth + 24, kHeight);
+    return QRect(x, 0, labelWidth + 34, kHeight);
 }
 
-QRect TitleBar::minimizeBtnRect() const
-{
-    return QRect(width() - 96, 0, 32, kHeight);
-}
-
-QRect TitleBar::maximizeBtnRect() const
-{
-    return QRect(width() - 64, 0, 32, kHeight);
-}
-
-QRect TitleBar::closeBtnRect() const
-{
-    return QRect(width() - 32, 0, 32, kHeight);
-}
+QRect TitleBar::minimizeBtnRect() const { return QRect(width() - 96, 0, 32, kHeight); }
+QRect TitleBar::maximizeBtnRect() const { return QRect(width() - 64, 0, 32, kHeight); }
+QRect TitleBar::closeBtnRect() const { return QRect(width() - 32, 0, 32, kHeight); }
 
 TitleBar::HitTest TitleBar::hitTest(const QPoint &pos) const
 {
@@ -68,53 +59,43 @@ TitleBar::HitTest TitleBar::hitTest(const QPoint &pos) const
 void TitleBar::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
-
     p.fillRect(rect(), Color::BG_DARK);
-
     p.fillRect(QRect(0, height() - 1, width(), 1), Color::BORDER);
 
-    Codicon::draw(p, "layout", QRect(8, 5, 24, 22), Color::TEXT_PRIMARY, 18);
+    Codicon::draw(p, "image", QRect(8, 5, 24, 22), Color::TEXT_PRIMARY, 18);
 
     QFont f = font();
+    f.setPixelSize(Visual::FontControl);
     p.setFont(f);
     p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(QRect(32, 0, 50, kHeight), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("AI\u7d20\u6750\u5e93"));
+    p.drawText(QRect(36, 0, 78, kHeight), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("AI 素材库"));
 
     for (int i = 0; i < m_menus.size(); i++) {
         QRect r = menuItemRect(i);
-        if (i == m_hoveredMenu) {
+        if (i == m_hoveredMenu)
             p.fillRect(r, Color::BG_SELECTED);
-        }
+
         QColor textColor = i == m_hoveredMenu ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
-        Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 4, r.top(), 16, r.height()), textColor, 12);
+        Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 7, r.top(), 15, r.height()), textColor, 12);
+        p.setFont(f);
         p.setPen(textColor);
-        p.drawText(r.adjusted(22, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);
+        p.drawText(r.adjusted(25, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);
     }
 
-    {
-        QRect r = minimizeBtnRect();
-        if (m_hoveredControl == 0) {
-            p.fillRect(r, Color::BG_SELECTED);
-        }
-        Codicon::draw(p, "chrome-minimize", r, Color::TEXT_PRIMARY, 14);
-    }
+    QRect minRect = minimizeBtnRect();
+    if (m_hoveredControl == 0) p.fillRect(minRect, Color::BG_SELECTED);
+    Codicon::draw(p, "chrome-minimize", minRect, Color::TEXT_PRIMARY, 14);
 
-    {
-        QRect r = maximizeBtnRect();
-        if (m_hoveredControl == 1) {
-            p.fillRect(r, Color::BG_SELECTED);
-        }
-        Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", r, Color::TEXT_PRIMARY, 14);
-    }
+    QRect maxRect = maximizeBtnRect();
+    if (m_hoveredControl == 1) p.fillRect(maxRect, Color::BG_SELECTED);
+    Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", maxRect, Color::TEXT_PRIMARY, 14);
 
-    {
-        QRect r = closeBtnRect();
-        if (m_hoveredControl == 2) {
-            p.fillRect(r, Color::CLOSE_HOVER);
-            Codicon::draw(p, "chrome-close", r, Qt::white, 14);
-        } else {
-            Codicon::draw(p, "chrome-close", r, Color::TEXT_PRIMARY, 14);
-        }
+    QRect closeRect = closeBtnRect();
+    if (m_hoveredControl == 2) {
+        p.fillRect(closeRect, Color::CLOSE_HOVER);
+        Codicon::draw(p, "chrome-close", closeRect, Qt::white, 14);
+    } else {
+        Codicon::draw(p, "chrome-close", closeRect, Color::TEXT_PRIMARY, 14);
     }
 }
 
@@ -174,37 +155,28 @@ void TitleBar::mouseMoveEvent(QMouseEvent *event)
 
     int oldHoverMenu = m_hoveredMenu;
     int oldHoverControl = m_hoveredControl;
-
     HitTest ht = hitTest(event->pos());
 
     m_hoveredMenu = -1;
     m_hoveredControl = -1;
 
-    switch (ht) {
-    case HitMenu:
+    if (ht == HitMenu) {
         for (int i = 0; i < m_menus.size(); i++) {
             if (menuItemRect(i).contains(event->pos())) {
                 m_hoveredMenu = i;
                 break;
             }
         }
-        break;
-    case HitMinimize:
+    } else if (ht == HitMinimize) {
         m_hoveredControl = 0;
-        break;
-    case HitMaximize:
+    } else if (ht == HitMaximize) {
         m_hoveredControl = 1;
-        break;
-    case HitClose:
+    } else if (ht == HitClose) {
         m_hoveredControl = 2;
-        break;
-    default:
-        break;
     }
 
-    if (oldHoverMenu != m_hoveredMenu || oldHoverControl != m_hoveredControl) {
+    if (oldHoverMenu != m_hoveredMenu || oldHoverControl != m_hoveredControl)
         update();
-    }
 }
 
 void TitleBar::mouseReleaseEvent(QMouseEvent *event)

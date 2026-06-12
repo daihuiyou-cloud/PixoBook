@@ -41,8 +41,8 @@ private:
     int m_hoveredIndex = -1;
     bool m_hoveredAdd = false;
 
-    static constexpr int kTabHeight = 35;
-    static constexpr int kTabMinWidth = 80;
+    static constexpr int kTabHeight = 38;
+    static constexpr int kTabMinWidth = 96;
     static constexpr int kTabPadding = 16;
 };
 

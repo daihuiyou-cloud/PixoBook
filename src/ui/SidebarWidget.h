@@ -55,8 +55,8 @@ private:
     bool m_tagsExpanded = true;
 
     int m_sectionTagY = 0;
-    static constexpr int kItemHeight = 22;
-    static constexpr int kSectionHeight = 22;
+    static constexpr int kItemHeight = 28;
+    static constexpr int kSectionHeight = 30;
 
     int m_hoveredFolder = -1;
     int m_hoveredTag = -1;

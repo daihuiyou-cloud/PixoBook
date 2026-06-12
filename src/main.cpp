@@ -1,5 +1,4 @@
 #include <QApplication>
-#include <QStyleFactory>
 #include <QFont>
 #include <memory>
 #include "ui/MainWindow.h"
@@ -16,18 +15,17 @@ int main(int argc, char *argv[])
     QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
     QApplication app(argc, argv);
-    app.setApplicationName("AI素材库");
+    app.setApplicationName(QStringLiteral("AI 素材库"));
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("AIMaterialLibrary");
 
     QFont appFont = app.font();
-    appFont.setFamily(QStringLiteral("Segoe UI, Microsoft YaHei UI"));
-    appFont.setPointSize(11);
+    appFont.setFamily(QStringLiteral("Microsoft YaHei UI"));
+    appFont.setPointSize(10);
     app.setFont(appFont);
 
     Codicon::init();
 
-    // Register parsers
     ParserRegistry::instance().registerParser(std::make_unique<SDParser>());
     ParserRegistry::instance().registerParser(std::make_unique<MJParser>());
     ParserRegistry::instance().registerParser(std::make_unique<DALLEParser>());
@@ -35,7 +33,7 @@ int main(int argc, char *argv[])
     app.setStyle(new CustomStyle());
 
     MainWindow window;
-    window.setWindowTitle("AI素材库");
+    window.setWindowTitle(QStringLiteral("AI 素材库"));
     window.resize(1600, 1000);
     window.show();
 

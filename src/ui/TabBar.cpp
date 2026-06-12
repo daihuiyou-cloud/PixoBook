@@ -1,10 +1,11 @@
 #include "TabBar.h"
-#include <QPainter>
-#include <QMouseEvent>
 #include <QKeyEvent>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QToolTip>
 #include "Codicon.h"
 #include "ColorConstants.h"
+#include "VisualConstants.h"
 
 TabBar::TabBar(QWidget *parent)
     : QWidget(parent)
@@ -14,9 +15,9 @@ TabBar::TabBar(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
 
     m_tabs = {
-        { QStringLiteral("\u6240\u6709\u7d20\u6750"), QStringLiteral("layout") },
-        { QStringLiteral("\u6536\u85cf\u5939"), QStringLiteral("star") },
-        { QStringLiteral("\u6700\u8fd1\u5bfc\u5165"), QStringLiteral("history") },
+        { QStringLiteral("所有素材"), QStringLiteral("layout") },
+        { QStringLiteral("收藏夹"), QStringLiteral("star") },
+        { QStringLiteral("最近导入"), QStringLiteral("history") },
     };
 }
 
@@ -39,27 +40,28 @@ void TabBar::setTabs(const QVector<Tab> &tabs)
 QRect TabBar::tabRect(int index) const
 {
     QFont f = font();
+    f.setPixelSize(Visual::FontControl);
     QFontMetrics fm(f);
     int x = 0;
     for (int i = 0; i < index && i < m_tabs.size(); i++) {
         int labelWidth = fm.horizontalAdvance(m_tabs[i].label);
-        int tabWidth = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 16);
+        int tabWidth = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 28);
         x += tabWidth;
     }
     int labelWidth = fm.horizontalAdvance(m_tabs[index].label);
-    int width = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 16);
+    int width = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 28);
     return QRect(x, 0, width, kTabHeight);
 }
 
 QRect TabBar::addButtonRect() const
 {
     QFont f = font();
+    f.setPixelSize(Visual::FontControl);
     QFontMetrics fm(f);
-    int x = 4;
+    int x = 6;
     for (int i = 0; i < m_tabs.size(); i++) {
         int labelWidth = fm.horizontalAdvance(m_tabs[i].label);
-        int tabWidth = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 16);
-        x += tabWidth;
+        x += qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 28);
     }
     int y = (kTabHeight - 24) / 2;
     return QRect(x, y, 24, 24);
@@ -77,49 +79,41 @@ int TabBar::indexAt(const QPoint &pos) const
 void TabBar::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
-
+    p.setRenderHint(QPainter::Antialiasing);
     p.fillRect(rect(), Color::BG_DARK);
-
     p.fillRect(QRect(0, height() - 1, width(), 1), Color::BORDER);
+
+    QFont tf = font();
+    tf.setPixelSize(Visual::FontControl);
+    p.setFont(tf);
 
     for (int i = 0; i < m_tabs.size(); i++) {
         QRect r = tabRect(i);
+        bool active = i == m_currentIndex;
 
-        if (i == m_currentIndex) {
+        if (active)
             p.fillRect(r, Color::BG_DARKEST);
-        } else if (i == m_hoveredIndex) {
+        else if (i == m_hoveredIndex)
             p.fillRect(r, Color::BG_HOVER);
-        }
 
-        if (i == m_currentIndex) {
+        if (active)
             p.fillRect(QRect(r.left(), r.bottom() - 2, r.width(), 2), Color::ACCENT);
-        }
 
-        QColor textColor;
-        if (i == m_currentIndex) {
-            textColor = Color::TEXT_BRIGHT;
-        } else if (i == m_hoveredIndex) {
-            textColor = Color::TEXT_PRIMARY;
-        } else {
-            textColor = Color::TEXT_SECONDARY;
-        }
-
-        Codicon::draw(p, m_tabs[i].icon, QRect(r.left() + 10, 9, 16, 16), textColor, 14);
-
+        QColor textColor = active ? Color::TEXT_BRIGHT
+                         : (i == m_hoveredIndex ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY);
+        Codicon::draw(p, m_tabs[i].icon, QRect(r.left() + 12, 0, 16, kTabHeight), textColor, 14);
+        p.setFont(tf);
         p.setPen(textColor);
-        p.drawText(QRect(r.left() + 28, r.top(), r.width() - 28 - kTabPadding, kTabHeight),
+        p.drawText(QRect(r.left() + 34, r.top(), r.width() - 34 - kTabPadding, kTabHeight),
                    Qt::AlignVCenter | Qt::AlignLeft, m_tabs[i].label);
     }
 
-    {
-        QRect r = addButtonRect();
-        if (m_hoveredAdd) {
-            p.fillRect(r, Color::BG_SELECTED);
-            QToolTip::showText(mapToGlobal(r.center()), QStringLiteral("新建标签页"), this);
-        }
-        p.setPen(Color::TEXT_PRIMARY);
-        p.drawText(r, Qt::AlignCenter, QStringLiteral("+"));
+    QRect r = addButtonRect();
+    if (m_hoveredAdd) {
+        p.fillRect(r, Color::BG_SELECTED);
+        QToolTip::showText(mapToGlobal(r.center()), QStringLiteral("导入素材文件夹"), this);
     }
+    Codicon::draw(p, "add", r, Color::TEXT_PRIMARY, 14);
 }
 
 void TabBar::mouseMoveEvent(QMouseEvent *event)
@@ -127,13 +121,11 @@ void TabBar::mouseMoveEvent(QMouseEvent *event)
     int oldHovered = m_hoveredIndex;
     bool oldHoveredAdd = m_hoveredAdd;
 
-    int idx = indexAt(event->pos());
-    m_hoveredIndex = idx;
+    m_hoveredIndex = indexAt(event->pos());
     m_hoveredAdd = addButtonRect().contains(event->pos());
 
-    if (oldHovered != m_hoveredIndex || oldHoveredAdd != m_hoveredAdd) {
+    if (oldHovered != m_hoveredIndex || oldHoveredAdd != m_hoveredAdd)
         update();
-    }
 }
 
 void TabBar::mousePressEvent(QMouseEvent *event)
@@ -146,9 +138,8 @@ void TabBar::mousePressEvent(QMouseEvent *event)
     }
 
     int idx = indexAt(event->pos());
-    if (idx >= 0 && idx != m_currentIndex) {
+    if (idx >= 0 && idx != m_currentIndex)
         setCurrentIndex(idx);
-    }
 }
 
 void TabBar::keyPressEvent(QKeyEvent *event)
@@ -172,5 +163,6 @@ void TabBar::leaveEvent(QEvent *)
         m_hoveredIndex = -1;
         m_hoveredAdd = false;
         update();
+        QToolTip::hideText();
     }
 }

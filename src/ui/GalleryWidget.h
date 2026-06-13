@@ -60,6 +60,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
     bool event(QEvent *event) override;
@@ -92,6 +93,7 @@ private:
     int m_totalHeight = 0;
     int m_columns = 4;
     QString m_searchKeyword;
+    bool m_isDragOver = false;
     QSet<QString> m_requestedThumbnails;
     QHash<QString, bool> m_fileExistsCache;
     IImageCache *m_cache;

@@ -300,6 +300,19 @@ void GalleryWidget::paintEvent(QPaintEvent *)
     p.setRenderHint(QPainter::SmoothPixmapTransform);
     p.fillRect(rect(), Color::BG_DARKEST);
 
+    if (m_isDragOver) {
+        QPen dashPen(Color::ACCENT, 2, Qt::DashLine);
+        p.setPen(dashPen);
+        p.setBrush(QColor(Color::ACCENT.red(), Color::ACCENT.green(), Color::ACCENT.blue(), 20));
+        p.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 8, 8);
+        QFont df = p.font();
+        df.setPixelSize(Visual::FontHeading);
+        p.setFont(df);
+        p.setPen(Color::ACCENT);
+        p.drawText(rect(), Qt::AlignCenter, tr("拖放文件以导入"));
+        return;
+    }
+
     if (m_assets.isEmpty() || m_columns == 0) {
         drawEmptyState(p);
         return;
@@ -631,16 +644,31 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
 
 void GalleryWidget::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (event->mimeData()->hasUrls()) event->acceptProposedAction();
+    if (event->mimeData()->hasUrls()) {
+        m_isDragOver = true;
+        update();
+        event->acceptProposedAction();
+    }
 }
 
 void GalleryWidget::dragMoveEvent(QDragMoveEvent *event)
 {
-    if (event->mimeData()->hasUrls()) event->acceptProposedAction();
+    if (event->mimeData()->hasUrls()) {
+        m_isDragOver = true;
+        event->acceptProposedAction();
+    }
+}
+
+void GalleryWidget::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    m_isDragOver = false;
+    update();
+    QWidget::dragLeaveEvent(event);
 }
 
 void GalleryWidget::dropEvent(QDropEvent *event)
 {
+    m_isDragOver = false;
     QStringList paths;
     for (const auto &url : event->mimeData()->urls()) {
         if (url.isLocalFile()) paths.append(url.toLocalFile());

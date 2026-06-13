@@ -381,14 +381,18 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
     m_addTagHovered = m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_copyPromptHovered = m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty();
     m_closeBtnHovered = m_closeBtnRect.contains(event->pos()) && !m_asset.id.isEmpty();
-    if (oldAddHover != m_addTagHovered || oldCopyHover != m_copyPromptHovered || oldCloseHover != m_closeBtnHovered)
-        update();
+    if (oldAddHover != m_addTagHovered)
+        update(m_addTagRect);
+    if (oldCopyHover != m_copyPromptHovered)
+        update(m_copyPromptRect);
+    if (oldCloseHover != m_closeBtnHovered)
+        update(m_closeBtnRect);
 
     if (m_isPanning) {
         QPoint delta = event->pos() - m_lastPanPos;
         m_panOffset += delta;
         m_lastPanPos = event->pos();
-        update();
+        update(imageArea());
     }
 }
 

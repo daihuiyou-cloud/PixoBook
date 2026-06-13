@@ -7,7 +7,6 @@
 #include <QTextOption>
 #include <QToolTip>
 #include <QWheelEvent>
-#include <QCursor>
 #include <QLinearGradient>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
@@ -72,13 +71,12 @@ void DetailPanel::paintEvent(QPaintEvent *)
     }
 
     m_closeBtnRect = QRect(width() - 34, 6, 26, 26);
-    bool closeHovered = m_closeBtnRect.contains(mapFromGlobal(QCursor::pos()));
-    if (closeHovered) {
+    if (m_closeBtnHovered) {
         QColor closeBg = Color::CLOSE_HOVER;
         closeBg.setAlpha(30);
         p.fillRect(m_closeBtnRect, closeBg);
     }
-    Codicon::draw(p, "close", m_closeBtnRect, closeHovered ? Color::CLOSE_HOVER : Color::TEXT_SECONDARY, 15);
+    Codicon::draw(p, "close", m_closeBtnRect, m_closeBtnHovered ? Color::CLOSE_HOVER : Color::TEXT_SECONDARY, 15);
 
     int imageBottom = drawImage(p);
     drawSectionDivider(p, imageBottom);
@@ -137,7 +135,7 @@ int DetailPanel::drawImage(QPainter &p)
     f.setPixelSize(Visual::FontMeta);
     p.setFont(f);
     p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(infoBg.adjusted(10, 0, 34, 0), Qt::AlignVCenter,
+    p.drawText(infoBg.adjusted(10, 0, -34, 0), Qt::AlignVCenter,
                QString("%1 x %2  |  %3%").arg(m_asset.width).arg(m_asset.height).arg((int)(m_zoom * 100)));
 
     m_favStarRect = QRect(infoBg.right() - 28, infoBg.top() + 4, 22, 22);
@@ -374,9 +372,11 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
 {
     bool oldAddHover = m_addTagHovered;
     bool oldCopyHover = m_copyPromptHovered;
+    bool oldCloseHover = m_closeBtnHovered;
     m_addTagHovered = m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_copyPromptHovered = m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty();
-    if (oldAddHover != m_addTagHovered || oldCopyHover != m_copyPromptHovered)
+    m_closeBtnHovered = m_closeBtnRect.contains(event->pos()) && !m_asset.id.isEmpty();
+    if (oldAddHover != m_addTagHovered || oldCopyHover != m_copyPromptHovered || oldCloseHover != m_closeBtnHovered)
         update();
 
     if (m_isPanning) {
@@ -395,12 +395,15 @@ void DetailPanel::mouseReleaseEvent(QMouseEvent *)
 
 void DetailPanel::wheelEvent(QWheelEvent *event)
 {
+    QPoint pixelDelta = event->pixelDelta();
+    QPoint angleDelta = event->angleDelta();
     if (imageArea().contains(event->pos())) {
-        double factor = event->angleDelta().y() > 0 ? 1.1 : 0.9;
+        double factor = angleDelta.y() > 0 ? 1.1 : 0.9;
         m_zoom = qBound(0.1, m_zoom * factor, 10.0);
         update();
     } else if (m_maxScrollOffset > 0) {
-        m_scrollOffset -= event->angleDelta().y() / 8;
+        int delta = pixelDelta.isNull() ? angleDelta.y() / 8 : pixelDelta.y();
+        m_scrollOffset -= delta;
         m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
         update();
     }
@@ -410,9 +413,10 @@ void DetailPanel::resizeEvent(QResizeEvent *) { update(); }
 
 void DetailPanel::leaveEvent(QEvent *)
 {
-    if (m_addTagHovered || m_copyPromptHovered) {
+    if (m_addTagHovered || m_copyPromptHovered || m_closeBtnHovered) {
         m_addTagHovered = false;
         m_copyPromptHovered = false;
+        m_closeBtnHovered = false;
         update();
     }
 }

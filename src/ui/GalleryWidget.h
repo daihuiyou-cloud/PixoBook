@@ -81,6 +81,7 @@ private:
     int m_totalHeight = 0;
     int m_columns = 4;
     QString m_searchKeyword;
+    QSet<QString> m_requestedThumbnails;
     IImageCache *m_cache;
 };
 

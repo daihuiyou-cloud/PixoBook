@@ -202,7 +202,6 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
             QRect r(0, kSectionHeight + i * kItemHeight, width(), kItemHeight);
             if (r.contains(event->pos())) {
                 m_hoveredFolder = i;
-                QToolTip::showText(event->globalPos(), m_folders[i], this);
                 break;
             }
         }
@@ -217,8 +216,12 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
         }
     }
 
-    if (m_hoveredFolder < 0)
-        QToolTip::hideText();
+    if (oldHoverFolder != m_hoveredFolder) {
+        if (m_hoveredFolder >= 0)
+            QToolTip::showText(event->globalPos(), m_folders[m_hoveredFolder], this);
+        else
+            QToolTip::hideText();
+    }
 
     if (oldHoverFolder != m_hoveredFolder || oldHoverTag != m_hoveredTag
         || oldHoverAdd != m_hoveredAddButton || oldHoverAddTag != m_hoveredAddTagButton)

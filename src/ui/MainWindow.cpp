@@ -132,7 +132,7 @@ void MainWindow::setupUI()
 
     mainLayout->addWidget(contentWidget, 1);
 
-    m_lightbox = new LightboxWidget(m_library->cache(), this);
+    m_lightbox = new LightboxWidget(this);
     m_lightbox->hide();
 }
 
@@ -372,7 +372,10 @@ void MainWindow::setupConnections()
     connect(m_searchBar, &SearchBar::thumbnailSizeChanged, m_gallery, &GalleryWidget::setThumbnailSize);
 
     // Tab bar
-    connect(m_tabBar, &TabBar::currentChanged, this, [this](int) {
+    connect(m_tabBar, &TabBar::currentChanged, this, [this](int idx) {
+        m_searchBar->blockSignals(true);
+        m_searchBar->setFavFilter(idx == 1);
+        m_searchBar->blockSignals(false);
         loadAssets();
     });
     connect(m_tabBar, &TabBar::addTabRequested, this, [this]() {
@@ -628,8 +631,8 @@ void MainWindow::loadSettings()
             m_mainSplitter->setSizes(sizes);
         }
         m_library->scanFolder(folders.first());
-        for (const auto &dir : folders)
-            m_library->addFolder(dir);
+        for (int i = 1; i < folders.size(); i++)
+            m_library->addFolder(folders[i]);
     }
 
     // Restore thumbnail size

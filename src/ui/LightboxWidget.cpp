@@ -5,12 +5,10 @@
 #include "ui/ColorConstants.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
-#include <QApplication>
 #include <QFileInfo>
-#include <cmath>
 
-LightboxWidget::LightboxWidget(IImageCache *cache, QWidget *parent)
-    : QWidget(parent), m_cache(cache)
+LightboxWidget::LightboxWidget(QWidget *parent)
+    : QWidget(parent)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
@@ -84,11 +82,6 @@ QRect LightboxWidget::imageRect() const
     int topMargin = 40;
     int bottomMargin = 50;
     return r.adjusted(0, topMargin, 0, -bottomMargin);
-}
-
-QPointF LightboxWidget::imageCenter() const
-{
-    return imageRect().center() + m_panOffset;
 }
 
 void LightboxWidget::paintEvent(QPaintEvent *)
@@ -230,6 +223,12 @@ void LightboxWidget::keyPressEvent(QKeyEvent *event)
     }
 }
 
+void LightboxWidget::resizeEvent(QResizeEvent *)
+{
+    if (parentWidget())
+        resize(parentWidget()->size());
+}
+
 void LightboxWidget::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() != Qt::LeftButton) return;
@@ -299,8 +298,6 @@ void LightboxWidget::mouseMoveEvent(QMouseEvent *event)
     }
     m_overlayTimer->start();
 
-    m_lastMousePos = event->pos();
-
     QRect imgArea = imageRect();
     if (imgArea.contains(event->pos()) && m_zoom > 1.05 && !m_isPanning) {
         setCursor(Qt::OpenHandCursor);
@@ -320,7 +317,10 @@ void LightboxWidget::wheelEvent(QWheelEvent *event)
     QRect imgArea = imageRect();
     if (!imgArea.contains(event->pos())) return;
 
-    double factor = event->angleDelta().y() > 0 ? 1.1 : 0.9;
+    QPoint pixelDelta = event->pixelDelta();
+    QPoint angleDelta = event->angleDelta();
+    double delta = pixelDelta.isNull() ? angleDelta.y() : pixelDelta.y();
+    double factor = delta > 0 ? 1.1 : 0.9;
     double newZoom = m_zoom * factor;
     newZoom = qBound(0.1, newZoom, 10.0);
 

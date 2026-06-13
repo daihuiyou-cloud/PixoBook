@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QStringList>
 #include <QVector>
+#include <functional>
 
 class CommandPalette : public QWidget
 {

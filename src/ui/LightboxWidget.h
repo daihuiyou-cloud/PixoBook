@@ -6,13 +6,12 @@
 #include <QPoint>
 #include <QTimer>
 #include "models/Asset.h"
-#include "core/IImageCache.h"
 
 class LightboxWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit LightboxWidget(IImageCache *cache, QWidget *parent = nullptr);
+    explicit LightboxWidget(QWidget *parent = nullptr);
 
     void show(const QVector<Asset> &assets, int startIndex);
     void close();
@@ -23,6 +22,7 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -34,18 +34,15 @@ private:
     void resetView();
     void navigateTo(int index);
     QRect imageRect() const;
-    QPointF imageCenter() const;
 
     QVector<Asset> m_assets;
     int m_currentIndex = -1;
     QPixmap m_currentPixmap;
-    IImageCache *m_cache;
 
     double m_zoom = 1.0;
     QPointF m_panOffset;
     bool m_isPanning = false;
     QPoint m_lastPanPos;
-    QPoint m_lastMousePos;
     bool m_overlayVisible = true;
     QTimer *m_overlayTimer;
 

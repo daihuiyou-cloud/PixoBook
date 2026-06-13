@@ -75,7 +75,6 @@ TagPickerDialog::TagPickerDialog(const QVector<Tag> &existingTags, QWidget *pare
 
 int TagPickerDialog::pickTag(QWidget *parent, const QVector<Tag> &tags, QString *outNewName)
 {
-    Q_UNUSED(tags)
     TagPickerDialog dlg(tags, parent);
     if (dlg.exec() == QDialog::Accepted) {
         if (dlg.isNewTag()) {

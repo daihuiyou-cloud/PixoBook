@@ -58,7 +58,12 @@ GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     setMinimumWidth(m_itemWidth() + kPadding * 2);
 }
 
-void GalleryWidget::onThumbnailReady(const QString &, const QSize &, const QPixmap &) { update(); }
+void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, const QPixmap &pixmap)
+{
+    if (!pixmap.isNull())
+        m_requestedThumbnails.remove(filePath);
+    update();
+}
 
 void GalleryWidget::setThumbnailSize(int size)
 {
@@ -74,8 +79,14 @@ QVector<Asset> GalleryWidget::selectedAssets() const
         if (idx >= 0 && idx < m_assets.size())
             result.append(m_assets[idx]);
     }
-    if (result.isEmpty() && !m_selectedAsset.id.isEmpty())
-        result.append(m_selectedAsset);
+    if (result.isEmpty() && !m_selectedAsset.id.isEmpty()) {
+        for (const auto &a : m_assets) {
+            if (a.id == m_selectedAsset.id) {
+                result.append(m_selectedAsset);
+                break;
+            }
+        }
+    }
     return result;
 }
 
@@ -85,6 +96,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_hoveredIndex = -1;
     m_selectedAsset = {};
     m_selectedIndices.clear();
+    m_requestedThumbnails.clear();
     m_scrollOffset = 0;
     layoutItems();
     update();
@@ -103,6 +115,7 @@ void GalleryWidget::clearAssets()
     m_hoveredIndex = -1;
     m_selectedAsset = {};
     m_selectedIndices.clear();
+    m_requestedThumbnails.clear();
     m_scrollOffset = 0;
     layoutItems();
     update();
@@ -165,7 +178,7 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     QRect center = rect().adjusted(40, 0, -40, 0);
     const bool searching = !m_searchKeyword.isEmpty();
 
-    Codicon::draw(p, searching ? "search" : "images",
+    Codicon::draw(p, searching ? "search" : "image",
                   QRect(center.center().x() - 24, center.center().y() - 100, 48, 48),
                   Color::TEXT_SECONDARY, 36);
 
@@ -254,14 +267,16 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
     QFont labelFont = p.font();
     labelFont.setPixelSize(Visual::FontBody);
+    QFontMetrics labelFm(labelFont);
     QFont metaFont = p.font();
     metaFont.setPixelSize(Visual::FontCaption);
+    QFontMetrics metaFm(metaFont);
 
     for (int i = startIdx; i < endIdx; i++) {
         const Asset &asset = m_assets[i];
         QRect r = itemRect(i);
         bool isHovered = (i == m_hoveredIndex);
-        bool isSelected = m_selectedIndices.contains(i) || m_selectedAsset.id == asset.id;
+        bool isSelected = m_selectedIndices.contains(i);
 
         if (isSelected || isHovered) {
             QRect shadowRect = r.adjusted(2, 2, 2, 6);
@@ -270,14 +285,12 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             p.drawRoundedRect(shadowRect, Visual::RadiusMedium, Visual::RadiusMedium);
         }
 
-        QPainterPath cardPath;
-        cardPath.addRoundedRect(QRectF(r), Visual::RadiusMedium, Visual::RadiusMedium);
-        p.fillPath(cardPath, isSelected ? Color::BG_CARD_HOVER
-                                        : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
+        p.setBrush(isSelected ? Color::BG_CARD_HOVER
+                              : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
         p.setPen(QPen(isSelected ? Color::ACCENT
                                  : (isHovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT),
                       isSelected ? 2 : 1));
-        p.drawPath(cardPath);
+        p.drawRoundedRect(r, Visual::RadiusMedium, Visual::RadiusMedium);
 
         if (isSelected) {
             p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
@@ -286,9 +299,9 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         }
 
         QRect thumbArea(r.left() + kPadding, r.top() + kPadding, m_thumbSize, m_thumbSize);
-        QPainterPath thumbPath;
-        thumbPath.addRoundedRect(QRectF(thumbArea), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(thumbPath, Color::BG_PREVIEW);
+        p.setBrush(Color::BG_PREVIEW);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 
         QSize thumbSize(m_thumbSize, m_thumbSize);
         bool fileExists = QFileInfo::exists(asset.filePath);
@@ -298,25 +311,30 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         } else {
             QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
             if (thumb.isNull()) {
-                m_cache->requestThumbnail(asset.filePath, thumbSize);
+                if (!m_requestedThumbnails.contains(asset.filePath)) {
+                    m_requestedThumbnails.insert(asset.filePath);
+                    m_cache->requestThumbnail(asset.filePath, thumbSize);
+                }
                 p.setPen(Color::TEXT_SECONDARY);
                 p.drawText(thumbArea, Qt::AlignCenter,
                            asset.format.isEmpty() ? QStringLiteral("加载中") : asset.format.toUpper());
             } else {
+                QPainterPath clipPath;
+                clipPath.addRoundedRect(QRectF(thumbArea), Visual::RadiusSmall, Visual::RadiusSmall);
                 p.save();
-                p.setClipPath(thumbPath);
+                p.setClipPath(clipPath);
                 p.drawPixmap(thumbArea.topLeft(), thumb);
                 p.restore();
             }
         }
         p.setPen(QPen(Color::BORDER_MUTED, 1));
-        p.drawPath(thumbPath);
+        p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 
         QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 8,
                         r.width() - kPadding * 2 - 32, 16);
         p.setFont(labelFont);
         QString fileName = compactFileName(asset.fileName);
-        QString elided = p.fontMetrics().elidedText(fileName, Qt::ElideRight, labelRect.width());
+        QString elided = labelFm.elidedText(fileName, Qt::ElideRight, labelRect.width());
         if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive)) {
             p.fillRect(labelRect.adjusted(0, 2, 0, -2), Color::SEARCH_HIGHLIGHT);
         }
@@ -327,7 +345,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.setFont(metaFont);
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
-                   p.fontMetrics().elidedText(metaLine(asset), Qt::ElideRight, metaRect.width()));
+                   metaFm.elidedText(metaLine(asset), Qt::ElideRight, metaRect.width()));
 
         QRect starRect(r.right() - 40, r.bottom() - 40, 32, 32);
         if (asset.isFavorite || isHovered || isSelected) {
@@ -374,8 +392,11 @@ void GalleryWidget::keyPressEvent(QKeyEvent *event)
         navigateTo(currentIdx - 1);
     } else if (event->key() == Qt::Key_Right && currentIdx >= 0 && currentIdx < m_assets.size() - 1) {
         navigateTo(currentIdx + 1);
-    } else if (event->key() == Qt::Key_Up && currentIdx >= m_columns) {
-        navigateTo(currentIdx - m_columns);
+    } else if (event->key() == Qt::Key_Up) {
+        if (currentIdx >= m_columns)
+            navigateTo(currentIdx - m_columns);
+        else if (currentIdx < 0 && !m_assets.isEmpty())
+            navigateTo(m_assets.size() - 1);
     } else if (event->key() == Qt::Key_Down) {
         int next = currentIdx < 0 ? 0 : currentIdx + m_columns;
         if (next < m_assets.size()) navigateTo(next);
@@ -435,11 +456,22 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
 
     if (event->modifiers() & Qt::ControlModifier) {
         if (idx >= 0) {
-            if (m_selectedIndices.contains(idx)) m_selectedIndices.remove(idx);
-            else m_selectedIndices.insert(idx);
-            m_selectedAsset = m_assets[idx];
+            if (m_selectedIndices.contains(idx)) {
+                m_selectedIndices.remove(idx);
+                if (m_selectedIndices.isEmpty()) {
+                    m_selectedAsset = {};
+                    emit assetSelected({});
+                } else {
+                    int firstIdx = *m_selectedIndices.constBegin();
+                    m_selectedAsset = m_assets[firstIdx];
+                    emit assetSelected(m_selectedAsset);
+                }
+            } else {
+                m_selectedIndices.insert(idx);
+                m_selectedAsset = m_assets[idx];
+                emit assetSelected(m_selectedAsset);
+            }
             update();
-            emit assetSelected(m_selectedAsset);
         }
     } else if (event->modifiers() & Qt::ShiftModifier) {
         int lastIdx = -1;
@@ -485,7 +517,12 @@ void GalleryWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
 void GalleryWidget::wheelEvent(QWheelEvent *event)
 {
-    m_scrollOffset -= event->angleDelta().y() / 8;
+    int delta;
+    if (!event->pixelDelta().isNull())
+        delta = event->pixelDelta().y();
+    else
+        delta = event->angleDelta().y() / 8;
+    m_scrollOffset -= delta;
     m_scrollOffset = qBound(0, m_scrollOffset, qMax(0, m_totalHeight - height()));
     int rowH = m_itemHeight() + kGap;
     if (rowH > 0) {

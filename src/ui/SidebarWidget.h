@@ -25,7 +25,6 @@ signals:
     void addFolderClicked();
     void folderRefreshRequested(const QString &path);
     void folderRemoveRequested(const QString &path);
-    void folderOpenInExplorer(const QString &path);
     void tagEditRequested(int tagId);
     void tagDeleteRequested(int tagId);
     void tagCreateRequested();

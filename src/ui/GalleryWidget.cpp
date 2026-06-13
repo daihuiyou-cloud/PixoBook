@@ -327,6 +327,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
                 p.restore();
             }
         }
+        p.setBrush(Qt::NoBrush);
         p.setPen(QPen(Color::BORDER_MUTED, 1));
         p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 

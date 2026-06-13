@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QFont>
 #include <QFile>
+#include <QToolTip>
 #include <memory>
 #include "ui/MainWindow.h"
 #include "ui/CustomStyle.h"
@@ -26,6 +27,7 @@ int main(int argc, char *argv[])
     appFont.setFamily(QStringLiteral("Microsoft YaHei UI"));
     appFont.setPointSize(10);
     app.setFont(appFont);
+    QToolTip::setFont(appFont);
 
     Codicon::init();
 

@@ -5,8 +5,8 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QTextOption>
-#include <QToolTip>
 #include <QWheelEvent>
+#include "ui/ToastNotification.h"
 #include <QLinearGradient>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
@@ -338,7 +338,7 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
     }
     if (m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty()) {
         QApplication::clipboard()->setText(m_metadata.prompt);
-        QToolTip::showText(event->globalPos(), QStringLiteral("已复制 Prompt"), this);
+        ToastNotification::show(this, QStringLiteral("已复制 Prompt"));
         return;
     }
     if (m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
@@ -362,7 +362,7 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
         update();
         return;
     }
-    if (imageArea().contains(event->pos())) {
+    if (imageArea().contains(event->pos()) && m_zoom > 1.05) {
         m_isPanning = true;
         m_lastPanPos = event->pos();
         setCursor(Qt::ClosedHandCursor);

@@ -317,7 +317,7 @@ void LightboxWidget::mouseReleaseEvent(QMouseEvent *)
 void LightboxWidget::wheelEvent(QWheelEvent *event)
 {
     QRect imgArea = imageRect();
-    if (!imgArea.contains(event->pos())) return;
+    if (!imgArea.contains(event->pos()) || m_currentPixmap.isNull()) return;
 
     QPoint pixelDelta = event->pixelDelta();
     QPoint angleDelta = event->angleDelta();

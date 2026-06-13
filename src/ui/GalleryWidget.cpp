@@ -398,7 +398,9 @@ void GalleryWidget::keyPressEvent(QKeyEvent *event)
     }
 
     int currentIdx = -1;
-    if (!m_selectedIndices.isEmpty())
+    if (m_lastClickedIndex >= 0 && m_lastClickedIndex < m_assets.size())
+        currentIdx = m_lastClickedIndex;
+    else if (!m_selectedIndices.isEmpty())
         currentIdx = *m_selectedIndices.begin();
     else if (!m_selectedAsset.id.isEmpty())
         currentIdx = m_assets.indexOf(m_selectedAsset);

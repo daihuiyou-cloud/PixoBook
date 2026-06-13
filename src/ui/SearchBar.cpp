@@ -10,16 +10,7 @@
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
 
-namespace {
-QIcon iconFor(const QString &name, const QColor &color = Color::TEXT_SECONDARY, int pixelSize = 14)
-{
-    QPixmap px(18, 18);
-    px.fill(Qt::transparent);
-    QPainter p(&px);
-    Codicon::draw(p, name, QRect(0, 0, 18, 18), color, pixelSize);
-    return QIcon(px);
-}
-}
+
 
 SearchBar::SearchBar(QWidget *parent)
     : QWidget(parent)
@@ -42,10 +33,10 @@ SearchBar::SearchBar(QWidget *parent)
     inputPal.setColor(QPalette::Text, Color::TEXT_PRIMARY);
     inputPal.setColor(QPalette::PlaceholderText, Color::TEXT_SECONDARY);
     m_searchInput->setPalette(inputPal);
-    m_searchInput->addAction(iconFor("search", Color::TEXT_SECONDARY, 15), QLineEdit::LeadingPosition);
+    m_searchInput->addAction(Codicon::cachedIcon("search", Color::TEXT_SECONDARY, 15), QLineEdit::LeadingPosition);
     m_searchInput->setTextMargins(8, 4, 8, 4);
 
-    m_clearAction = m_searchInput->addAction(iconFor("close", Color::TEXT_SECONDARY, 13), QLineEdit::TrailingPosition);
+    m_clearAction = m_searchInput->addAction(Codicon::cachedIcon("close", Color::TEXT_SECONDARY, 13), QLineEdit::TrailingPosition);
     m_clearAction->setVisible(false);
     connect(m_searchInput, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_clearAction->setVisible(!text.isEmpty());
@@ -127,7 +118,7 @@ SearchBar::SearchBar(QWidget *parent)
         btn->setCheckable(true);
         btn->setCursor(Qt::PointingHandCursor);
         btn->setToolTip(tips[i]);
-        btn->setIcon(iconFor(iconNames[i], Color::TEXT_PRIMARY, 14));
+        btn->setIcon(Codicon::cachedIcon(iconNames[i], Color::TEXT_PRIMARY, 14));
         btn->setIconSize(QSize(16, 16));
         btn->setProperty("segmented", true);
         btn->setProperty("segmentPosition", i == 0 ? "first" : (i == sizeButtons.size() - 1 ? "last" : "middle"));
@@ -138,7 +129,7 @@ SearchBar::SearchBar(QWidget *parent)
     auto refreshSizeIcons = [sizeButtons, iconNames]() {
         for (int i = 0; i < sizeButtons.size(); i++) {
             const QColor iconColor = sizeButtons[i]->isChecked() ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
-            sizeButtons[i]->setIcon(iconFor(iconNames[i], iconColor, 14));
+            sizeButtons[i]->setIcon(Codicon::cachedIcon(iconNames[i], iconColor, 14));
         }
     };
     refreshSizeIcons();
@@ -156,7 +147,7 @@ SearchBar::SearchBar(QWidget *parent)
         connect(btn, &QPushButton::toggled, this, refreshSizeIcons);
     }
 
-    m_favButton = new QPushButton(iconFor("star-empty", Color::TEXT_PRIMARY, 14), tr("收藏"));
+    m_favButton = new QPushButton(Codicon::cachedIcon("star-empty", Color::TEXT_PRIMARY, 14), tr("收藏"));
     m_favButton->setCheckable(true);
     m_favButton->setMinimumHeight(Visual::ControlHeight);
     m_favButton->setMinimumWidth(70);
@@ -197,7 +188,7 @@ SearchBar::SearchBar(QWidget *parent)
             this, [this](int) { if (m_ready) emit filterChanged(); });
     connect(m_favButton, &QPushButton::toggled, this, [this](bool checked) {
         m_onlyFavorites = checked;
-        m_favButton->setIcon(iconFor(checked ? "star" : "star-empty",
+        m_favButton->setIcon(Codicon::cachedIcon(checked ? "star" : "star-empty",
                                      checked ? Color::FAVORITE_ON : Color::TEXT_PRIMARY, 14));
         m_favButton->setText(tr("收藏"));
         if (m_ready) emit filterChanged();

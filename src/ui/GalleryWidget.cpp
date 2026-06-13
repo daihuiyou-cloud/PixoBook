@@ -40,14 +40,7 @@ QString compactFileName(const QString &fileName)
     return base.isEmpty() ? fileName : base;
 }
 
-QIcon menuIcon(const QString &name, const QColor &color)
-{
-    QPixmap px(16, 16);
-    px.fill(Qt::transparent);
-    QPainter p(&px);
-    Codicon::draw(p, name, QRect(0, 0, 16, 16), color, 14);
-    return QIcon(px);
-}
+
 }
 
 GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
@@ -107,6 +100,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_requestedThumbnails.clear();
     m_fileExistsCache.clear();
     m_scrollOffset = 0;
+    prefetchFileExistence(assets);
     layoutItems();
     update();
 }
@@ -122,6 +116,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     m_requestedThumbnails.clear();
     m_fileExistsCache.clear();
     m_scrollOffset = 0;
+    prefetchFileExistence(assets);
     layoutItems();
     update();
 }
@@ -130,6 +125,7 @@ void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
 {
     m_totalAssetCount = totalCount;
     m_assets.append(assets);
+    prefetchFileExistence(assets);
     layoutItems();
     update();
 }
@@ -168,6 +164,14 @@ int GalleryWidget::selectedAssetIndex() const
 }
 
 QVector<Asset> GalleryWidget::allAssets() const { return m_assets; }
+
+void GalleryWidget::prefetchFileExistence(const QVector<Asset> &assets)
+{
+    for (const auto &a : assets) {
+        if (!m_fileExistsCache.contains(a.filePath))
+            m_fileExistsCache.insert(a.filePath, QFileInfo::exists(a.filePath));
+    }
+}
 
 void GalleryWidget::checkLoadMore()
 {
@@ -356,14 +360,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 
         QSize thumbSize(m_thumbSize, m_thumbSize);
-        auto it = m_fileExistsCache.constFind(asset.filePath);
-        bool fileExists;
-        if (it != m_fileExistsCache.constEnd()) {
-            fileExists = it.value();
-        } else {
-            fileExists = QFileInfo::exists(asset.filePath);
-            m_fileExistsCache.insert(asset.filePath, fileExists);
-        }
+        bool fileExists = m_fileExistsCache.value(asset.filePath, true);
         if (!fileExists) {
             p.setPen(Color::ERROR_TEXT);
             p.drawText(thumbArea, Qt::AlignCenter, tr("文件不存在"));
@@ -616,8 +613,8 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
     if (sel.size() == 1) {
         bool isFav = sel[0].isFavorite;
         QAction *favAction = menu.addAction(isFav ? tr("取消收藏") : tr("收藏"));
-        favAction->setIcon(menuIcon(isFav ? "star-empty" : "star",
-                                    isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON));
+        favAction->setIcon(Codicon::cachedIcon(isFav ? "star-empty" : "star",
+                                    isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON, 14));
         connect(favAction, &QAction::triggered, this, [this, sel]() {
             emit favoriteToggled(sel[0].id, !sel[0].isFavorite);
         });
@@ -625,7 +622,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
     if (!sel.isEmpty()) {
         menu.addSeparator();
         QAction *tagAction = menu.addAction(tr("添加标签..."));
-        tagAction->setIcon(menuIcon("tag", Color::TEXT_PRIMARY));
+        tagAction->setIcon(Codicon::cachedIcon("tag", Color::TEXT_PRIMARY, 14));
         connect(tagAction, &QAction::triggered, this, [this, sel]() {
             QVector<QString> ids;
             for (const auto &a : sel) ids.append(a.id);
@@ -633,7 +630,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
         });
         menu.addSeparator();
         QAction *delAction = menu.addAction(tr("删除"));
-        delAction->setIcon(menuIcon("trash", Color::TEXT_PRIMARY));
+        delAction->setIcon(Codicon::cachedIcon("trash", Color::TEXT_PRIMARY, 14));
         delAction->setShortcut(QKeySequence::Delete);
         connect(delAction, &QAction::triggered, this, [this, sel]() {
             emit deleteRequested(sel);

@@ -4,19 +4,26 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QPainter>
+#include <QPixmap>
+#include <QIcon>
 #include <QString>
 #include <QHash>
 
 class Codicon {
 public:
-    static QFont font(int pixelSize = 22) {
-        QFont f("codicon");
-        f.setPixelSize(pixelSize);
-        return f;
-    }
-
     static void init() {
         QFontDatabase::addApplicationFont(":/codicon.ttf");
+    }
+
+    static QFont font(int pixelSize = 22) {
+        static QHash<int, QFont> cache;
+        auto it = cache.constFind(pixelSize);
+        if (it != cache.constEnd())
+            return it.value();
+        QFont f("codicon");
+        f.setPixelSize(pixelSize);
+        cache.insert(pixelSize, f);
+        return f;
     }
 
     static QString icon(const QString &name) {
@@ -78,6 +85,23 @@ public:
         p.setFont(font(size));
         p.setPen(color);
         p.drawText(r, Qt::AlignCenter, icon(iconName));
+    }
+
+    static QIcon cachedIcon(const QString &name, const QColor &color,
+                            int pixelSize, int w = 16, int h = 16) {
+        QString key = name + '|' + QString::number(color.rgba()) + '|'
+                      + QString::number(pixelSize) + '|' + QString::number(w) + '|' + QString::number(h);
+        static QHash<QString, QIcon> cache;
+        auto it = cache.constFind(key);
+        if (it != cache.constEnd())
+            return it.value();
+        QPixmap px(w, h);
+        px.fill(Qt::transparent);
+        QPainter p(&px);
+        p.setRenderHint(QPainter::Antialiasing);
+        draw(p, name, px.rect(), color, pixelSize);
+        cache.insert(key, QIcon(px));
+        return cache.value(key);
     }
 };
 

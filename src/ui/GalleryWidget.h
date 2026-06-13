@@ -74,6 +74,7 @@ private:
     QRect emptyFolderButtonRect() const;
     QRect emptyFilesButtonRect() const;
     void checkLoadMore();
+    void prefetchFileExistence(const QVector<Asset> &assets);
 
     int m_thumbSize = 180;
     static constexpr int kPadding = Visual::GalleryCardPadding;

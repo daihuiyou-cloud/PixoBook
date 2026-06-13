@@ -278,9 +278,11 @@ void GalleryWidget::drawEmptyState(QPainter &p)
 void GalleryWidget::navigateTo(int index)
 {
     if (index < 0 || index >= m_assets.size()) return;
-    m_selectedIndices.clear();
     m_selectedAsset = m_assets[index];
-    m_selectedIndices.insert(index);
+    if (!m_selectedIndices.contains(index)) {
+        m_selectedIndices.clear();
+        m_selectedIndices.insert(index);
+    }
     QRect r = itemRect(index);
     if (r.top() < 0)
         m_scrollOffset += r.top();

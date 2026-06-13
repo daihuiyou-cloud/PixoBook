@@ -1,11 +1,11 @@
 #include "ActivityBar.h"
-#include <QPainter>
-#include <QPainterPath>
-#include <QMouseEvent>
-#include <QKeyEvent>
-#include <QToolTip>
 #include <QEvent>
 #include <QHelpEvent>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QToolTip>
 #include "Codicon.h"
 #include "ColorConstants.h"
 #include "VisualConstants.h"
@@ -18,9 +18,9 @@ ActivityBar::ActivityBar(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
 
     m_icons = {
-        { "layout",     QStringLiteral("图库") },
-        { "star",       QStringLiteral("收藏") },
-        { "tag",        QStringLiteral("标签") },
+        { "files", tr("素材库") },
+        { "star", tr("收藏") },
+        { "tag", tr("标签") },
     };
 }
 
@@ -55,9 +55,13 @@ void ActivityBar::paintEvent(QPaintEvent *)
         bool active = (i == static_cast<int>(m_active));
         bool hovered = (i == m_hovered);
 
-        if (active)
-            p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
-        else if (hovered) {
+        if (active) {
+            QRect activeRect = r.adjusted(6, 6, -6, -6);
+            QPainterPath activePath;
+            activePath.addRoundedRect(QRectF(activeRect), Visual::RadiusSmall, Visual::RadiusSmall);
+            p.fillPath(activePath, Color::BG_SELECTED);
+            p.fillRect(QRect(r.left(), r.top() + 10, 3, r.height() - 20), Color::ACCENT);
+        } else if (hovered) {
             p.setBrush(Color::BG_HOVER);
             p.setPen(Qt::NoPen);
             p.drawRoundedRect(r.adjusted(4, 6, -4, -6), Visual::RadiusSmall, Visual::RadiusSmall);
@@ -66,7 +70,7 @@ void ActivityBar::paintEvent(QPaintEvent *)
         QColor iconColor = active ? Color::TEXT_BRIGHT
                          : hovered ? Color::TEXT_PRIMARY
                          : Color::TEXT_SECONDARY;
-        Codicon::draw(p, m_icons[i].iconName, r.adjusted(4, 4, -4, -4), iconColor, 23);
+        Codicon::draw(p, m_icons[i].iconName, r.adjusted(4, 4, -4, -4), iconColor, 20);
     }
 }
 
@@ -125,9 +129,8 @@ bool ActivityBar::event(QEvent *event)
     if (event->type() == QEvent::ToolTip) {
         QHelpEvent *he = static_cast<QHelpEvent *>(event);
         int idx = indexAt(he->pos());
-        if (idx >= 0) {
+        if (idx >= 0)
             QToolTip::showText(he->globalPos(), m_icons[idx].tooltip, this);
-        }
         return true;
     }
     return QWidget::event(event);

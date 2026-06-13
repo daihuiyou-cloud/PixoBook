@@ -3,22 +3,31 @@
 #include <QButtonGroup>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QSizePolicy>
-#include <QPainter>
 #include <QPaintEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QSizePolicy>
+#include <QVBoxLayout>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
-#include <QPainterPath>
 
 SearchBar::SearchBar(QWidget *parent)
     : QWidget(parent)
 {
-    setFixedHeight(Visual::ToolbarHeight);
+    setFixedHeight(70);
 
-    auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(12, 6, 10, 6);
-    layout->setSpacing(Visual::ToolbarGroupGap);
+    auto *rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(12, 6, 10, 6);
+    rootLayout->setSpacing(4);
+
+    auto *topRow = new QHBoxLayout();
+    topRow->setContentsMargins(0, 0, 0, 0);
+    topRow->setSpacing(Visual::ToolbarGroupGap);
+
+    auto *bottomRow = new QHBoxLayout();
+    bottomRow->setContentsMargins(0, 0, 0, 0);
+    bottomRow->setSpacing(8);
 
     QFont controlFont = font();
     controlFont.setPixelSize(Visual::FontControl);
@@ -39,13 +48,15 @@ SearchBar::SearchBar(QWidget *parent)
     m_clearAction->setVisible(false);
     connect(m_searchInput, &QLineEdit::textChanged, this, [this](const QString &text) {
         m_clearAction->setVisible(!text.isEmpty());
+        updateFilterSummary();
     });
     connect(m_clearAction, &QAction::triggered, this, [this]() {
         m_searchInput->clear();
         m_debounceTimer->stop();
+        updateFilterSummary();
         emit searchRequested();
     });
-    layout->addWidget(m_searchInput, 1);
+    topRow->addWidget(m_searchInput, 1);
 
     QPalette comboPal;
     comboPal.setColor(QPalette::Text, Color::TEXT_PRIMARY);
@@ -61,7 +72,7 @@ SearchBar::SearchBar(QWidget *parent)
     auto *sourceLabel = new QLabel(tr("来源"));
     sourceLabel->setFont(controlFont);
     sourceLabel->setPalette(labelPal);
-    layout->addWidget(sourceLabel);
+    topRow->addWidget(sourceLabel);
 
     m_sourceCombo = new QComboBox();
     m_sourceCombo->setMinimumHeight(Visual::ControlHeight);
@@ -72,12 +83,12 @@ SearchBar::SearchBar(QWidget *parent)
     m_sourceCombo->addItem("Stable Diffusion", "stable-diffusion");
     m_sourceCombo->addItem("Midjourney", "midjourney");
     m_sourceCombo->addItem("DALL-E", "dalle");
-    layout->addWidget(m_sourceCombo);
+    topRow->addWidget(m_sourceCombo);
 
     auto *sortLabel = new QLabel(tr("排序"));
     sortLabel->setFont(controlFont);
     sortLabel->setPalette(labelPal);
-    layout->addWidget(sortLabel);
+    topRow->addWidget(sortLabel);
 
     m_sortCombo = new QComboBox();
     m_sortCombo->setMinimumHeight(Visual::ControlHeight);
@@ -90,12 +101,12 @@ SearchBar::SearchBar(QWidget *parent)
     m_sortCombo->addItem(tr("名称 Z-A"), "file_name|DESC");
     m_sortCombo->addItem(tr("大小↑"), "file_size|ASC");
     m_sortCombo->addItem(tr("大小↓"), "file_size|DESC");
-    layout->addWidget(m_sortCombo);
+    topRow->addWidget(m_sortCombo);
 
     auto *sizeLabel = new QLabel(tr("视图"));
     sizeLabel->setFont(controlFont);
     sizeLabel->setPalette(labelPal);
-    layout->addWidget(sizeLabel);
+    topRow->addWidget(sizeLabel);
 
     auto *sizeSegment = new QWidget();
     auto *sizeLayout = new QHBoxLayout(sizeSegment);
@@ -123,8 +134,9 @@ SearchBar::SearchBar(QWidget *parent)
         btn->setProperty("segmentPosition", i == 0 ? "first" : (i == sizeButtons.size() - 1 ? "last" : "middle"));
         sizeLayout->addWidget(btn);
     }
-    layout->addWidget(sizeSegment);
+    topRow->addWidget(sizeSegment);
     m_sizeMediumBtn->setChecked(true);
+
     auto refreshSizeIcons = [sizeButtons, iconNames]() {
         for (int i = 0; i < sizeButtons.size(); i++) {
             const QColor iconColor = sizeButtons[i]->isChecked() ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
@@ -140,11 +152,13 @@ SearchBar::SearchBar(QWidget *parent)
     m_sizeGroup->addButton(m_sizeLargeBtn, 2);
     connect(m_sizeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, [this](int id) {
         static const int sizes[] = {100, 180, 280};
-        if (id >= 0 && id < 3) emit thumbnailSizeChanged(sizes[id]);
+        if (id >= 0 && id < 3) {
+            updateFilterSummary();
+            emit thumbnailSizeChanged(sizes[id]);
+        }
     });
-    for (auto *btn : sizeButtons) {
+    for (auto *btn : sizeButtons)
         connect(btn, &QPushButton::toggled, this, refreshSizeIcons);
-    }
 
     m_favButton = new QPushButton(Codicon::cachedIcon("star-empty", Color::TEXT_PRIMARY, 14), tr("收藏"));
     m_favButton->setCheckable(true);
@@ -154,16 +168,34 @@ SearchBar::SearchBar(QWidget *parent)
     m_favButton->setCursor(Qt::PointingHandCursor);
     m_favButton->setProperty("toolbarButton", true);
     m_favButton->setToolTip(tr("仅显示收藏素材"));
-    layout->addWidget(m_favButton);
+    topRow->addWidget(m_favButton);
 
     m_resultSummary = new QLabel();
     m_resultSummary->setFont(controlFont);
     m_resultSummary->setPalette(labelPal);
-    m_resultSummary->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+    m_resultSummary->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     m_resultSummary->setMinimumWidth(132);
     m_resultSummary->setContentsMargins(10, 0, 10, 0);
     m_resultSummary->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
-    layout->addWidget(m_resultSummary);
+    bottomRow->addWidget(m_resultSummary, 0);
+
+    m_filterSummary = new QLabel();
+    m_filterSummary->setFont(controlFont);
+    m_filterSummary->setPalette(labelPal);
+    m_filterSummary->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    m_filterSummary->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    bottomRow->addWidget(m_filterSummary, 1);
+
+    m_clearFiltersButton = new QPushButton(Codicon::cachedIcon("clear-all", Color::TEXT_PRIMARY, 14), tr("清空筛选"));
+    m_clearFiltersButton->setMinimumHeight(24);
+    m_clearFiltersButton->setFont(controlFont);
+    m_clearFiltersButton->setCursor(Qt::PointingHandCursor);
+    m_clearFiltersButton->setProperty("toolbarButton", true);
+    m_clearFiltersButton->hide();
+    bottomRow->addWidget(m_clearFiltersButton, 0, Qt::AlignRight);
+
+    rootLayout->addLayout(topRow);
+    rootLayout->addLayout(bottomRow);
 
     m_debounceTimer = new QTimer(this);
     m_debounceTimer->setSingleShot(true);
@@ -182,19 +214,37 @@ SearchBar::SearchBar(QWidget *parent)
     setPalette(bgPal);
     setAutoFillBackground(true);
 
-    connect(m_sourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int) { if (m_ready) emit filterChanged(); });
-    connect(m_sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int) { if (m_ready) emit filterChanged(); });
+    connect(m_sourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        updateFilterSummary();
+        if (m_ready) emit filterChanged();
+    });
+    connect(m_sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        updateFilterSummary();
+        if (m_ready) emit filterChanged();
+    });
     connect(m_favButton, &QPushButton::toggled, this, [this](bool checked) {
         m_onlyFavorites = checked;
         m_favButton->setIcon(Codicon::cachedIcon(checked ? "star" : "star-empty",
-                                     checked ? Color::FAVORITE_ON : Color::TEXT_PRIMARY, 14));
+                                                 checked ? Color::FAVORITE_ON : Color::TEXT_PRIMARY, 14));
         m_favButton->setText(tr("收藏"));
+        updateFilterSummary();
         if (m_ready) emit filterChanged();
+    });
+    connect(m_clearFiltersButton, &QPushButton::clicked, this, [this]() {
+        const bool hadKeyword = !m_searchInput->text().isEmpty();
+        m_searchInput->clear();
+        m_sourceCombo->setCurrentIndex(0);
+        m_sortCombo->setCurrentIndex(0);
+        m_favButton->setChecked(false);
+        updateFilterSummary();
+        if (m_ready) {
+            if (hadKeyword) emit searchRequested();
+            else emit filterChanged();
+        }
     });
 
     m_ready = true;
+    updateFilterSummary();
 }
 
 void SearchBar::paintEvent(QPaintEvent *event)
@@ -209,8 +259,8 @@ void SearchBar::paintEvent(QPaintEvent *event)
         QRect sr = m_resultSummary->geometry();
         QPainterPath pillPath;
         pillPath.addRoundedRect(QRectF(sr), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(pillPath, Color::BG_BUTTON_SUBTLE);
-        p.setPen(QPen(Color::BORDER_MUTED, 1));
+        p.fillPath(pillPath, Color::BG_MEDIUM);
+        p.setPen(QPen(Color::BORDER_SUBTLE, 1));
         p.drawPath(pillPath);
     }
 }
@@ -234,10 +284,43 @@ void SearchBar::setThumbnailSizeSelection(int size)
             break;
         }
     }
+    updateFilterSummary();
 }
 
 void SearchBar::setResultSummary(const QString &text)
 {
     m_resultSummary->setText(text);
     m_resultSummary->setToolTip(text);
+    update();
+}
+
+void SearchBar::updateFilterSummary()
+{
+    QStringList filters;
+    if (!m_searchInput->text().trimmed().isEmpty())
+        filters << tr("关键词");
+    if (!m_sourceCombo->currentData().toString().isEmpty())
+        filters << tr("来源: %1").arg(m_sourceCombo->currentText());
+    if (m_onlyFavorites)
+        filters << tr("仅收藏");
+
+    const QString sortValue = m_sortCombo->currentData().toString();
+    if (sortValue != "created_at|DESC")
+        filters << tr("排序: %1").arg(m_sortCombo->currentText());
+
+    QString viewLabel = tr("中");
+    if (m_sizeSmallBtn->isChecked())
+        viewLabel = tr("小");
+    else if (m_sizeLargeBtn->isChecked())
+        viewLabel = tr("大");
+    filters << tr("视图: %1").arg(viewLabel);
+
+    m_filterSummary->setText(tr("当前: %1").arg(filters.join(QStringLiteral("  /  "))));
+    m_filterSummary->setToolTip(m_filterSummary->text());
+
+    const bool hasActiveFilters = !m_searchInput->text().trimmed().isEmpty()
+        || !m_sourceCombo->currentData().toString().isEmpty()
+        || m_onlyFavorites
+        || sortValue != "created_at|DESC";
+    m_clearFiltersButton->setVisible(hasActiveFilters);
 }

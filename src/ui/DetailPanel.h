@@ -21,6 +21,7 @@ signals:
     void favoriteToggled(const QString &assetId, bool isFavorite);
     void tagRemoved(const QString &assetId, int tagId);
     void tagAddRequested(const QString &assetId);
+    void previewRequested(const QString &assetId);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -58,10 +59,16 @@ private:
     QRect m_fileInfoHeaderRect;
     QRect m_metadataHeaderRect;
     QRect m_tagsHeaderRect;
+    QRect m_copyFileNameRect;
+    QRect m_openFolderRect;
+    QRect m_openPreviewRect;
     QVector<QPair<int, QRect>> m_tagRects;
     bool m_addTagHovered = false;
     bool m_copyPromptHovered = false;
     bool m_closeBtnHovered = false;
+    bool m_copyFileNameHovered = false;
+    bool m_openFolderHovered = false;
+    bool m_openPreviewHovered = false;
     bool m_promptHeaderHovered = false;
     bool m_fileInfoHeaderHovered = false;
     bool m_metadataHeaderHovered = false;
@@ -72,6 +79,8 @@ private:
     QRect imageArea() const;
     int drawImage(QPainter &p);
     int drawAssetSummary(QPainter &p, int y);
+    void drawSummaryAction(QPainter &p, const QRect &rect, const QString &icon,
+                           const QString &text, bool hovered, bool enabled);
     int drawFileInfo(QPainter &p, int y);
     int drawMetadataSection(QPainter &p, int y);
     int drawTagsSection(QPainter &p, int y);

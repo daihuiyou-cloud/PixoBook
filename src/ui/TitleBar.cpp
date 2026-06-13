@@ -3,6 +3,7 @@
 #include <QHelpEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QToolTip>
 #include "Codicon.h"
 #include "ColorConstants.h"
@@ -35,10 +36,10 @@ QRect TitleBar::menuItemRect(int idx) const
     QFontMetrics fm(f);
     int x = 118;
     for (int i = 0; i < idx && i < m_menus.size(); i++)
-        x += fm.horizontalAdvance(m_menus[i].text) + 38;
+        x += fm.horizontalAdvance(m_menus[i].text) + 34;
 
     int labelWidth = fm.horizontalAdvance(m_menus[idx].text);
-    return QRect(x, 0, labelWidth + 38, kHeight);
+    return QRect(x, 0, labelWidth + 34, kHeight);
 }
 
 QRect TitleBar::minimizeBtnRect() const { return QRect(width() - 138, 0, 46, kHeight); }
@@ -68,20 +69,22 @@ void TitleBar::paintEvent(QPaintEvent *)
     f.setPixelSize(Visual::FontControl);
     p.setFont(f);
     p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(QRect(36, 0, 78, kHeight), Qt::AlignVCenter | Qt::AlignLeft,
-               tr("AI 素材库"));
+    p.drawText(QRect(36, 0, 90, kHeight), Qt::AlignVCenter | Qt::AlignLeft, tr("AI 素材库"));
 
     for (int i = 0; i < m_menus.size(); i++) {
         QRect r = menuItemRect(i);
-        if (i == m_hoveredMenu)
-            p.fillRect(r.adjusted(2, 3, -2, -3), Color::BG_SELECTED);
+        if (i == m_hoveredMenu) {
+            QPainterPath menuPath;
+            menuPath.addRoundedRect(QRectF(r.adjusted(4, 4, -4, -4)), Visual::RadiusSmall, Visual::RadiusSmall);
+            p.fillPath(menuPath, Color::BG_HOVER);
+        }
 
         QColor textColor = i == m_hoveredMenu ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
-        Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 8, r.top(), 16, r.height()),
-                      textColor, 14);
+        QColor iconColor = i == m_hoveredMenu ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
+        Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 8, r.top(), 14, r.height()), iconColor, 12);
         p.setFont(f);
         p.setPen(textColor);
-        p.drawText(r.adjusted(28, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);
+        p.drawText(r.adjusted(24, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);
     }
 
     QRect minRect = minimizeBtnRect();
@@ -98,8 +101,7 @@ void TitleBar::paintEvent(QPaintEvent *)
         maxPath.addRoundedRect(QRectF(maxRect.adjusted(4, 2, -4, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
         p.fillPath(maxPath, Color::BG_SELECTED);
     }
-    Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", maxRect,
-                  Color::TEXT_PRIMARY, 14);
+    Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", maxRect, Color::TEXT_PRIMARY, 14);
 
     QRect closeRect = closeBtnRect();
     if (m_hoveredControl == CtrlClose) {

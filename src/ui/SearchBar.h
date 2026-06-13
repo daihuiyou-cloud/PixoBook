@@ -37,6 +37,8 @@ protected:
     void paintEvent(QPaintEvent *event) override;
 
 private:
+    void updateFilterSummary();
+
     QLineEdit *m_searchInput;
     QComboBox *m_sourceCombo;
     QComboBox *m_sortCombo;
@@ -47,6 +49,8 @@ private:
     QAction *m_clearAction;
     QPushButton *m_favButton;
     QLabel *m_resultSummary;
+    QLabel *m_filterSummary;
+    QPushButton *m_clearFiltersButton;
     QTimer *m_debounceTimer;
     bool m_onlyFavorites = false;
     bool m_ready = false;

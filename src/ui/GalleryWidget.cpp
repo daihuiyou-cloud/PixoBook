@@ -17,8 +17,8 @@
 #include <QWheelEvent>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
-#include "ui/VisualConstants.h"
 #include "ui/UIUtils.h"
+#include "ui/VisualConstants.h"
 
 namespace {
 QString metaLine(const Asset &asset)
@@ -44,7 +44,7 @@ QString sourceBadge(const Asset &asset)
 {
     const QString source = asset.metadataSource;
     if (source == "stable-diffusion") return QStringLiteral("SD");
-    if (source == "midjourney") return QStringLiteral("MJ");
+    if (source == "midjourney") return QStringLiteral("Midjourney");
     if (source == "dalle") return QStringLiteral("DALL-E");
     return source.left(8).toUpper();
 }
@@ -57,7 +57,6 @@ QColor sourceBadgeColor(const Asset &asset)
     if (source == "dalle") return QColor(0x2f, 0x9d, 0xb7);
     return Color::ACCENT;
 }
-
 }
 
 GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
@@ -254,7 +253,7 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(center.adjusted(0, -44, 0, 0), Qt::AlignCenter,
                searching
-                   ? tr("没有找到匹配 \"%1\" 的素材").arg(m_searchKeyword)
+                   ? tr("没有找到匹配“%1”的素材").arg(m_searchKeyword)
                    : tr("把 AI 素材放进来，开始整理"));
 
     QFont body = p.font();
@@ -265,7 +264,7 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     p.drawText(center.adjusted(0, -4, 0, 0), Qt::AlignCenter,
                searching
                    ? tr("试试放宽来源、收藏或关键词筛选")
-                   : tr("导入文件夹会持续整理素材；导入图片适合临时收集"));
+                   : tr("导入文件夹可持续整理素材；导入图片适合临时收集"));
 
     if (searching)
         return;
@@ -447,16 +446,14 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             p.drawText(thumbArea, Qt::AlignCenter, tr("文件不存在"));
         } else if (m_requestedThumbnails.contains(asset.filePath)) {
             p.setPen(Color::TEXT_SECONDARY);
-            p.drawText(thumbArea, Qt::AlignCenter,
-                       asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
+            p.drawText(thumbArea, Qt::AlignCenter, asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
         } else {
             QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
             if (thumb.isNull()) {
                 m_requestedThumbnails.insert(asset.filePath);
                 m_cache->requestThumbnail(asset.filePath, thumbSize);
                 p.setPen(Color::TEXT_SECONDARY);
-                p.drawText(thumbArea, Qt::AlignCenter,
-                           asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
+                p.drawText(thumbArea, Qt::AlignCenter, asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
             } else {
                 QPainterPath clipPath;
                 clipPath.addRoundedRect(QRectF(thumbArea), Visual::RadiusSmall, Visual::RadiusSmall);
@@ -478,7 +475,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             badgeFont.setPixelSize(Visual::FontCaption);
             badgeFont.setBold(true);
             p.setFont(badgeFont);
-            const int badgeW = qMin(72, p.fontMetrics().horizontalAdvance(badge) + 16);
+            const int badgeW = qMin(96, p.fontMetrics().horizontalAdvance(badge) + 16);
             QRect badgeRect(thumbArea.left() + 8, thumbArea.top() + 8, badgeW, 20);
             QPainterPath badgePath;
             badgePath.addRoundedRect(QRectF(badgeRect), Visual::RadiusSmall, Visual::RadiusSmall);
@@ -493,7 +490,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             QPainterPath promptPath;
             promptPath.addRoundedRect(QRectF(promptRect), Visual::RadiusSmall, Visual::RadiusSmall);
             p.fillPath(promptPath, QColor(0, 0, 0, 150));
-            Codicon::draw(p, "symbol-keyword", promptRect, Color::TEXT_PRIMARY, 13);
+            Codicon::draw(p, "quote", promptRect, Color::TEXT_PRIMARY, 13);
         }
 
         QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 8,
@@ -501,9 +498,8 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.setFont(m_labelFont);
         QString fileName = compactFileName(asset.fileName);
         QString elided = m_labelFm.elidedText(fileName, Qt::ElideRight, labelRect.width());
-        if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive)) {
+        if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive))
             p.fillRect(labelRect.adjusted(0, 2, 0, -2), Color::SEARCH_HIGHLIGHT);
-        }
         p.setPen(isSelected ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
         p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
@@ -516,8 +512,11 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         QRect starRect(r.right() - 40, r.bottom() - 40, 32, 32);
         if (asset.isFavorite || isHovered || isSelected) {
             QColor starColor = asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
-            if (isHovered || isSelected)
-                p.fillRect(starRect.adjusted(2, 2, -2, -2), QColor(0, 0, 0, 80));
+            if (isHovered || isSelected) {
+                QPainterPath starPath;
+                starPath.addRoundedRect(QRectF(starRect.adjusted(4, 4, -4, -4)), Visual::RadiusSmall, Visual::RadiusSmall);
+                p.fillPath(starPath, QColor(0, 0, 0, 110));
+            }
             Codicon::draw(p, asset.isFavorite ? "star" : "star-empty", starRect, starColor, 15);
         }
     }
@@ -742,7 +741,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
         bool isFav = sel[0].isFavorite;
         QAction *favAction = menu.addAction(isFav ? tr("取消收藏") : tr("收藏"));
         favAction->setIcon(Codicon::cachedIcon(isFav ? "star-empty" : "star",
-                                    isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON, 14));
+                                               isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON, 14));
         connect(favAction, &QAction::triggered, this, [this, sel]() {
             emit favoriteToggled(sel[0].id, !sel[0].isFavorite);
         });
@@ -811,9 +810,7 @@ bool GalleryWidget::event(QEvent *event)
         int idx = indexAt(he->pos());
         if (idx >= 0 && idx < m_assets.size()) {
             const Asset &a = m_assets[idx];
-            QString tip = QString("%1\n%2")
-                              .arg(a.fileName)
-                              .arg(metaLine(a));
+            QString tip = QString("%1\n%2").arg(a.fileName).arg(metaLine(a));
             QToolTip::showText(he->globalPos(), tip, this);
         } else {
             QToolTip::hideText();

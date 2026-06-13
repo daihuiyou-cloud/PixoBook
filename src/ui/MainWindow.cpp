@@ -430,6 +430,16 @@ void MainWindow::setupConnections()
         loadAssets();
     });
 
+    connect(m_detailPanel, &DetailPanel::previewRequested, this, [this](const QString &assetId) {
+        const auto assets = m_gallery->allAssets();
+        for (int i = 0; i < assets.size(); i++) {
+            if (assets[i].id == assetId) {
+                m_lightbox->show(assets, i);
+                break;
+            }
+        }
+    });
+
     // Lightbox
     connect(m_lightbox, &LightboxWidget::closed, this, [this]() { m_gallery->setFocus(); });
     connect(m_lightbox, &LightboxWidget::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {

@@ -1,19 +1,21 @@
 #include "DetailPanel.h"
 #include <QApplication>
 #include <QClipboard>
+#include <QDesktopServices>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QImageReader>
+#include <QLinearGradient>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QTextOption>
+#include <QUrl>
 #include <QWheelEvent>
-#include "ui/ToastNotification.h"
-#include "ui/UIUtils.h"
-#include <QLinearGradient>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
+#include "ui/ToastNotification.h"
+#include "ui/UIUtils.h"
 #include "ui/VisualConstants.h"
 
 namespace {
@@ -66,6 +68,9 @@ void DetailPanel::clear()
     m_fullImage = QPixmap();
     m_closeBtnRect = QRect();
     m_copyPromptRect = QRect();
+    m_copyFileNameRect = QRect();
+    m_openFolderRect = QRect();
+    m_openPreviewRect = QRect();
     m_scrollOffset = 0;
     m_maxScrollOffset = 0;
     update();
@@ -90,8 +95,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
         Codicon::draw(p, "info", QRect(width() / 2 - 18, height() / 2 - 48, 36, 36),
                       Color::TEXT_SECONDARY, 28);
         p.setPen(Color::TEXT_SECONDARY);
-        p.drawText(rect().adjusted(24, 18, -24, 0), Qt::AlignCenter,
-                   tr("选择一张素材查看详情"));
+        p.drawText(rect().adjusted(24, 18, -24, 0), Qt::AlignCenter, tr("选择一张素材查看详情"));
         return;
     }
 
@@ -146,7 +150,7 @@ int DetailPanel::drawImage(QPainter &p)
     }
 
     double scale = m_zoom * qMin((double)imgRect.width() / m_fullImage.width(),
-                                (double)imgRect.height() / m_fullImage.height());
+                                 (double)imgRect.height() / m_fullImage.height());
     int drawW = (int)(m_fullImage.width() * scale);
     int drawH = (int)(m_fullImage.height() * scale);
     int imgX = imgRect.center().x() - drawW / 2 + m_panOffset.x();
@@ -173,7 +177,7 @@ int DetailPanel::drawImage(QPainter &p)
 
 int DetailPanel::drawAssetSummary(QPainter &p, int y)
 {
-    const int rowH = 76;
+    const int rowH = 112;
     QRect summaryRect(0, y, width(), rowH);
     p.fillRect(summaryRect, Color::BG_DARK);
 
@@ -224,7 +228,36 @@ int DetailPanel::drawAssetSummary(QPainter &p, int y)
     if (!m_tags.isEmpty())
         drawChip(tr("%1 个标签").arg(m_tags.size()), QColor(0xa9, 0x70, 0xff));
 
+    const int actionsY = y + 74;
+    const int actionH = 26;
+    m_copyFileNameRect = QRect(16, actionsY, 88, actionH);
+    m_openFolderRect = QRect(110, actionsY, 92, actionH);
+    m_openPreviewRect = QRect(208, actionsY, 92, actionH);
+    drawSummaryAction(p, m_copyFileNameRect, "copy", tr("文件名"), m_copyFileNameHovered, !m_asset.fileName.isEmpty());
+    drawSummaryAction(p, m_openFolderRect, "folder-opened", tr("文件夹"), m_openFolderHovered, !m_asset.filePath.isEmpty());
+    drawSummaryAction(p, m_openPreviewRect, "open-preview", tr("查看大图"), m_openPreviewHovered, !m_asset.id.isEmpty());
+
     return y + rowH;
+}
+
+void DetailPanel::drawSummaryAction(QPainter &p, const QRect &rect, const QString &icon,
+                                    const QString &text, bool hovered, bool enabled)
+{
+    QPainterPath path;
+    path.addRoundedRect(QRectF(rect), Visual::RadiusSmall, Visual::RadiusSmall);
+    p.fillPath(path, hovered ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON_SUBTLE);
+    p.setPen(QPen(hovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT, 1));
+    p.drawPath(path);
+
+    QColor textColor = enabled ? (hovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY)
+                               : Color::TEXT_DISABLED;
+    Codicon::draw(p, icon, QRect(rect.left() + 8, rect.top(), 14, rect.height()), textColor, 12);
+    QFont f = p.font();
+    f.setPixelSize(Visual::FontCaption);
+    f.setBold(false);
+    p.setFont(f);
+    p.setPen(textColor);
+    p.drawText(rect.adjusted(26, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, text);
 }
 
 int DetailPanel::drawFileInfo(QPainter &p, int y)
@@ -249,6 +282,7 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     drawField(p, 16, y, tr("大小"), QString::number(m_asset.fileSize / 1024) + " KB", Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height), Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("格式"), m_asset.format.toUpper(), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("路径"), fi.absolutePath(), Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), Visual::DetailFieldLabelWidth);
     return y + 8;
 }
@@ -372,14 +406,16 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     int tagX = 16;
     if (m_tags.isEmpty()) {
         p.setPen(Color::TEXT_SECONDARY);
-        p.drawText(QRect(tagX, y - 2, width() - 32, 22),
-                   Qt::AlignLeft | Qt::AlignVCenter, tr("暂无标签"));
+        p.drawText(QRect(tagX, y - 2, width() - 32, 22), Qt::AlignLeft | Qt::AlignVCenter, tr("暂无标签"));
         y += 28;
     }
 
     for (const auto &tag : m_tags) {
         int tw = p.fontMetrics().horizontalAdvance(tag.name) + 28;
-        if (tagX + tw > width() - 16) { tagX = 16; y += 26; }
+        if (tagX + tw > width() - 16) {
+            tagX = 16;
+            y += 26;
+        }
 
         QRect tagBg(tagX, y - 2, tw, 22);
         m_tagRects.append({tag.id, tagBg});
@@ -390,21 +426,22 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
         p.drawRoundedRect(tagBg, Visual::RadiusMedium, Visual::RadiusMedium);
         p.setPen(tag.color);
         p.drawText(tagBg.adjusted(7, 0, -16, 0), Qt::AlignVCenter, tag.name);
-        Codicon::draw(p, "close", QRect(tagBg.right() - 18, tagBg.top() + 2, 14, 18),
-                      Color::TEXT_PRIMARY, 10);
+        Codicon::draw(p, "close", QRect(tagBg.right() - 18, tagBg.top() + 2, 14, 18), Color::TEXT_PRIMARY, 10);
         tagX += tw + 6;
     }
 
     QString addText = tr("添加标签");
     int addW = p.fontMetrics().horizontalAdvance(addText) + 34;
-    if (tagX + addW > width() - 16) { tagX = 16; y += 26; }
+    if (tagX + addW > width() - 16) {
+        tagX = 16;
+        y += 26;
+    }
     m_addTagRect = QRect(tagX, y - 2, addW, 22);
     p.setBrush(m_addTagHovered ? Color::BG_BUTTON_HOVER : Color::BG_DARK);
     p.setPen(QPen(m_addTagHovered ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
     p.drawRoundedRect(m_addTagRect, Visual::RadiusMedium, Visual::RadiusMedium);
     QColor addColor = m_addTagHovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
-    Codicon::draw(p, "add", QRect(m_addTagRect.left() + 6, m_addTagRect.top(), 14, m_addTagRect.height()),
-                  addColor, 11);
+    Codicon::draw(p, "add", QRect(m_addTagRect.left() + 6, m_addTagRect.top(), 14, m_addTagRect.height()), addColor, 11);
     p.setPen(addColor);
     p.drawText(m_addTagRect.adjusted(24, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, addText);
     return y + 30;
@@ -419,11 +456,11 @@ void DetailPanel::drawField(QPainter &p, int x, int &y, const QString &label, co
     p.setPen(Color::TEXT_SECONDARY);
     p.drawText(x, y, label);
 
-    QString display = value.isEmpty() ? QStringLiteral("—") : value;
+    QString display = value.isEmpty() ? QStringLiteral("--") : value;
     QRect valueRect(x + labelW, y - 14, width() - x - labelW - 16, 20);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(valueRect, Qt::AlignLeft | Qt::AlignVCenter,
-                               p.fontMetrics().elidedText(display, Qt::ElideRight, valueRect.width()));
+               p.fontMetrics().elidedText(display, Qt::ElideRight, valueRect.width()));
     y += 24;
 }
 
@@ -444,6 +481,21 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
     if (m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty()) {
         QApplication::clipboard()->setText(m_metadata.prompt);
         ToastNotification::show(this, tr("已复制 Prompt"));
+        return;
+    }
+    if (m_copyFileNameRect.contains(event->pos()) && !m_asset.fileName.isEmpty()) {
+        QApplication::clipboard()->setText(m_asset.fileName);
+        ToastNotification::show(this, tr("已复制文件名"));
+        return;
+    }
+    if (m_openFolderRect.contains(event->pos()) && !m_asset.filePath.isEmpty()) {
+        QFileInfo info(m_asset.filePath);
+        QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
+        ToastNotification::show(this, tr("已打开所在文件夹"));
+        return;
+    }
+    if (m_openPreviewRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
+        emit previewRequested(m_asset.id);
         return;
     }
     if (m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
@@ -479,6 +531,9 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
     bool oldAddHover = m_addTagHovered;
     bool oldCopyHover = m_copyPromptHovered;
     bool oldCloseHover = m_closeBtnHovered;
+    bool oldCopyFileNameHover = m_copyFileNameHovered;
+    bool oldOpenFolderHover = m_openFolderHovered;
+    bool oldOpenPreviewHover = m_openPreviewHovered;
     bool oldPromptHover = m_promptHeaderHovered;
     bool oldFileInfoHover = m_fileInfoHeaderHovered;
     bool oldMetaHover = m_metadataHeaderHovered;
@@ -486,24 +541,23 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
     m_addTagHovered = m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_copyPromptHovered = m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty();
     m_closeBtnHovered = m_closeBtnRect.contains(event->pos()) && !m_asset.id.isEmpty();
+    m_copyFileNameHovered = m_copyFileNameRect.contains(event->pos()) && !m_asset.fileName.isEmpty();
+    m_openFolderHovered = m_openFolderRect.contains(event->pos()) && !m_asset.filePath.isEmpty();
+    m_openPreviewHovered = m_openPreviewRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_promptHeaderHovered = m_promptHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_fileInfoHeaderHovered = m_fileInfoHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_metadataHeaderHovered = m_metadataHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_tagsHeaderHovered = m_tagsHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
-    if (oldAddHover != m_addTagHovered)
-        update(m_addTagRect);
-    if (oldCopyHover != m_copyPromptHovered)
-        update(m_copyPromptRect);
-    if (oldCloseHover != m_closeBtnHovered)
-        update(m_closeBtnRect);
-    if (oldPromptHover != m_promptHeaderHovered)
-        update(m_promptHeaderRect);
-    if (oldFileInfoHover != m_fileInfoHeaderHovered)
-        update(m_fileInfoHeaderRect);
-    if (oldMetaHover != m_metadataHeaderHovered)
-        update(m_metadataHeaderRect);
-    if (oldTagHover != m_tagsHeaderHovered)
-        update(m_tagsHeaderRect);
+    if (oldAddHover != m_addTagHovered) update(m_addTagRect);
+    if (oldCopyHover != m_copyPromptHovered) update(m_copyPromptRect);
+    if (oldCloseHover != m_closeBtnHovered) update(m_closeBtnRect);
+    if (oldCopyFileNameHover != m_copyFileNameHovered) update(m_copyFileNameRect);
+    if (oldOpenFolderHover != m_openFolderHovered) update(m_openFolderRect);
+    if (oldOpenPreviewHover != m_openPreviewHovered) update(m_openPreviewRect);
+    if (oldPromptHover != m_promptHeaderHovered) update(m_promptHeaderRect);
+    if (oldFileInfoHover != m_fileInfoHeaderHovered) update(m_fileInfoHeaderRect);
+    if (oldMetaHover != m_metadataHeaderHovered) update(m_metadataHeaderRect);
+    if (oldTagHover != m_tagsHeaderHovered) update(m_tagsHeaderRect);
 
     if (m_isPanning) {
         QPoint delta = event->pos() - m_lastPanPos;
@@ -551,16 +605,24 @@ void DetailPanel::drawScrollIndicator(QPainter &p)
     p.drawRoundedRect(indicatorRect, 2, 2);
 }
 
-void DetailPanel::resizeEvent(QResizeEvent *) { clampScrollOffset(); update(); }
+void DetailPanel::resizeEvent(QResizeEvent *)
+{
+    clampScrollOffset();
+    update();
+}
 
 void DetailPanel::leaveEvent(QEvent *)
 {
     if (m_addTagHovered || m_copyPromptHovered || m_closeBtnHovered
+        || m_copyFileNameHovered || m_openFolderHovered || m_openPreviewHovered
         || m_promptHeaderHovered || m_fileInfoHeaderHovered
         || m_metadataHeaderHovered || m_tagsHeaderHovered) {
         m_addTagHovered = false;
         m_copyPromptHovered = false;
         m_closeBtnHovered = false;
+        m_copyFileNameHovered = false;
+        m_openFolderHovered = false;
+        m_openPreviewHovered = false;
         m_promptHeaderHovered = false;
         m_fileInfoHeaderHovered = false;
         m_metadataHeaderHovered = false;

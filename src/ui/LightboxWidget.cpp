@@ -1,21 +1,22 @@
 #include "LightboxWidget.h"
+#include <QCursor>
+#include <QFileInfo>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QKeyEvent>
+#include <QWheelEvent>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
-#include <QMouseEvent>
-#include <QWheelEvent>
-#include <QFileInfo>
 
 namespace {
-void drawToolbarButton(QPainter &p, const QRect &rect, const QString &icon, const QColor &color)
+void drawToolbarButton(QPainter &p, const QRect &rect, const QString &icon, const QColor &color, bool hovered)
 {
     QPainterPath path;
     path.addRoundedRect(QRectF(rect), Visual::RadiusSmall, Visual::RadiusSmall);
-    p.fillPath(path, QColor(0xff, 0xff, 0xff, 12));
-    p.setPen(QPen(Color::BORDER_FAINT, 1));
+    p.fillPath(path, hovered ? Color::BG_BUTTON_HOVER : QColor(0xff, 0xff, 0xff, 12));
+    p.setPen(QPen(hovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT, 1));
     p.drawPath(path);
     Codicon::draw(p, icon, rect, color, 16);
 }
@@ -65,11 +66,10 @@ void LightboxWidget::loadCurrentImage()
         return;
     }
     const Asset &asset = m_assets[m_currentIndex];
-    if (QFileInfo::exists(asset.filePath)) {
+    if (QFileInfo::exists(asset.filePath))
         m_currentPixmap = QPixmap(asset.filePath);
-    } else {
+    else
         m_currentPixmap = QPixmap();
-    }
 }
 
 void LightboxWidget::resetView()
@@ -109,22 +109,17 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     if (m_currentPixmap.isNull() || m_currentIndex < 0 || m_currentIndex >= m_assets.size()) {
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect(), Qt::AlignCenter,
-                   m_assets.isEmpty()
-                       ? QStringLiteral("No images")
-                       : tr("无法加载图片"));
+                   m_assets.isEmpty() ? QStringLiteral("No images") : tr("无法加载图片"));
         return;
     }
 
     QRect imgRect = imageRect();
-    double fitScale = qMin(
-        (double)imgRect.width() / m_currentPixmap.width(),
-        (double)imgRect.height() / m_currentPixmap.height()
-    );
+    double fitScale = qMin((double)imgRect.width() / m_currentPixmap.width(),
+                           (double)imgRect.height() / m_currentPixmap.height());
     double scale = fitScale * m_zoom;
 
     int drawW = (int)(m_currentPixmap.width() * scale);
     int drawH = (int)(m_currentPixmap.height() * scale);
-
     int drawX = imgRect.center().x() - drawW / 2 + (int)m_panOffset.x();
     int drawY = imgRect.center().y() - drawH / 2 + (int)m_panOffset.y();
 
@@ -146,33 +141,32 @@ void LightboxWidget::paintEvent(QPaintEvent *)
         return;
     }
 
+    const QPoint localCursor = mapFromGlobal(QCursor::pos());
+    const Asset &asset = m_assets[m_currentIndex];
+
     QFont f = p.font();
     f.setPixelSize(Visual::FontControl);
     p.setFont(f);
 
-    // Top bar
     QRect topBar(0, 0, width(), 40);
     p.fillRect(topBar, Color::OVERLAY_BG);
-
     p.setPen(Color::TEXT_PRIMARY);
-    const Asset &asset = m_assets[m_currentIndex];
-    QString fileName = QFileInfo(asset.filePath).fileName();
-    p.drawText(topBar.adjusted(12, 0, 0, 0), Qt::AlignVCenter, fileName);
+    p.drawText(topBar.adjusted(12, 0, -48, 0), Qt::AlignVCenter | Qt::AlignLeft, QFileInfo(asset.filePath).fileName());
 
     m_closeBtnRect = QRect(width() - 36, 8, 24, 24);
     Codicon::draw(p, "close", m_closeBtnRect, Color::TEXT_PRIMARY, 18);
 
-    // Bottom bar
     QRect bottomBar(0, height() - 50, width(), 50);
     p.fillRect(bottomBar, Color::OVERLAY_BG);
-    f.setPixelSize(Visual::FontMeta);
-    p.setFont(f);
 
     int cx = width() / 2;
 
-    m_prevBtnRect = QRect(cx - 260, height() - 43, 34, 34);
-    QColor prevClr = (m_currentIndex > 0) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
-    drawToolbarButton(p, m_prevBtnRect, "chevron-left", prevClr);
+    QFont metaFont = p.font();
+    metaFont.setPixelSize(Visual::FontMeta);
+    p.setFont(metaFont);
+    p.setPen(Color::TEXT_SECONDARY);
+    p.drawText(QRect(cx - 320, height() - 43, 60, 34), Qt::AlignVCenter | Qt::AlignLeft,
+               QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size()));
 
     p.setPen(Color::TEXT_PRIMARY);
     QString info = QString("%1 x %2 | %3 | %4 KB")
@@ -180,34 +174,34 @@ void LightboxWidget::paintEvent(QPaintEvent *)
                        .arg(asset.height)
                        .arg(asset.format.toUpper())
                        .arg(asset.fileSize / 1024);
-    QRect infoRect(cx - 218, height() - 43, 180, 34);
-    p.drawText(infoRect, Qt::AlignCenter, info);
+    p.drawText(QRect(cx - 244, height() - 43, 200, 34), Qt::AlignLeft | Qt::AlignVCenter, info);
 
     m_zoomOutBtnRect = QRect(cx - 28, height() - 43, 34, 34);
     m_resetZoomBtnRect = QRect(cx + 12, height() - 43, 58, 34);
     m_zoomInBtnRect = QRect(cx + 76, height() - 43, 34, 34);
-    drawToolbarButton(p, m_zoomOutBtnRect, "zoom-out", Color::TEXT_PRIMARY);
-    drawToolbarButton(p, m_zoomInBtnRect, "zoom-in", Color::TEXT_PRIMARY);
+    drawToolbarButton(p, m_zoomOutBtnRect, "zoom-out", Color::TEXT_PRIMARY, m_zoomOutBtnRect.contains(localCursor));
+    drawToolbarButton(p, m_zoomInBtnRect, "zoom-in", Color::TEXT_PRIMARY, m_zoomInBtnRect.contains(localCursor));
 
     QPainterPath resetPath;
     resetPath.addRoundedRect(QRectF(m_resetZoomBtnRect), Visual::RadiusSmall, Visual::RadiusSmall);
-    p.fillPath(resetPath, QColor(0xff, 0xff, 0xff, 12));
-    p.setPen(QPen(Color::BORDER_FAINT, 1));
+    bool resetHovered = m_resetZoomBtnRect.contains(localCursor);
+    p.fillPath(resetPath, resetHovered ? Color::BG_BUTTON_HOVER : QColor(0xff, 0xff, 0xff, 12));
+    p.setPen(QPen(resetHovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT, 1));
     p.drawPath(resetPath);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(m_resetZoomBtnRect, Qt::AlignCenter, QString("%1%").arg((int)(m_zoom * 100)));
 
-    m_favBtnRect = QRect(cx + 146, height() - 43, 34, 34);
+    m_prevBtnRect = QRect(cx + 96, height() - 43, 34, 34);
+    QColor prevClr = (m_currentIndex > 0) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
+    drawToolbarButton(p, m_prevBtnRect, "chevron-left", prevClr, m_prevBtnRect.contains(localCursor));
+
+    m_favBtnRect = QRect(cx + 144, height() - 43, 34, 34);
     QColor favClr = asset.isFavorite ? Color::FAVORITE_ON : Color::TEXT_SECONDARY;
-    drawToolbarButton(p, m_favBtnRect, "star", favClr);
+    drawToolbarButton(p, m_favBtnRect, "star", favClr, m_favBtnRect.contains(localCursor));
 
-    p.setPen(Color::TEXT_SECONDARY);
-    p.drawText(cx - 330, height() - 43, 60, 34, Qt::AlignVCenter,
-               QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size()));
-
-    m_nextBtnRect = QRect(cx + 206, height() - 43, 34, 34);
+    m_nextBtnRect = QRect(cx + 192, height() - 43, 34, 34);
     QColor nextClr = (m_currentIndex < m_assets.size() - 1) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
-    drawToolbarButton(p, m_nextBtnRect, "chevron-right", nextClr);
+    drawToolbarButton(p, m_nextBtnRect, "chevron-right", nextClr, m_nextBtnRect.contains(localCursor));
 
     p.setPen(Color::BORDER);
     p.drawLine(0, 40, width(), 40);
@@ -267,7 +261,6 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
         close();
         return;
     }
-
     if (m_overlayVisible && m_prevBtnRect.contains(event->pos())) {
         navigateTo(m_currentIndex - 1);
         return;
@@ -276,7 +269,6 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
         navigateTo(m_currentIndex + 1);
         return;
     }
-
     if (m_overlayVisible && m_favBtnRect.contains(event->pos())) {
         if (m_currentIndex >= 0 && m_currentIndex < m_assets.size()) {
             Asset &a = m_assets[m_currentIndex];
@@ -321,9 +313,8 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
         }
     }
 
-    if (!overlayHit) {
+    if (!overlayHit)
         close();
-    }
 }
 
 void LightboxWidget::mouseMoveEvent(QMouseEvent *event)
@@ -342,11 +333,10 @@ void LightboxWidget::mouseMoveEvent(QMouseEvent *event)
     m_overlayTimer->start();
 
     QRect imgArea = imageRect();
-    if (imgArea.contains(event->pos()) && m_zoom > 1.05 && !m_isPanning) {
+    if (imgArea.contains(event->pos()) && m_zoom > 1.05 && !m_isPanning)
         setCursor(Qt::OpenHandCursor);
-    } else if (!m_isPanning) {
+    else if (!m_isPanning)
         setCursor(Qt::ArrowCursor);
-    }
 }
 
 void LightboxWidget::mouseReleaseEvent(QMouseEvent *)
@@ -367,14 +357,8 @@ void LightboxWidget::wheelEvent(QWheelEvent *event)
     double newZoom = m_zoom * factor;
     newZoom = qBound(0.1, newZoom, 10.0);
 
-    double fitScale = qMin(
-        (double)imgArea.width() / m_currentPixmap.width(),
-        (double)imgArea.height() / m_currentPixmap.height()
-    );
-
     double relX = event->pos().x() - (imgArea.center().x() + m_panOffset.x());
     double relY = event->pos().y() - (imgArea.center().y() + m_panOffset.y());
-
     double ratio = m_zoom / newZoom;
     m_panOffset.setX(event->pos().x() - imgArea.center().x() - relX * ratio);
     m_panOffset.setY(event->pos().y() - imgArea.center().y() - relY * ratio);

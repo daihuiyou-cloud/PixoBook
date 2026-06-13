@@ -31,6 +31,8 @@ ToastNotification::ToastNotification(QWidget *parent)
         anim->setEndValue(0.0);
         connect(anim, &QPropertyAnimation::finished, this, &QWidget::hide);
         connect(anim, &QPropertyAnimation::finished, this, [this]() {
+            if (parentWidget())
+                parentWidget()->removeEventFilter(this);
             if (s_currentToast == this)
                 s_currentToast = nullptr;
             deleteLater();
@@ -56,14 +58,29 @@ void ToastNotification::showMessage(const QString &message, int durationMs)
 {
     m_label->setText(message);
 
-    QPoint pos = parentWidget()->mapToGlobal(
-        QPoint(parentWidget()->width() - width() - 16, 50));
-    move(pos);
+    reposition();
+    if (parentWidget())
+        parentWidget()->installEventFilter(this);
 
     QWidget::show();
     raise();
 
     m_timer->start(durationMs);
+}
+
+void ToastNotification::reposition()
+{
+    if (!parentWidget()) return;
+    QPoint pos = parentWidget()->mapToGlobal(
+        QPoint(parentWidget()->width() - width() - 16, 50));
+    move(pos);
+}
+
+bool ToastNotification::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == parentWidget() && event->type() == QEvent::Move)
+        reposition();
+    return QWidget::eventFilter(obj, event);
 }
 
 void ToastNotification::setOpacity(qreal op)

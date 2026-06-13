@@ -18,10 +18,12 @@ public:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
     explicit ToastNotification(QWidget *parent);
     void showMessage(const QString &message, int durationMs);
+    void reposition();
 
     qreal m_opacity = 1.0;
     QLabel *m_label;

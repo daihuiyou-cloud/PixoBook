@@ -9,8 +9,7 @@
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
-
-
+#include <QPainterPath>
 
 SearchBar::SearchBar(QWidget *parent)
     : QWidget(parent)
@@ -163,7 +162,6 @@ SearchBar::SearchBar(QWidget *parent)
     m_resultSummary->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
     m_resultSummary->setMinimumWidth(132);
     m_resultSummary->setContentsMargins(10, 0, 10, 0);
-    m_resultSummary->setProperty("summaryPill", true);
     m_resultSummary->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
     layout->addWidget(m_resultSummary);
 
@@ -203,8 +201,18 @@ void SearchBar::paintEvent(QPaintEvent *event)
 {
     QWidget::paintEvent(event);
     QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
     p.setPen(Color::BORDER);
     p.drawLine(0, height() - 1, width(), height() - 1);
+
+    if (!m_resultSummary->text().isEmpty()) {
+        QRect sr = m_resultSummary->geometry();
+        QPainterPath pillPath;
+        pillPath.addRoundedRect(QRectF(sr), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(pillPath, Color::BG_BUTTON_SUBTLE);
+        p.setPen(QPen(Color::BORDER_MUTED, 1));
+        p.drawPath(pillPath);
+    }
 }
 
 QString SearchBar::keyword() const { return m_searchInput->text().trimmed(); }

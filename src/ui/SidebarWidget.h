@@ -62,6 +62,8 @@ private:
     int m_hoveredTag = -1;
     bool m_hoveredAddButton = false;
     bool m_hoveredAddTagButton = false;
+    bool m_hoveredFolderHeader = false;
+    bool m_hoveredTagHeader = false;
     QRect m_addTagRect;
 
     FocusSection m_focusSection = FocusNone;

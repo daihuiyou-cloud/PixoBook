@@ -30,7 +30,7 @@ LightboxWidget::LightboxWidget(QWidget *parent)
 
     m_overlayTimer = new QTimer(this);
     m_overlayTimer->setSingleShot(true);
-    m_overlayTimer->setInterval(2000);
+    m_overlayTimer->setInterval(3000);
     connect(m_overlayTimer, &QTimer::timeout, this, [this]() {
         m_overlayVisible = false;
         update();

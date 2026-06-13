@@ -125,6 +125,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
     int totalContent = y - scrollTop + 16;
     m_maxScrollOffset = qMax(0, totalContent - scrollHeight);
     clampScrollOffset();
+    drawScrollIndicator(p);
 }
 
 void DetailPanel::drawSectionDivider(QPainter &p, int y)
@@ -233,6 +234,8 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     hf.setBold(true);
     p.setFont(hf);
     m_fileInfoHeaderRect = QRect(0, y - 18, width(), 24);
+    if (m_fileInfoHeaderHovered)
+        p.fillRect(m_fileInfoHeaderRect, Color::BG_HOVER);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_fileInfoExpanded ? "chevron-down" : "chevron-right",
                   QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
@@ -260,6 +263,8 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     hf.setBold(true);
     p.setFont(hf);
     m_metadataHeaderRect = QRect(0, y - 18, width(), 24);
+    if (m_metadataHeaderHovered)
+        p.fillRect(m_metadataHeaderRect, Color::BG_HOVER);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_metadataExpanded ? "chevron-down" : "chevron-right",
                   QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
@@ -294,6 +299,8 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
         drawField(p, 16, y, "Seed", QString::number(m_metadata.seed), Visual::DetailFieldLabelWidth);
 
     m_promptHeaderRect = QRect(0, y - 18, width(), 24);
+    if (m_promptHeaderHovered)
+        p.fillRect(m_promptHeaderRect, Color::BG_HOVER);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_promptExpanded ? "chevron-down" : "chevron-right",
                   QRect(18, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
@@ -345,6 +352,8 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     hf.setBold(true);
     p.setFont(hf);
     m_tagsHeaderRect = QRect(0, y - 18, width(), 24);
+    if (m_tagsHeaderHovered)
+        p.fillRect(m_tagsHeaderRect, Color::BG_HOVER);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right",
                   QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
@@ -414,8 +423,8 @@ void DetailPanel::drawField(QPainter &p, int x, int &y, const QString &label, co
     QRect valueRect(x + labelW, y - 14, width() - x - labelW - 16, 20);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(valueRect, Qt::AlignLeft | Qt::AlignVCenter,
-               p.fontMetrics().elidedText(display, Qt::ElideRight, valueRect.width()));
-    y += 21;
+                               p.fontMetrics().elidedText(display, Qt::ElideRight, valueRect.width()));
+    y += 24;
 }
 
 void DetailPanel::mousePressEvent(QMouseEvent *event)
@@ -470,15 +479,31 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
     bool oldAddHover = m_addTagHovered;
     bool oldCopyHover = m_copyPromptHovered;
     bool oldCloseHover = m_closeBtnHovered;
+    bool oldPromptHover = m_promptHeaderHovered;
+    bool oldFileInfoHover = m_fileInfoHeaderHovered;
+    bool oldMetaHover = m_metadataHeaderHovered;
+    bool oldTagHover = m_tagsHeaderHovered;
     m_addTagHovered = m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_copyPromptHovered = m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty();
     m_closeBtnHovered = m_closeBtnRect.contains(event->pos()) && !m_asset.id.isEmpty();
+    m_promptHeaderHovered = m_promptHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
+    m_fileInfoHeaderHovered = m_fileInfoHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
+    m_metadataHeaderHovered = m_metadataHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
+    m_tagsHeaderHovered = m_tagsHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
     if (oldAddHover != m_addTagHovered)
         update(m_addTagRect);
     if (oldCopyHover != m_copyPromptHovered)
         update(m_copyPromptRect);
     if (oldCloseHover != m_closeBtnHovered)
         update(m_closeBtnRect);
+    if (oldPromptHover != m_promptHeaderHovered)
+        update(m_promptHeaderRect);
+    if (oldFileInfoHover != m_fileInfoHeaderHovered)
+        update(m_fileInfoHeaderRect);
+    if (oldMetaHover != m_metadataHeaderHovered)
+        update(m_metadataHeaderRect);
+    if (oldTagHover != m_tagsHeaderHovered)
+        update(m_tagsHeaderRect);
 
     if (m_isPanning) {
         QPoint delta = event->pos() - m_lastPanPos;
@@ -515,14 +540,31 @@ void DetailPanel::clampScrollOffset()
     m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
 }
 
+void DetailPanel::drawScrollIndicator(QPainter &p)
+{
+    if (m_maxScrollOffset <= 0) return;
+    int indicatorH = qMax(30, height() * height() / (height() + m_maxScrollOffset));
+    int indicatorY = (height() - indicatorH) * m_scrollOffset / m_maxScrollOffset;
+    QRect indicatorRect(width() - 4, indicatorY, 3, indicatorH);
+    p.setBrush(Color::SCROLLBAR);
+    p.setPen(Qt::NoPen);
+    p.drawRoundedRect(indicatorRect, 2, 2);
+}
+
 void DetailPanel::resizeEvent(QResizeEvent *) { clampScrollOffset(); update(); }
 
 void DetailPanel::leaveEvent(QEvent *)
 {
-    if (m_addTagHovered || m_copyPromptHovered || m_closeBtnHovered) {
+    if (m_addTagHovered || m_copyPromptHovered || m_closeBtnHovered
+        || m_promptHeaderHovered || m_fileInfoHeaderHovered
+        || m_metadataHeaderHovered || m_tagsHeaderHovered) {
         m_addTagHovered = false;
         m_copyPromptHovered = false;
         m_closeBtnHovered = false;
+        m_promptHeaderHovered = false;
+        m_fileInfoHeaderHovered = false;
+        m_metadataHeaderHovered = false;
+        m_tagsHeaderHovered = false;
         update();
     }
 }

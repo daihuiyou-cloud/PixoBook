@@ -85,17 +85,27 @@ void TitleBar::paintEvent(QPaintEvent *)
     }
 
     QRect minRect = minimizeBtnRect();
-    if (m_hoveredControl == CtrlMinimize) p.fillRect(minRect, Color::BG_SELECTED);
+    if (m_hoveredControl == CtrlMinimize) {
+        QPainterPath minPath;
+        minPath.addRoundedRect(QRectF(minRect.adjusted(4, 2, -4, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(minPath, Color::BG_SELECTED);
+    }
     Codicon::draw(p, "chrome-minimize", minRect, Color::TEXT_PRIMARY, 14);
 
     QRect maxRect = maximizeBtnRect();
-    if (m_hoveredControl == CtrlMaximize) p.fillRect(maxRect, Color::BG_SELECTED);
+    if (m_hoveredControl == CtrlMaximize) {
+        QPainterPath maxPath;
+        maxPath.addRoundedRect(QRectF(maxRect.adjusted(4, 2, -4, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(maxPath, Color::BG_SELECTED);
+    }
     Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", maxRect,
                   Color::TEXT_PRIMARY, 14);
 
     QRect closeRect = closeBtnRect();
     if (m_hoveredControl == CtrlClose) {
-        p.fillRect(closeRect, Color::CLOSE_HOVER);
+        QPainterPath closePath;
+        closePath.addRoundedRect(QRectF(closeRect.adjusted(4, 2, -4, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(closePath, Color::CLOSE_HOVER);
         Codicon::draw(p, "chrome-close", closeRect, Qt::white, 14);
     } else {
         Codicon::draw(p, "chrome-close", closeRect, Color::TEXT_PRIMARY, 14);

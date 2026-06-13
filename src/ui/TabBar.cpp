@@ -2,6 +2,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QToolTip>
 #include "Codicon.h"
 #include "ColorConstants.h"
@@ -109,8 +110,11 @@ void TabBar::paintEvent(QPaintEvent *)
     }
 
     QRect r = addButtonRect();
-    if (m_hoveredAdd)
-        p.fillRect(r, Color::BG_SELECTED);
+    if (m_hoveredAdd) {
+        QPainterPath addPath;
+        addPath.addRoundedRect(QRectF(r.adjusted(2, 2, -2, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(addPath, Color::BG_HOVER);
+    }
     Codicon::draw(p, "add", r, Color::TEXT_PRIMARY, 14);
 }
 

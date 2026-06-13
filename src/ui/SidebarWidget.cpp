@@ -82,6 +82,8 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     itemFont.setPixelSize(Visual::FontControl);
 
     QRect folderHeader(0, 0, width(), kSectionHeight);
+    if (m_hoveredFolderHeader)
+        p.fillRect(folderHeader, Color::BG_HOVER);
     p.setFont(sectionFont);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_foldersExpanded ? "chevron-down" : "chevron-right",
@@ -128,6 +130,8 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     }
 
     QRect tagHeader(0, m_sectionTagY, width(), kSectionHeight);
+    if (m_hoveredTagHeader)
+        p.fillRect(tagHeader, Color::BG_HOVER);
     p.setFont(sectionFont);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right",
@@ -185,10 +189,17 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
     int oldHoverTag = m_hoveredTag;
     bool oldHoverAdd = m_hoveredAddButton;
     bool oldHoverAddTag = m_hoveredAddTagButton;
+    bool oldHoverFolderHeader = m_hoveredFolderHeader;
+    bool oldHoverTagHeader = m_hoveredTagHeader;
     m_hoveredFolder = -1;
     m_hoveredTag = -1;
     m_hoveredAddButton = false;
     m_hoveredAddTagButton = false;
+
+    QRect folderHeaderRect(0, 0, width(), kSectionHeight);
+    QRect tagHeaderRect(0, m_sectionTagY, width(), kSectionHeight);
+    m_hoveredFolderHeader = folderHeaderRect.contains(event->pos());
+    m_hoveredTagHeader = tagHeaderRect.contains(event->pos());
 
     QRect addRect(width() - 30, 5, 22, 22);
     if (addRect.contains(event->pos()))
@@ -223,7 +234,9 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
     }
 
     if (oldHoverFolder != m_hoveredFolder || oldHoverTag != m_hoveredTag
-        || oldHoverAdd != m_hoveredAddButton || oldHoverAddTag != m_hoveredAddTagButton)
+        || oldHoverAdd != m_hoveredAddButton || oldHoverAddTag != m_hoveredAddTagButton
+        || oldHoverFolderHeader != m_hoveredFolderHeader
+        || oldHoverTagHeader != m_hoveredTagHeader)
         update();
 }
 

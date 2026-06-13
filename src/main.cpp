@@ -1,6 +1,5 @@
 #include <QApplication>
 #include <QFont>
-#include <QFile>
 #include <QToolTip>
 #include <memory>
 #include "ui/MainWindow.h"
@@ -38,14 +37,15 @@ int main(int argc, char *argv[])
     auto *style = new CustomStyle();
     app.setStyle(style);
 
-    QFile styleFile(":/styles/main.qss");
-    QString qss;
-    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
-        qss = QString::fromUtf8(styleFile.readAll());
-        styleFile.close();
-    }
-    qss += QStringLiteral("QToolTip { font-family: \"Microsoft YaHei UI\"; font-size: 10pt; color: #cccccc; background-color: #2d2d2d; border: 1px solid #404040; padding: 4px 8px; }");
-    app.setStyleSheet(qss);
+    app.setStyleSheet(QStringLiteral(
+        "QToolTip { font-family: \"Microsoft YaHei UI\"; font-size: 10pt; color: #cccccc; background-color: #2d2d2d; border: 1px solid #404040; padding: 4px 8px; }"
+        "QComboBox QAbstractItemView {"
+        "  background-color: #2d2d2d; color: #cccccc;"
+        "  border: 1px solid #3c3c3c; outline: none;"
+        "  selection-background-color: #094771; selection-color: #cccccc;"
+        "}"
+        "QComboBox QAbstractItemView::item { height: 26px; padding: 0 12px; }"
+    ));
 
     app.setPalette(style->standardPalette());
 

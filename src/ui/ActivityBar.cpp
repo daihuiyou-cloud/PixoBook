@@ -48,6 +48,7 @@ void ActivityBar::paintEvent(QPaintEvent *)
     p.setRenderHint(QPainter::Antialiasing);
 
     p.fillRect(rect(), Color::BG_ACTIVITYBAR);
+    p.fillRect(QRect(width() - 1, 0, 1, height()), Color::BORDER);
 
     for (int i = 0; i < m_icons.size(); i++) {
         QRect r = iconRect(i);

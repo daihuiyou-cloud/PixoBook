@@ -81,7 +81,7 @@ private:
     int m_thumbSize = 180;
     static constexpr int kPadding = Visual::GalleryCardPadding;
     static constexpr int kGap = Visual::GalleryCardGap;
-    static constexpr int kLabelHeight = Visual::GalleryLabelHeight;
+    static constexpr int kLabelHeight = 40;
     static constexpr int kPageSize = 200;
     int m_totalAssetCount = 0;
     int m_itemWidth() const { return m_thumbSize + kPadding * 2; }

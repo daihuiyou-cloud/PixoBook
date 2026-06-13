@@ -62,6 +62,10 @@ private:
     bool m_addTagHovered = false;
     bool m_copyPromptHovered = false;
     bool m_closeBtnHovered = false;
+    bool m_promptHeaderHovered = false;
+    bool m_fileInfoHeaderHovered = false;
+    bool m_metadataHeaderHovered = false;
+    bool m_tagsHeaderHovered = false;
 
     IImageCache *m_cache;
 
@@ -73,6 +77,7 @@ private:
     int drawTagsSection(QPainter &p, int y);
     void drawSectionDivider(QPainter &p, int y);
     void clampScrollOffset();
+    void drawScrollIndicator(QPainter &p);
     void drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW = 88);
 };
 

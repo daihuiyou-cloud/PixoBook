@@ -414,9 +414,9 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         bool isSelected = m_selectedIndices.contains(i);
 
         if (isSelected || isHovered) {
-            QRect shadowRect = r.adjusted(2, 2, 2, 6);
+            QRect shadowRect = isHovered ? r.adjusted(0, 4, 0, 10) : r.adjusted(2, 2, 2, 6);
             p.setPen(Qt::NoPen);
-            p.setBrush(Color::OVERLAY_SHADOW);
+            p.setBrush(isHovered ? QColor(0, 0, 0, 80) : Color::OVERLAY_SHADOW);
             p.drawRoundedRect(shadowRect, Visual::RadiusMedium, Visual::RadiusMedium);
         }
 

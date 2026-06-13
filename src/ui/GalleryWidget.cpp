@@ -99,6 +99,7 @@ QVector<Asset> GalleryWidget::selectedAssets() const
 void GalleryWidget::setAssets(const QVector<Asset> &assets)
 {
     m_assets = assets;
+    m_totalAssetCount = assets.size();
     m_hoveredIndex = -1;
     m_lastClickedIndex = -1;
     m_selectedAsset = {};
@@ -106,6 +107,29 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_requestedThumbnails.clear();
     m_fileExistsCache.clear();
     m_scrollOffset = 0;
+    layoutItems();
+    update();
+}
+
+void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
+{
+    m_assets = assets;
+    m_totalAssetCount = totalCount;
+    m_hoveredIndex = -1;
+    m_lastClickedIndex = -1;
+    m_selectedAsset = {};
+    m_selectedIndices.clear();
+    m_requestedThumbnails.clear();
+    m_fileExistsCache.clear();
+    m_scrollOffset = 0;
+    layoutItems();
+    update();
+}
+
+void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
+{
+    m_totalAssetCount = totalCount;
+    m_assets.append(assets);
     layoutItems();
     update();
 }
@@ -144,6 +168,15 @@ int GalleryWidget::selectedAssetIndex() const
 }
 
 QVector<Asset> GalleryWidget::allAssets() const { return m_assets; }
+
+void GalleryWidget::checkLoadMore()
+{
+    if (m_assets.size() >= m_totalAssetCount) return;
+    int lastVisibleRow = (m_scrollOffset + height()) / (m_itemHeight() + kGap);
+    int totalRows = (m_assets.size() + m_columns - 1) / m_columns;
+    if (lastVisibleRow >= totalRows - 3)
+        emit loadMoreRequested(m_assets.size(), kPageSize);
+}
 
 void GalleryWidget::layoutItems()
 {
@@ -547,6 +580,7 @@ void GalleryWidget::wheelEvent(QWheelEvent *event)
         m_scrollOffset = qBound(0, snapRow * rowH, qMax(0, m_totalHeight - height()));
     }
     update();
+    checkLoadMore();
 }
 
 void GalleryWidget::resizeEvent(QResizeEvent *)

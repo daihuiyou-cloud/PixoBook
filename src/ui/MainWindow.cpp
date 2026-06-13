@@ -363,6 +363,22 @@ void MainWindow::setupConnections()
     connect(m_gallery, &GalleryWidget::importFolderRequested, this, &MainWindow::onImportFolder);
     connect(m_gallery, &GalleryWidget::importFilesRequested, this, &MainWindow::onImportFile);
 
+    // Gallery lazy pagination
+    connect(m_gallery, &GalleryWidget::loadMoreRequested, this, [this](int offset, int limit) {
+        QString keyword = m_searchBar->keyword();
+        QString source = m_searchBar->sourceFilter();
+        bool onlyFavs = m_searchBar->onlyFavorites();
+        QString sortField = m_searchBar->sortField();
+        bool sortAsc = m_searchBar->sortAscending();
+        int tabIdx = m_tabBar->currentIndex();
+        if (tabIdx == 1) onlyFavs = true;
+        QVector<int> tagIds;
+        if (m_activeTagId >= 0) tagIds.append(m_activeTagId);
+        auto assets = m_library->loadAssets(keyword, source, tagIds, onlyFavs,
+                                            sortField, sortAsc, offset, limit);
+        m_gallery->appendPage(assets, m_gallery->totalAssetCount());
+    });
+
     // Search bar
     connect(m_searchBar, &SearchBar::searchRequested, this, [this]() {
         // Clear tab override when user manually searches
@@ -539,17 +555,18 @@ void MainWindow::loadAssets()
     if (m_activeTagId >= 0)
         tagIds.append(m_activeTagId);
 
+    int totalCount = m_library->countAssets(keyword, source, tagIds, onlyFavs);
     auto assets = m_library->loadAssets(keyword, source, tagIds, onlyFavs,
-                                        sortField, sortAsc);
-    m_gallery->setAssets(assets);
+                                        sortField, sortAsc, 0, 200);
+    m_gallery->setAssets(assets, totalCount);
     m_gallery->setSearchKeyword(keyword);
     m_sidebar->setTags(m_library->getAllTags());
 
     m_statusCount->setText(
-        tr("%1 张图片").arg(assets.size()));
+        tr("%1 张图片").arg(totalCount));
 
     QStringList summary;
-    summary << tr("%1 张图片").arg(assets.size());
+    summary << tr("%1 张图片").arg(totalCount);
     if (tabIdx == 1)
         summary << tr("收藏夹");
     else if (tabIdx == 2)

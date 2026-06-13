@@ -236,7 +236,7 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
                                               int offset, int limit) const
 {
     QVector<Asset> assets;
-    QString sql = "SELECT DISTINCT a.* FROM assets a "
+    QString sql = "SELECT DISTINCT a.*, m.source AS metadata_source, m.prompt AS metadata_prompt FROM assets a "
                   "LEFT JOIN metadata m ON a.id = m.asset_id "
                   "LEFT JOIN asset_tags at ON a.id = at.asset_id "
                   "WHERE 1=1 ";
@@ -290,6 +290,8 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
             a.hash = q.value("hash").toString();
             a.isFavorite = q.value("is_favorite").toInt() != 0;
             a.folderId = q.value("folder_id").toString();
+            a.metadataSource = q.value("metadata_source").toString();
+            a.metadataPrompt = q.value("metadata_prompt").toString();
             a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
             a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
             assets.append(a);

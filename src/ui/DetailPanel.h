@@ -67,6 +67,7 @@ private:
 
     QRect imageArea() const;
     int drawImage(QPainter &p);
+    int drawAssetSummary(QPainter &p, int y);
     int drawFileInfo(QPainter &p, int y);
     int drawMetadataSection(QPainter &p, int y);
     int drawTagsSection(QPainter &p, int y);

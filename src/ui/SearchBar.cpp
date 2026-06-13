@@ -161,7 +161,9 @@ SearchBar::SearchBar(QWidget *parent)
     m_resultSummary->setFont(controlFont);
     m_resultSummary->setPalette(labelPal);
     m_resultSummary->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
-    m_resultSummary->setMinimumWidth(120);
+    m_resultSummary->setMinimumWidth(132);
+    m_resultSummary->setContentsMargins(10, 0, 10, 0);
+    m_resultSummary->setProperty("summaryPill", true);
     m_resultSummary->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
     layout->addWidget(m_resultSummary);
 

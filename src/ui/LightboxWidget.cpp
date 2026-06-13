@@ -1,5 +1,6 @@
 #include "LightboxWidget.h"
 #include <QPainter>
+#include <QPainterPath>
 #include <QKeyEvent>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
@@ -7,6 +8,18 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QFileInfo>
+
+namespace {
+void drawToolbarButton(QPainter &p, const QRect &rect, const QString &icon, const QColor &color)
+{
+    QPainterPath path;
+    path.addRoundedRect(QRectF(rect), Visual::RadiusSmall, Visual::RadiusSmall);
+    p.fillPath(path, QColor(0xff, 0xff, 0xff, 12));
+    p.setPen(QPen(Color::BORDER_FAINT, 1));
+    p.drawPath(path);
+    Codicon::draw(p, icon, rect, color, 16);
+}
+}
 
 LightboxWidget::LightboxWidget(QWidget *parent)
     : QWidget(parent)
@@ -127,6 +140,9 @@ void LightboxWidget::paintEvent(QPaintEvent *)
         m_prevBtnRect = QRect();
         m_nextBtnRect = QRect();
         m_favBtnRect = QRect();
+        m_zoomOutBtnRect = QRect();
+        m_resetZoomBtnRect = QRect();
+        m_zoomInBtnRect = QRect();
         return;
     }
 
@@ -154,9 +170,9 @@ void LightboxWidget::paintEvent(QPaintEvent *)
 
     int cx = width() / 2;
 
-    m_prevBtnRect = QRect(cx - 200, height() - 44, 36, 36);
+    m_prevBtnRect = QRect(cx - 260, height() - 43, 34, 34);
     QColor prevClr = (m_currentIndex > 0) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
-    Codicon::draw(p, "chevron-left", m_prevBtnRect, prevClr, 18);
+    drawToolbarButton(p, m_prevBtnRect, "chevron-left", prevClr);
 
     p.setPen(Color::TEXT_PRIMARY);
     QString info = QString("%1 x %2 | %3 | %4 KB")
@@ -164,24 +180,34 @@ void LightboxWidget::paintEvent(QPaintEvent *)
                        .arg(asset.height)
                        .arg(asset.format.toUpper())
                        .arg(asset.fileSize / 1024);
-    QRect infoRect(cx - 150, height() - 44, 300, 20);
+    QRect infoRect(cx - 218, height() - 43, 180, 34);
     p.drawText(infoRect, Qt::AlignCenter, info);
 
-    m_favBtnRect = QRect(cx + 160, height() - 44, 36, 36);
+    m_zoomOutBtnRect = QRect(cx - 28, height() - 43, 34, 34);
+    m_resetZoomBtnRect = QRect(cx + 12, height() - 43, 58, 34);
+    m_zoomInBtnRect = QRect(cx + 76, height() - 43, 34, 34);
+    drawToolbarButton(p, m_zoomOutBtnRect, "zoom-out", Color::TEXT_PRIMARY);
+    drawToolbarButton(p, m_zoomInBtnRect, "zoom-in", Color::TEXT_PRIMARY);
+
+    QPainterPath resetPath;
+    resetPath.addRoundedRect(QRectF(m_resetZoomBtnRect), Visual::RadiusSmall, Visual::RadiusSmall);
+    p.fillPath(resetPath, QColor(0xff, 0xff, 0xff, 12));
+    p.setPen(QPen(Color::BORDER_FAINT, 1));
+    p.drawPath(resetPath);
+    p.setPen(Color::TEXT_PRIMARY);
+    p.drawText(m_resetZoomBtnRect, Qt::AlignCenter, QString("%1%").arg((int)(m_zoom * 100)));
+
+    m_favBtnRect = QRect(cx + 146, height() - 43, 34, 34);
     QColor favClr = asset.isFavorite ? Color::FAVORITE_ON : Color::TEXT_SECONDARY;
-    Codicon::draw(p, "star", m_favBtnRect, favClr, 18);
+    drawToolbarButton(p, m_favBtnRect, "star", favClr);
 
     p.setPen(Color::TEXT_SECONDARY);
-    p.drawText(cx + 210, height() - 44, 60, 36, Qt::AlignVCenter,
-               QString("%1%").arg((int)(m_zoom * 100)));
-
-    p.setPen(Color::TEXT_SECONDARY);
-    p.drawText(cx - 280, height() - 44, 60, 36, Qt::AlignVCenter,
+    p.drawText(cx - 330, height() - 43, 60, 34, Qt::AlignVCenter,
                QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size()));
 
-    m_nextBtnRect = QRect(cx + 280, height() - 44, 36, 36);
+    m_nextBtnRect = QRect(cx + 206, height() - 43, 34, 34);
     QColor nextClr = (m_currentIndex < m_assets.size() - 1) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
-    Codicon::draw(p, "chevron-right", m_nextBtnRect, nextClr, 18);
+    drawToolbarButton(p, m_nextBtnRect, "chevron-right", nextClr);
 
     p.setPen(Color::BORDER);
     p.drawLine(0, 40, width(), 40);
@@ -258,6 +284,21 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
             emit favoriteToggled(a.id, a.isFavorite);
             update();
         }
+        return;
+    }
+    if (m_overlayVisible && m_zoomOutBtnRect.contains(event->pos())) {
+        m_zoom = qBound(0.1, m_zoom * 0.85, 10.0);
+        update();
+        return;
+    }
+    if (m_overlayVisible && m_zoomInBtnRect.contains(event->pos())) {
+        m_zoom = qBound(0.1, m_zoom * 1.15, 10.0);
+        update();
+        return;
+    }
+    if (m_overlayVisible && m_resetZoomBtnRect.contains(event->pos())) {
+        resetView();
+        update();
         return;
     }
 

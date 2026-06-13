@@ -2,9 +2,11 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QImageReader>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QTextOption>
 #include <QWheelEvent>
 #include "ui/ToastNotification.h"
@@ -13,6 +15,20 @@
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
+
+namespace {
+QString detailMetaLine(const Asset &asset)
+{
+    QStringList parts;
+    if (asset.width > 0 && asset.height > 0)
+        parts << QString("%1 x %2").arg(asset.width).arg(asset.height);
+    if (!asset.format.isEmpty())
+        parts << asset.format.toUpper();
+    if (asset.fileSize > 0)
+        parts << QString("%1 KB").arg(qMax<qint64>(1, asset.fileSize / 1024));
+    return parts.join("  |  ");
+}
+}
 
 DetailPanel::DetailPanel(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
@@ -88,9 +104,10 @@ void DetailPanel::paintEvent(QPaintEvent *)
     Codicon::draw(p, "close", m_closeBtnRect, m_closeBtnHovered ? Color::CLOSE_HOVER : Color::TEXT_SECONDARY, 15);
 
     int imageBottom = drawImage(p);
-    drawSectionDivider(p, imageBottom);
+    int summaryBottom = drawAssetSummary(p, imageBottom + 1);
+    drawSectionDivider(p, summaryBottom);
 
-    int scrollTop = imageBottom + 1;
+    int scrollTop = summaryBottom + 1;
     int scrollHeight = height() - scrollTop;
 
     p.save();
@@ -153,6 +170,62 @@ int DetailPanel::drawImage(QPainter &p)
     return imgRect.bottom();
 }
 
+int DetailPanel::drawAssetSummary(QPainter &p, int y)
+{
+    const int rowH = 76;
+    QRect summaryRect(0, y, width(), rowH);
+    p.fillRect(summaryRect, Color::BG_DARK);
+
+    QFileInfo fi(m_asset.filePath);
+    QString displayName = fi.completeBaseName().isEmpty() ? m_asset.fileName : fi.completeBaseName();
+
+    QFont titleFont = p.font();
+    titleFont.setPixelSize(Visual::FontTitle);
+    titleFont.setBold(true);
+    p.setFont(titleFont);
+    p.setPen(Color::TEXT_PRIMARY);
+    QRect titleRect(16, y + 10, width() - 32, 20);
+    p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter,
+               p.fontMetrics().elidedText(displayName, Qt::ElideRight, titleRect.width()));
+
+    QFont metaFont = p.font();
+    metaFont.setPixelSize(Visual::FontMeta);
+    metaFont.setBold(false);
+    p.setFont(metaFont);
+    p.setPen(Color::TEXT_SECONDARY);
+    QRect metaRect(16, y + 31, width() - 32, 18);
+    p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
+               p.fontMetrics().elidedText(detailMetaLine(m_asset), Qt::ElideRight, metaRect.width()));
+
+    int chipX = 16;
+    const int chipY = y + 48;
+    auto drawChip = [&](const QString &text, const QColor &color) {
+        int chipW = qMin(width() - chipX - 16, p.fontMetrics().horizontalAdvance(text) + 18);
+        if (chipW <= 24) return;
+        QRect chipRect(chipX, chipY, chipW, 20);
+        QPainterPath chipPath;
+        chipPath.addRoundedRect(QRectF(chipRect), Visual::RadiusSmall, Visual::RadiusSmall);
+        QColor bg = color;
+        bg.setAlpha(44);
+        p.fillPath(chipPath, bg);
+        p.setPen(QPen(color, 1));
+        p.drawPath(chipPath);
+        p.setPen(color);
+        p.drawText(chipRect.adjusted(8, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                   p.fontMetrics().elidedText(text, Qt::ElideRight, chipRect.width() - 16));
+        chipX += chipW + 6;
+    };
+
+    if (!m_metadata.source.isEmpty())
+        drawChip(UIUtils::displayNameForSource(m_metadata.source), Color::ACCENT);
+    drawChip(m_metadata.prompt.isEmpty() ? tr("无 Prompt") : tr("Prompt"),
+             m_metadata.prompt.isEmpty() ? Color::TEXT_SECONDARY : QColor(0x3d, 0xa3, 0x5d));
+    if (!m_tags.isEmpty())
+        drawChip(tr("%1 个标签").arg(m_tags.size()), QColor(0xa9, 0x70, 0xff));
+
+    return y + rowH;
+}
+
 int DetailPanel::drawFileInfo(QPainter &p, int y)
 {
     QFont hf = p.font();
@@ -192,6 +265,25 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
                   QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     p.setFont(hf);
     p.drawText(36, y, tr("AI 元数据"));
+
+    if (!m_metadata.prompt.isEmpty()) {
+        QRect quickCopy(width() - 94, y - 19, 76, 22);
+        QPainterPath quickPath;
+        quickPath.addRoundedRect(QRectF(quickCopy), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(quickPath, m_copyPromptHovered ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON_SUBTLE);
+        p.setPen(QPen(Color::BORDER_FAINT, 1));
+        p.drawPath(quickPath);
+        Codicon::draw(p, "copy", QRect(quickCopy.left() + 8, quickCopy.top(), 14, quickCopy.height()),
+                      Color::TEXT_SECONDARY, 11);
+        QFont quickFont = p.font();
+        quickFont.setPixelSize(Visual::FontCaption);
+        quickFont.setBold(false);
+        p.setFont(quickFont);
+        p.setPen(Color::TEXT_PRIMARY);
+        p.drawText(quickCopy.adjusted(26, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, tr("复制"));
+        m_copyPromptRect = quickCopy;
+    }
+
     if (!m_metadataExpanded) return y + 8;
     y += 24;
 
@@ -211,22 +303,22 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     p.setFont(body);
     p.drawText(40, y, "Prompt");
 
-    m_copyPromptRect = QRect(width() - 42, y - 18, 24, 22);
-    if (m_copyPromptHovered && !m_metadata.prompt.isEmpty())
-        p.fillRect(m_copyPromptRect.adjusted(1, 1, -1, -1), Color::BG_BUTTON_HOVER);
-    Codicon::draw(p, "copy", m_copyPromptRect,
-                  m_metadata.prompt.isEmpty() ? Color::TEXT_DISABLED
-                                              : (m_copyPromptHovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY),
-                  12);
-
     QString promptText = m_metadata.prompt.isEmpty() ? tr("暂无 Prompt") : m_metadata.prompt;
-    QRect promptRect(16, y + 8, width() - 34, m_promptExpanded ? Visual::DetailPromptHeight : 22);
+    QRect promptRect(16, y + 8, width() - 32, m_promptExpanded ? Visual::DetailPromptHeight : 22);
+    if (m_promptExpanded) {
+        QPainterPath promptPath;
+        promptPath.addRoundedRect(QRectF(promptRect.adjusted(0, 0, 0, 8)), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(promptPath, Color::BG_CARD_SUBTLE);
+        p.setPen(QPen(Color::BORDER_FAINT, 1));
+        p.drawPath(promptPath);
+    }
     p.setPen(m_metadata.prompt.isEmpty() ? Color::TEXT_SECONDARY : Color::TEXT_PRIMARY);
     if (m_promptExpanded) {
         QTextOption opt;
         opt.setWrapMode(QTextOption::WordWrap);
-        p.drawText(promptRect, promptText, opt);
-        int promptH = p.fontMetrics().boundingRect(QRect(0, 0, promptRect.width(), 300),
+        QRect textRect = promptRect.adjusted(10, 8, -10, -4);
+        p.drawText(textRect, promptText, opt);
+        int promptH = p.fontMetrics().boundingRect(QRect(0, 0, textRect.width(), 300),
                                                    Qt::TextWordWrap, promptText).height();
         y += qBound(58, promptH + 40, Visual::DetailPromptHeight + 34);
     } else {

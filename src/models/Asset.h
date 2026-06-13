@@ -15,6 +15,8 @@ struct Asset {
     QString hash;
     bool isFavorite = false;
     QString folderId;
+    QString metadataSource;
+    QString metadataPrompt;
     QDateTime createdAt;
     QDateTime updatedAt;
 

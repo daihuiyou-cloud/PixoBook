@@ -40,6 +40,23 @@ QString compactFileName(const QString &fileName)
     return base.isEmpty() ? fileName : base;
 }
 
+QString sourceBadge(const Asset &asset)
+{
+    const QString source = asset.metadataSource;
+    if (source == "stable-diffusion") return QStringLiteral("SD");
+    if (source == "midjourney") return QStringLiteral("MJ");
+    if (source == "dalle") return QStringLiteral("DALL-E");
+    return source.left(8).toUpper();
+}
+
+QColor sourceBadgeColor(const Asset &asset)
+{
+    const QString source = asset.metadataSource;
+    if (source == "stable-diffusion") return QColor(0x3d, 0xa3, 0x5d);
+    if (source == "midjourney") return QColor(0xa9, 0x70, 0xff);
+    if (source == "dalle") return QColor(0x2f, 0x9d, 0xb7);
+    return Color::ACCENT;
+}
 
 }
 
@@ -279,6 +296,68 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     }
 }
 
+void GalleryWidget::drawBatchToolbar(QPainter &p)
+{
+    if (m_selectedIndices.size() <= 1) {
+        m_batchTagRect = {};
+        m_batchDeleteRect = {};
+        m_batchClearRect = {};
+        return;
+    }
+
+    const int barW = 390;
+    const int barH = 36;
+    QRect bar(width() - barW - 18, 12, barW, barH);
+    QPainterPath barPath;
+    barPath.addRoundedRect(QRectF(bar), Visual::RadiusMedium, Visual::RadiusMedium);
+    p.fillPath(barPath, Color::BG_MEDIUM);
+    p.setPen(QPen(Color::BORDER_SUBTLE, 1));
+    p.drawPath(barPath);
+
+    QFont f = p.font();
+    f.setPixelSize(Visual::FontControl);
+    f.setBold(true);
+    p.setFont(f);
+    p.setPen(Color::TEXT_PRIMARY);
+    p.drawText(bar.adjusted(14, 0, -260, 0), Qt::AlignVCenter | Qt::AlignLeft,
+               tr("已选择 %1 项").arg(m_selectedIndices.size()));
+
+    auto drawAction = [&](QRect &target, int x, int w, const QString &icon, const QString &text, const QColor &color) {
+        target = QRect(x, bar.top() + 5, w, 26);
+        QPainterPath path;
+        path.addRoundedRect(QRectF(target), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.fillPath(path, Color::BG_BUTTON_SUBTLE);
+        p.setPen(QPen(Color::BORDER_FAINT, 1));
+        p.drawPath(path);
+        Codicon::draw(p, icon, QRect(target.left() + 8, target.top(), 14, target.height()), color, 12);
+        QFont actionFont = p.font();
+        actionFont.setPixelSize(Visual::FontCaption);
+        actionFont.setBold(false);
+        p.setFont(actionFont);
+        p.setPen(color);
+        p.drawText(target.adjusted(27, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, text);
+    };
+
+    drawAction(m_batchTagRect, bar.right() - 214, 82, "tag", tr("标签"), Color::TEXT_PRIMARY);
+    drawAction(m_batchDeleteRect, bar.right() - 126, 72, "trash", tr("删除"), Color::ERROR_TEXT);
+    m_batchClearRect = QRect(bar.right() - 45, bar.top() + 5, 28, 26);
+    QPainterPath clearPath;
+    clearPath.addRoundedRect(QRectF(m_batchClearRect), Visual::RadiusSmall, Visual::RadiusSmall);
+    p.fillPath(clearPath, Color::BG_BUTTON_SUBTLE);
+    p.setPen(QPen(Color::BORDER_FAINT, 1));
+    p.drawPath(clearPath);
+    Codicon::draw(p, "close", m_batchClearRect, Color::TEXT_SECONDARY, 12);
+}
+
+void GalleryWidget::clearSelection()
+{
+    m_selectedIndices.clear();
+    m_selectedAsset = {};
+    m_lastClickedIndex = -1;
+    update();
+    emit assetSelected({});
+}
+
 void GalleryWidget::navigateTo(int index)
 {
     if (index < 0 || index >= m_assets.size()) return;
@@ -341,15 +420,17 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             p.drawRoundedRect(shadowRect, Visual::RadiusMedium, Visual::RadiusMedium);
         }
 
-        p.setBrush(isSelected ? Color::BG_CARD_HOVER
-                              : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
-        p.setPen(QPen(isSelected ? Color::ACCENT
+        QPainterPath cardPath;
+        cardPath.addRoundedRect(QRectF(r), Visual::RadiusMedium, Visual::RadiusMedium);
+        p.fillPath(cardPath, isSelected ? Color::BG_CARD_HOVER
+                                        : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
+        p.setPen(QPen(isSelected ? Color::FOCUS_BORDER
                                  : (isHovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT),
-                      isSelected ? 2 : 1));
-        p.drawRoundedRect(r, Visual::RadiusMedium, Visual::RadiusMedium);
+                      1));
+        p.drawPath(cardPath);
 
         if (isSelected) {
-            p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
+            p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::FOCUS_BORDER);
             p.setPen(QPen(Color::WHITE_15, 1));
             p.drawLine(r.left() + 4, r.top() + 2, r.right() - 4, r.top() + 2);
         }
@@ -389,6 +470,32 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.setPen(QPen(Color::BORDER_MUTED, 1));
         p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 
+        const bool hasSource = !asset.metadataSource.isEmpty();
+        const bool hasPrompt = !asset.metadataPrompt.trimmed().isEmpty();
+        if (hasSource) {
+            QString badge = sourceBadge(asset);
+            QFont badgeFont = p.font();
+            badgeFont.setPixelSize(Visual::FontCaption);
+            badgeFont.setBold(true);
+            p.setFont(badgeFont);
+            const int badgeW = qMin(72, p.fontMetrics().horizontalAdvance(badge) + 16);
+            QRect badgeRect(thumbArea.left() + 8, thumbArea.top() + 8, badgeW, 20);
+            QPainterPath badgePath;
+            badgePath.addRoundedRect(QRectF(badgeRect), Visual::RadiusSmall, Visual::RadiusSmall);
+            QColor badgeBg = sourceBadgeColor(asset);
+            badgeBg.setAlpha(210);
+            p.fillPath(badgePath, badgeBg);
+            p.setPen(Color::TEXT_BRIGHT);
+            p.drawText(badgeRect, Qt::AlignCenter, badge);
+        }
+        if (hasPrompt) {
+            QRect promptRect(thumbArea.right() - 32, thumbArea.top() + 8, 24, 20);
+            QPainterPath promptPath;
+            promptPath.addRoundedRect(QRectF(promptRect), Visual::RadiusSmall, Visual::RadiusSmall);
+            p.fillPath(promptPath, QColor(0, 0, 0, 150));
+            Codicon::draw(p, "symbol-keyword", promptRect, Color::TEXT_PRIMARY, 13);
+        }
+
         QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 8,
                         r.width() - kPadding * 2 - 32, 16);
         p.setFont(m_labelFont);
@@ -414,6 +521,8 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             Codicon::draw(p, asset.isFavorite ? "star" : "star-empty", starRect, starColor, 15);
         }
     }
+
+    drawBatchToolbar(p);
 }
 
 void GalleryWidget::keyPressEvent(QKeyEvent *event)
@@ -492,6 +601,27 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() != Qt::LeftButton) return;
 
+    if (m_selectedIndices.size() > 1) {
+        if (m_batchTagRect.contains(event->pos())) {
+            QVector<QString> ids;
+            for (int idx : m_selectedIndices) {
+                if (idx >= 0 && idx < m_assets.size())
+                    ids.append(m_assets[idx].id);
+            }
+            if (!ids.isEmpty()) emit tagAddRequested(ids);
+            return;
+        }
+        if (m_batchDeleteRect.contains(event->pos())) {
+            auto sel = selectedAssets();
+            if (!sel.isEmpty()) emit deleteRequested(sel);
+            return;
+        }
+        if (m_batchClearRect.contains(event->pos())) {
+            clearSelection();
+            return;
+        }
+    }
+
     if (m_assets.isEmpty() && m_searchKeyword.isEmpty()) {
         if (emptyFolderButtonRect().contains(event->pos())) {
             emit importFolderRequested();
@@ -564,9 +694,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
             update();
             emit assetSelected(m_assets[idx]);
         } else {
-            m_selectedAsset = {};
-            update();
-            emit assetSelected({});
+            clearSelection();
         }
     }
 }

@@ -50,6 +50,9 @@ private:
     QRect m_prevBtnRect;
     QRect m_nextBtnRect;
     QRect m_favBtnRect;
+    QRect m_zoomOutBtnRect;
+    QRect m_resetZoomBtnRect;
+    QRect m_zoomInBtnRect;
 };
 
 #endif

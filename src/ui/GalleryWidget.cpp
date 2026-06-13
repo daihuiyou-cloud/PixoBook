@@ -94,9 +94,11 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
 {
     m_assets = assets;
     m_hoveredIndex = -1;
+    m_lastClickedIndex = -1;
     m_selectedAsset = {};
     m_selectedIndices.clear();
     m_requestedThumbnails.clear();
+    m_fileExistsCache.clear();
     m_scrollOffset = 0;
     layoutItems();
     update();
@@ -105,6 +107,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
 void GalleryWidget::appendAssets(const QVector<Asset> &assets)
 {
     m_assets.append(assets);
+    m_fileExistsCache.clear();
     layoutItems();
     update();
 }
@@ -113,9 +116,11 @@ void GalleryWidget::clearAssets()
 {
     m_assets.clear();
     m_hoveredIndex = -1;
+    m_lastClickedIndex = -1;
     m_selectedAsset = {};
     m_selectedIndices.clear();
     m_requestedThumbnails.clear();
+    m_fileExistsCache.clear();
     m_scrollOffset = 0;
     layoutItems();
     update();
@@ -304,17 +309,26 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 
         QSize thumbSize(m_thumbSize, m_thumbSize);
-        bool fileExists = QFileInfo::exists(asset.filePath);
+        auto it = m_fileExistsCache.constFind(asset.filePath);
+        bool fileExists;
+        if (it != m_fileExistsCache.constEnd()) {
+            fileExists = it.value();
+        } else {
+            fileExists = QFileInfo::exists(asset.filePath);
+            m_fileExistsCache.insert(asset.filePath, fileExists);
+        }
         if (!fileExists) {
             p.setPen(Color::ERROR_TEXT);
             p.drawText(thumbArea, Qt::AlignCenter, QStringLiteral("文件不存在"));
+        } else if (m_requestedThumbnails.contains(asset.filePath)) {
+            p.setPen(Color::TEXT_SECONDARY);
+            p.drawText(thumbArea, Qt::AlignCenter,
+                       asset.format.isEmpty() ? QStringLiteral("加载中") : asset.format.toUpper());
         } else {
             QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
             if (thumb.isNull()) {
-                if (!m_requestedThumbnails.contains(asset.filePath)) {
-                    m_requestedThumbnails.insert(asset.filePath);
-                    m_cache->requestThumbnail(asset.filePath, thumbSize);
-                }
+                m_requestedThumbnails.insert(asset.filePath);
+                m_cache->requestThumbnail(asset.filePath, thumbSize);
                 p.setPen(Color::TEXT_SECONDARY);
                 p.drawText(thumbArea, Qt::AlignCenter,
                            asset.format.isEmpty() ? QStringLiteral("加载中") : asset.format.toUpper());
@@ -422,7 +436,7 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
 {
     int oldHover = m_hoveredIndex;
     m_hoveredIndex = indexAt(event->pos());
-    if (oldHover != m_hoveredIndex || m_assets.isEmpty()) update();
+    if (oldHover != m_hoveredIndex) update();
 }
 
 void GalleryWidget::mousePressEvent(QMouseEvent *event)
@@ -444,7 +458,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
 
     if (idx >= 0) {
         QRect r = itemRect(idx);
-        QRect starRect(r.right() - 42, r.bottom() - 42, 38, 38);
+        QRect starRect(r.right() - 40, r.bottom() - 40, 32, 32);
         if (starRect.contains(event->pos())) {
             QString assetId = m_assets[idx].id;
             bool newFav = !m_assets[idx].isFavorite;
@@ -457,6 +471,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
 
     if (event->modifiers() & Qt::ControlModifier) {
         if (idx >= 0) {
+            m_lastClickedIndex = idx;
             if (m_selectedIndices.contains(idx)) {
                 m_selectedIndices.remove(idx);
                 if (m_selectedIndices.isEmpty()) {
@@ -475,11 +490,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
             update();
         }
     } else if (event->modifiers() & Qt::ShiftModifier) {
-        int lastIdx = -1;
-        if (!m_selectedIndices.isEmpty())
-            lastIdx = *m_selectedIndices.begin();
-        else if (!m_selectedAsset.id.isEmpty())
-            lastIdx = m_assets.indexOf(m_selectedAsset);
+        int lastIdx = m_lastClickedIndex;
         if (lastIdx >= 0 && idx >= 0) {
             int start = qMin(lastIdx, idx);
             int end = qMax(lastIdx, idx);
@@ -498,6 +509,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
     } else {
         m_selectedIndices.clear();
         if (idx >= 0) {
+            m_lastClickedIndex = idx;
             m_selectedAsset = m_assets[idx];
             m_selectedIndices.insert(idx);
             update();

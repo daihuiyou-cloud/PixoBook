@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QVector>
 #include <QSet>
+#include <QHash>
 #include "ui/VisualConstants.h"
 #include "models/Asset.h"
 #include "core/IImageCache.h"
@@ -77,11 +78,13 @@ private:
     QSet<int> m_selectedIndices;
     Asset m_selectedAsset;
     int m_hoveredIndex = -1;
+    int m_lastClickedIndex = -1;
     int m_scrollOffset = 0;
     int m_totalHeight = 0;
     int m_columns = 4;
     QString m_searchKeyword;
     QSet<QString> m_requestedThumbnails;
+    QHash<QString, bool> m_fileExistsCache;
     IImageCache *m_cache;
 };
 

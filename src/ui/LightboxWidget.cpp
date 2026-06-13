@@ -93,7 +93,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
 
     p.fillRect(rect(), Color::BG_DARKEST);
 
-    if (m_currentPixmap.isNull() || m_currentIndex < 0) {
+    if (m_currentPixmap.isNull() || m_currentIndex < 0 || m_currentIndex >= m_assets.size()) {
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect(), Qt::AlignCenter,
                    m_assets.isEmpty()

@@ -74,16 +74,8 @@ void ActivityBar::mouseMoveEvent(QMouseEvent *event)
 {
     int oldHover = m_hovered;
     m_hovered = indexAt(event->pos());
-    if (oldHover != m_hovered) {
+    if (oldHover != m_hovered)
         update();
-        if (m_hovered >= 0) {
-            QRect r = iconRect(m_hovered);
-            QToolTip::showText(mapToGlobal(QPoint(r.right() + 8, r.center().y())),
-                               m_icons[m_hovered].tooltip, this);
-        } else {
-            QToolTip::hideText();
-        }
-    }
 }
 
 void ActivityBar::mousePressEvent(QMouseEvent *event)

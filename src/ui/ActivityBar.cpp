@@ -18,10 +18,9 @@ ActivityBar::ActivityBar(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
 
     m_icons = {
-        { "layout",     QStringLiteral("\u56fe\u5e93") },
-        { "star",       QStringLiteral("\u6536\u85cf") },
-        { "tag",        QStringLiteral("\u6807\u7b7e") },
-        { "settings",   QStringLiteral("\u8bbe\u7f6e") },
+        { "layout",     QStringLiteral("图库") },
+        { "star",       QStringLiteral("收藏") },
+        { "tag",        QStringLiteral("标签") },
     };
 }
 

@@ -463,11 +463,6 @@ void MainWindow::setupConnections()
             m_activeTagId = -1;
             m_tabBar->setCurrentIndex(0);
             break;
-        case ActivityBar::Settings:
-            m_tabBar->blockSignals(false);
-            m_searchBar->blockSignals(false);
-            ToastNotification::show(this, tr("设置功能即将推出"));
-            return;
         }
 
         m_tabBar->blockSignals(false);

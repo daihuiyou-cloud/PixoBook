@@ -8,7 +8,7 @@ class ActivityBar : public QWidget
 {
     Q_OBJECT
 public:
-    enum Activity { Gallery = 0, Favorites, Tags, Settings };
+    enum Activity { Gallery = 0, Favorites, Tags };
 
     explicit ActivityBar(QWidget *parent = nullptr);
 

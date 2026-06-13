@@ -51,9 +51,10 @@ LibraryController::~LibraryController() = default;
 
 QVector<Asset> LibraryController::loadAssets(const QString &keyword, const QString &source,
                                               const QVector<int> &tagIds, bool onlyFavorites,
-                                              const QString &sortField, bool sortAscending)
+                                              const QString &sortField, bool sortAscending,
+                                              int offset, int limit)
 {
-    return m_db->searchAssets(keyword, source, tagIds, onlyFavorites, sortField, sortAscending);
+    return m_db->searchAssets(keyword, source, tagIds, onlyFavorites, sortField, sortAscending, offset, limit);
 }
 
 Asset LibraryController::getAsset(const QString &id)
@@ -159,4 +160,10 @@ void LibraryController::toggleFavorite(const QString &assetId, bool isFavorite)
 {
     m_db->updateAssetFavorite(assetId, isFavorite);
     emit dataChanged();
+}
+
+int LibraryController::countAssets(const QString &keyword, const QString &source,
+                                    const QVector<int> &tagIds, bool onlyFavorites)
+{
+    return m_db->countAssets(keyword, source, tagIds, onlyFavorites);
 }

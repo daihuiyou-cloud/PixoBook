@@ -25,7 +25,8 @@ public:
     QVector<Asset> searchAssets(const QString &keyword, const QString &source,
                                 const QVector<int> &tagIds, bool onlyFavorites,
                                 const QString &sortField = "created_at",
-                                bool sortAscending = false) const override;
+                                bool sortAscending = false,
+                                int offset = 0, int limit = -1) const override;
     Asset findByPath(const QString &filePath) const override;
     Asset findByHash(const QString &hash) const override;
 
@@ -46,6 +47,9 @@ public:
     bool beginTransaction() override;
     bool commitTransaction() override;
     bool rollbackTransaction() override;
+
+    int countAssets(const QString &keyword = {}, const QString &source = {},
+                    const QVector<int> &tagIds = {}, bool onlyFavorites = false) const override;
 
 private:
     void createSchema();

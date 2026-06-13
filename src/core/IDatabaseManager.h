@@ -25,7 +25,8 @@ public:
     virtual QVector<Asset> searchAssets(const QString &keyword, const QString &source,
                                         const QVector<int> &tagIds, bool onlyFavorites,
                                         const QString &sortField = "created_at",
-                                        bool sortAscending = false) const = 0;
+                                        bool sortAscending = false,
+                                        int offset = 0, int limit = -1) const = 0;
     virtual Asset findByPath(const QString &filePath) const = 0;
     virtual Asset findByHash(const QString &hash) const = 0;
 
@@ -50,6 +51,10 @@ public:
     virtual bool beginTransaction() = 0;
     virtual bool commitTransaction() = 0;
     virtual bool rollbackTransaction() = 0;
+
+    // Count queries
+    virtual int countAssets(const QString &keyword = {}, const QString &source = {},
+                            const QVector<int> &tagIds = {}, bool onlyFavorites = false) const = 0;
 };
 
 #endif

@@ -27,7 +27,8 @@ public:
     // Asset queries
     QVector<Asset> loadAssets(const QString &keyword = {}, const QString &source = {},
                               const QVector<int> &tagIds = {}, bool onlyFavorites = false,
-                              const QString &sortField = "created_at", bool sortAscending = false);
+                              const QString &sortField = "created_at", bool sortAscending = false,
+                              int offset = 0, int limit = -1);
     Asset getAsset(const QString &id);
     Metadata getMetadata(const QString &assetId);
     QVector<Tag> getTagsForAsset(const QString &assetId);
@@ -52,6 +53,10 @@ public:
     void scanAndInsertFile(const QString &path);
     bool deleteAssets(const QVector<Asset> &assets);
     void toggleFavorite(const QString &assetId, bool isFavorite);
+
+    // Count
+    int countAssets(const QString &keyword = {}, const QString &source = {},
+                    const QVector<int> &tagIds = {}, bool onlyFavorites = false);
 
 signals:
     void assetCountChanged(int count);

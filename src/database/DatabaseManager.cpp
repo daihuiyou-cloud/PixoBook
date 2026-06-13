@@ -232,7 +232,8 @@ QVector<Asset> DatabaseManager::getAllAssets() const
 
 QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QString &source,
                                               const QVector<int> &tagIds, bool onlyFavorites,
-                                              const QString &sortField, bool sortAscending) const
+                                              const QString &sortField, bool sortAscending,
+                                              int offset, int limit) const
 {
     QVector<Asset> assets;
     QString sql = "SELECT DISTINCT a.* FROM assets a "
@@ -268,6 +269,9 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
     else if (sortField == "file_size") sortCol = "a.file_size";
     sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC");
 
+    if (limit > 0)
+        sql += QStringLiteral(" LIMIT %1 OFFSET %2").arg(limit).arg(offset);
+
     QSqlQuery q(m_db);
     q.prepare(sql);
     for (const auto &b : binds)
@@ -292,6 +296,47 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
         }
     }
     return assets;
+}
+
+int DatabaseManager::countAssets(const QString &keyword, const QString &source,
+                                  const QVector<int> &tagIds, bool onlyFavorites) const
+{
+    QString sql = "SELECT COUNT(DISTINCT a.id) FROM assets a "
+                  "LEFT JOIN metadata m ON a.id = m.asset_id "
+                  "LEFT JOIN asset_tags at ON a.id = at.asset_id "
+                  "WHERE 1=1 ";
+    QVector<QVariant> binds;
+
+    if (!keyword.isEmpty()) {
+        sql += "AND (a.file_name LIKE ? OR m.prompt LIKE ?) ";
+        auto kw = "%" + keyword + "%";
+        binds.append(kw);
+        binds.append(kw);
+    }
+    if (!source.isEmpty()) {
+        sql += "AND m.source = ? ";
+        binds.append(source);
+    }
+    if (onlyFavorites) {
+        sql += "AND a.is_favorite = 1 ";
+    }
+    if (!tagIds.isEmpty()) {
+        QStringList placeholders;
+        for (auto tid : tagIds) {
+            placeholders << "?";
+            binds.append(tid);
+        }
+        sql += "AND at.tag_id IN (" + placeholders.join(",") + ") ";
+    }
+
+    QSqlQuery q(m_db);
+    q.prepare(sql);
+    for (const auto &b : binds)
+        q.addBindValue(b);
+
+    if (q.exec() && q.next())
+        return q.value(0).toInt();
+    return 0;
 }
 
 Asset DatabaseManager::findByPath(const QString &filePath) const

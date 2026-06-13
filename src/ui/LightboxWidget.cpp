@@ -122,7 +122,13 @@ void LightboxWidget::paintEvent(QPaintEvent *)
 
     p.drawPixmap(drawX, drawY, drawW, drawH, m_currentPixmap);
 
-    if (!m_overlayVisible) return;
+    if (!m_overlayVisible) {
+        m_closeBtnRect = QRect();
+        m_prevBtnRect = QRect();
+        m_nextBtnRect = QRect();
+        m_favBtnRect = QRect();
+        return;
+    }
 
     QFont f = p.font();
     f.setPixelSize(Visual::FontControl);

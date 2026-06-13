@@ -99,7 +99,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
 
     int totalContent = y - scrollTop + 16;
     m_maxScrollOffset = qMax(0, totalContent - scrollHeight);
-    m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
+    clampScrollOffset();
 }
 
 void DetailPanel::drawSectionDivider(QPainter &p, int y)
@@ -410,7 +410,12 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
     }
 }
 
-void DetailPanel::resizeEvent(QResizeEvent *) { update(); }
+void DetailPanel::clampScrollOffset()
+{
+    m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
+}
+
+void DetailPanel::resizeEvent(QResizeEvent *) { clampScrollOffset(); update(); }
 
 void DetailPanel::leaveEvent(QEvent *)
 {

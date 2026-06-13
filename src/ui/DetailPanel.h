@@ -71,6 +71,7 @@ private:
     int drawMetadataSection(QPainter &p, int y);
     int drawTagsSection(QPainter &p, int y);
     void drawSectionDivider(QPainter &p, int y);
+    void clampScrollOffset();
     void drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW = 88);
 };
 

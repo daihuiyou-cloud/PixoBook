@@ -39,10 +39,13 @@ int main(int argc, char *argv[])
     app.setStyle(style);
 
     QFile styleFile(":/styles/main.qss");
+    QString qss;
     if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
-        app.setStyleSheet(styleFile.readAll());
+        qss = QString::fromUtf8(styleFile.readAll());
         styleFile.close();
     }
+    qss += QStringLiteral("QToolTip { font-family: \"Microsoft YaHei UI\"; font-size: 10pt; color: #cccccc; background-color: #2d2d2d; border: 1px solid #404040; padding: 4px 8px; }");
+    app.setStyleSheet(qss);
 
     app.setPalette(style->standardPalette());
 

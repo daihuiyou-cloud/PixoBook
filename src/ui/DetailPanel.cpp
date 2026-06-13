@@ -56,6 +56,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
     p.fillRect(rect(), Color::BG_DARK);
 
     if (m_asset.id.isEmpty()) {

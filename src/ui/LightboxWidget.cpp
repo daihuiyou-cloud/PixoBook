@@ -3,6 +3,7 @@
 #include <QKeyEvent>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
+#include "ui/VisualConstants.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QFileInfo>
@@ -96,8 +97,8 @@ void LightboxWidget::paintEvent(QPaintEvent *)
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect(), Qt::AlignCenter,
                    m_assets.isEmpty()
-                       ? "No images"
-                       : QString::fromUtf8("\xe6\x97\xa0\xe6\xb3\x95\xe5\x8a\xa0\xe8\xbd\xbd\xe5\x9b\xbe\xe7\x89\x87"));
+                       ? QStringLiteral("No images")
+                       : QStringLiteral("无法加载图片"));
         return;
     }
 
@@ -124,7 +125,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     if (!m_overlayVisible) return;
 
     QFont f = p.font();
-    f.setPointSize(11);
+    f.setPixelSize(Visual::FontControl);
     p.setFont(f);
 
     // Top bar
@@ -142,7 +143,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     // Bottom bar
     QRect bottomBar(0, height() - 50, width(), 50);
     p.fillRect(bottomBar, Color::OVERLAY_BG);
-    f.setPointSize(10);
+    f.setPixelSize(Visual::FontMeta);
     p.setFont(f);
 
     int cx = width() / 2;
@@ -151,9 +152,6 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     QColor prevClr = (m_currentIndex > 0) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
     Codicon::draw(p, "chevron-left", m_prevBtnRect, prevClr, 18);
 
-    QFont nf = p.font();
-    nf.setPointSize(10);
-    p.setFont(nf);
     p.setPen(Color::TEXT_PRIMARY);
     QString info = QString("%1 x %2 | %3 | %4 KB")
                        .arg(asset.width)
@@ -168,8 +166,6 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     Codicon::draw(p, "star", m_favBtnRect, favClr, 18);
 
     p.setPen(Color::TEXT_SECONDARY);
-    nf.setPointSize(10);
-    p.setFont(nf);
     p.drawText(cx + 210, height() - 44, 60, 36, Qt::AlignVCenter,
                QString("%1%").arg((int)(m_zoom * 100)));
 

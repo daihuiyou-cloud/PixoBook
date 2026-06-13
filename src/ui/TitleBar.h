@@ -31,6 +31,7 @@ protected:
     bool event(QEvent *event) override;
 
 private:
+    enum ControlButton { CtrlNone = -1, CtrlMinimize, CtrlMaximize, CtrlClose };
     enum HitTest {
         HitNone,
         HitMenu,
@@ -47,8 +48,8 @@ private:
 
     bool m_maximized = false;
     int m_hoveredMenu = -1;
-    int m_hoveredControl = -1;
-    int m_pressedControl = -1;
+    ControlButton m_hoveredControl = CtrlNone;
+    ControlButton m_pressedControl = CtrlNone;
     bool m_dragging = false;
     QPoint m_dragStartPos;
 

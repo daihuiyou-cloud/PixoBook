@@ -58,9 +58,9 @@ void ActivityBar::paintEvent(QPaintEvent *)
         if (active)
             p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::ACCENT);
         else if (hovered) {
-            QPainterPath hoverPath;
-            hoverPath.addRoundedRect(QRectF(r.adjusted(4, 6, -4, -6)), Visual::RadiusSmall, Visual::RadiusSmall);
-            p.fillPath(hoverPath, Color::BG_HOVER);
+            p.setBrush(Color::BG_HOVER);
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(r.adjusted(4, 6, -4, -6), Visual::RadiusSmall, Visual::RadiusSmall);
         }
 
         QColor iconColor = active ? Color::TEXT_BRIGHT

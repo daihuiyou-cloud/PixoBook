@@ -109,10 +109,8 @@ void TabBar::paintEvent(QPaintEvent *)
     }
 
     QRect r = addButtonRect();
-    if (m_hoveredAdd) {
+    if (m_hoveredAdd)
         p.fillRect(r, Color::BG_SELECTED);
-        QToolTip::showText(mapToGlobal(r.center()), QStringLiteral("导入素材文件夹"), this);
-    }
     Codicon::draw(p, "add", r, Color::TEXT_PRIMARY, 14);
 }
 
@@ -123,6 +121,11 @@ void TabBar::mouseMoveEvent(QMouseEvent *event)
 
     m_hoveredIndex = indexAt(event->pos());
     m_hoveredAdd = addButtonRect().contains(event->pos());
+
+    if (m_hoveredAdd)
+        QToolTip::showText(mapToGlobal(addButtonRect().center()), QStringLiteral("导入素材文件夹"), this);
+    else if (oldHoveredAdd)
+        QToolTip::hideText();
 
     if (oldHovered != m_hoveredIndex || oldHoveredAdd != m_hoveredAdd)
         update();

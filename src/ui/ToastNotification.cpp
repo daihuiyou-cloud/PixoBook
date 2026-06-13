@@ -2,6 +2,8 @@
 #include <QPainter>
 #include <QVBoxLayout>
 #include <QApplication>
+#include "ui/ColorConstants.h"
+#include "ui/VisualConstants.h"
 
 static ToastNotification *s_currentToast = nullptr;
 
@@ -75,7 +77,7 @@ void ToastNotification::paintEvent(QPaintEvent *)
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     p.setOpacity(m_opacity);
-    p.setBrush(QColor(0x25, 0x25, 0x26));
-    p.setPen(QPen(QColor(0x00, 0x7a, 0xcc), 1));
-    p.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 6, 6);
+    p.setBrush(Color::BG_DARK);
+    p.setPen(QPen(Color::ACCENT, 1));
+    p.drawRoundedRect(rect().adjusted(1, 1, -1, -1), Visual::RadiusMedium, Visual::RadiusMedium);
 }

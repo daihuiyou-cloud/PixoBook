@@ -85,16 +85,16 @@ void TitleBar::paintEvent(QPaintEvent *)
     }
 
     QRect minRect = minimizeBtnRect();
-    if (m_hoveredControl == 0) p.fillRect(minRect, Color::BG_SELECTED);
+    if (m_hoveredControl == CtrlMinimize) p.fillRect(minRect, Color::BG_SELECTED);
     Codicon::draw(p, "chrome-minimize", minRect, Color::TEXT_PRIMARY, 14);
 
     QRect maxRect = maximizeBtnRect();
-    if (m_hoveredControl == 1) p.fillRect(maxRect, Color::BG_SELECTED);
+    if (m_hoveredControl == CtrlMaximize) p.fillRect(maxRect, Color::BG_SELECTED);
     Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", maxRect,
                   Color::TEXT_PRIMARY, 14);
 
     QRect closeRect = closeBtnRect();
-    if (m_hoveredControl == 2) {
+    if (m_hoveredControl == CtrlClose) {
         p.fillRect(closeRect, Color::CLOSE_HOVER);
         Codicon::draw(p, "chrome-close", closeRect, Qt::white, 14);
     } else {
@@ -109,15 +109,15 @@ void TitleBar::mousePressEvent(QMouseEvent *event)
     HitTest ht = hitTest(event->pos());
     switch (ht) {
     case HitClose:
-        m_pressedControl = 2;
+        m_pressedControl = CtrlClose;
         update();
         break;
     case HitMaximize:
-        m_pressedControl = 1;
+        m_pressedControl = CtrlMaximize;
         update();
         break;
     case HitMinimize:
-        m_pressedControl = 0;
+        m_pressedControl = CtrlMinimize;
         update();
         break;
     case HitMenu:
@@ -161,7 +161,7 @@ void TitleBar::mouseMoveEvent(QMouseEvent *event)
     HitTest ht = hitTest(event->pos());
 
     m_hoveredMenu = -1;
-    m_hoveredControl = -1;
+    m_hoveredControl = CtrlNone;
 
     if (ht == HitMenu) {
         for (int i = 0; i < m_menus.size(); i++) {
@@ -171,11 +171,11 @@ void TitleBar::mouseMoveEvent(QMouseEvent *event)
             }
         }
     } else if (ht == HitMinimize) {
-        m_hoveredControl = 0;
+        m_hoveredControl = CtrlMinimize;
     } else if (ht == HitMaximize) {
-        m_hoveredControl = 1;
+        m_hoveredControl = CtrlMaximize;
     } else if (ht == HitClose) {
-        m_hoveredControl = 2;
+        m_hoveredControl = CtrlClose;
     }
 
     if (oldHoverMenu != m_hoveredMenu || oldHoverControl != m_hoveredControl)
@@ -192,9 +192,9 @@ void TitleBar::mouseReleaseEvent(QMouseEvent *event)
         return;
     }
 
-    if (m_pressedControl == 0) {
+    if (m_pressedControl == CtrlMinimize) {
         window()->showMinimized();
-    } else if (m_pressedControl == 1) {
+    } else if (m_pressedControl == CtrlMaximize) {
         QWidget *win = window();
         if (win->isMaximized()) {
             win->showNormal();
@@ -203,11 +203,11 @@ void TitleBar::mouseReleaseEvent(QMouseEvent *event)
             win->showMaximized();
             m_maximized = true;
         }
-    } else if (m_pressedControl == 2) {
+    } else if (m_pressedControl == CtrlClose) {
         window()->close();
     }
 
-    m_pressedControl = -1;
+    m_pressedControl = CtrlNone;
     update();
 }
 
@@ -229,9 +229,9 @@ void TitleBar::mouseDoubleClickEvent(QMouseEvent *event)
 
 void TitleBar::leaveEvent(QEvent *)
 {
-    if (m_hoveredMenu != -1 || m_hoveredControl != -1) {
+    if (m_hoveredMenu != -1 || m_hoveredControl != CtrlNone) {
         m_hoveredMenu = -1;
-        m_hoveredControl = -1;
+        m_hoveredControl = CtrlNone;
         update();
     }
 }

@@ -143,11 +143,9 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             p.drawText(QRect(16, m_sectionTagY + kSectionHeight + 4, width() - 32, kItemHeight),
                        Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("暂无标签"));
             m_addTagRect = QRect(16, m_sectionTagY + kSectionHeight + kItemHeight + 4, width() - 32, 26);
-            QPainterPath addPath;
-            addPath.addRoundedRect(QRectF(m_addTagRect), Visual::RadiusSmall, Visual::RadiusSmall);
-            p.fillPath(addPath, m_hoveredAddTagButton ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON);
+            p.setBrush(m_hoveredAddTagButton ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON);
             p.setPen(QPen(m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
-            p.drawPath(addPath);
+            p.drawRoundedRect(m_addTagRect, Visual::RadiusSmall, Visual::RadiusSmall);
             QColor addColor = m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
             Codicon::draw(p, "add", QRect(m_addTagRect.left() + 8, m_addTagRect.top(), 14, m_addTagRect.height()),
                           addColor, 12);

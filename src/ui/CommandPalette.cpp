@@ -93,8 +93,8 @@ void CommandPalette::paintEvent(QPaintEvent *)
     int totalFiltered = m_filtered.size();
 
     if (totalFiltered == 0) {
-            p.setPen(Color::TEXT_SECONDARY);
-        p.drawText(rect().adjusted(0, 36, 0, 0), Qt::AlignCenter,
+        p.setPen(Color::TEXT_SECONDARY);
+        p.drawText(rect().adjusted(0, 36, 0, -8), Qt::AlignCenter,
                    QStringLiteral("无匹配命令"));
         return;
     }
@@ -113,7 +113,7 @@ void CommandPalette::paintEvent(QPaintEvent *)
         p.drawText(itemRect.adjusted(14, 0, 0, 0), Qt::AlignVCenter, m_commands[idx].label);
 
         if (!m_commands[idx].shortcut.isEmpty()) {
-        p.setPen(Color::TEXT_SECONDARY);
+            p.setPen(Color::TEXT_SECONDARY);
             p.drawText(itemRect.adjusted(0, 0, -14, 0), Qt::AlignVCenter | Qt::AlignRight,
                        m_commands[idx].shortcut);
         }

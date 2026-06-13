@@ -5,8 +5,8 @@
 #include <QMutexLocker>
 #include <QtConcurrent>
 
-ImageCache::ImageCache(int maxEntries, QObject *parent)
-    : IImageCache(parent), m_maxEntries(maxEntries)
+ImageCache::ImageCache(qint64 maxBytes, QObject *parent)
+    : IImageCache(parent), m_maxBytes(maxBytes)
 {
 }
 
@@ -27,17 +27,24 @@ void ImageCache::insert(const QString &filePath, const QSize &size, const QPixma
 {
     QMutexLocker lock(&m_mutex);
     CacheKey key{filePath, size};
+    qint64 newBytes = pixmapBytes(pixmap);
     if (m_cache.contains(key)) {
+        m_currentBytes -= pixmapBytes(m_cache[key]);
         m_cache[key] = pixmap;
+        m_currentBytes += newBytes;
         m_accessOrder.removeAll(key);
         m_accessOrder.append(key);
         return;
     }
-    while (m_cache.size() >= m_maxEntries) {
+    while (m_currentBytes + newBytes > m_maxBytes && !m_accessOrder.isEmpty()) {
         CacheKey oldest = m_accessOrder.takeFirst();
-        m_cache.remove(oldest);
+        if (m_cache.contains(oldest)) {
+            m_currentBytes -= pixmapBytes(m_cache[oldest]);
+            m_cache.remove(oldest);
+        }
     }
     m_cache.insert(key, pixmap);
+    m_currentBytes += newBytes;
     m_accessOrder.append(key);
 }
 
@@ -47,6 +54,7 @@ void ImageCache::invalidate(const QString &filePath)
     auto it = m_cache.begin();
     while (it != m_cache.end()) {
         if (it.key().filePath == filePath) {
+            m_currentBytes -= pixmapBytes(it.value());
             m_accessOrder.removeAll(it.key());
             it = m_cache.erase(it);
         } else {

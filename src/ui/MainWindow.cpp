@@ -45,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent)
         return;
     }
 
-    m_concreteCache = new ImageCache(500, this);
+    m_concreteCache = new ImageCache(256LL * 1024 * 1024, this);
     auto *scanner = new FileScanner(this);
     auto *watcher = new FileWatcher(this);
 

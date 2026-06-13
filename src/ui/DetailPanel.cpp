@@ -2,11 +2,13 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QTextOption>
 #include <QWheelEvent>
 #include "ui/ToastNotification.h"
+#include "ui/UIUtils.h"
 #include <QLinearGradient>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
@@ -28,9 +30,15 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
     m_panOffset = {};
     m_scrollOffset = 0;
 
-    m_fullImage = QPixmap(asset.filePath);
-    if (m_fullImage.isNull())
-        m_fullImage = QPixmap();
+    QImageReader reader(asset.filePath);
+    QSize imgSize = reader.size();
+    if (imgSize.isValid()) {
+        QSize maxSize(1920, 1080);
+        if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
+            reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
+    }
+    QImage img = reader.read();
+    m_fullImage = img.isNull() ? QPixmap() : QPixmap::fromImage(img);
     update();
 }
 
@@ -67,7 +75,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
                       Color::TEXT_SECONDARY, 28);
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect().adjusted(24, 18, -24, 0), Qt::AlignCenter,
-                   QStringLiteral("选择一张素材查看详情"));
+                   tr("选择一张素材查看详情"));
         return;
     }
 
@@ -115,7 +123,7 @@ int DetailPanel::drawImage(QPainter &p)
 
     if (m_fullImage.isNull()) {
         p.setPen(Color::TEXT_SECONDARY);
-        p.drawText(imgRect, Qt::AlignCenter, QStringLiteral("无法加载图片"));
+        p.drawText(imgRect, Qt::AlignCenter, tr("无法加载图片"));
         return imgRect.bottom();
     }
 
@@ -156,16 +164,16 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     Codicon::draw(p, m_fileInfoExpanded ? "chevron-down" : "chevron-right",
                   QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     p.setFont(hf);
-    p.drawText(36, y, QStringLiteral("文件信息"));
+    p.drawText(36, y, tr("文件信息"));
     if (!m_fileInfoExpanded) return y + 8;
     y += 24;
 
     QFileInfo fi(m_asset.filePath);
-    drawField(p, 16, y, QStringLiteral("名称"), m_asset.fileName, Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, QStringLiteral("大小"), QString::number(m_asset.fileSize / 1024) + " KB", Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, QStringLiteral("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height), Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, QStringLiteral("格式"), m_asset.format.toUpper(), Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, QStringLiteral("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("名称"), m_asset.fileName, Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("大小"), QString::number(m_asset.fileSize / 1024) + " KB", Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("格式"), m_asset.format.toUpper(), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), Visual::DetailFieldLabelWidth);
     return y + 8;
 }
 
@@ -183,15 +191,11 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     Codicon::draw(p, m_metadataExpanded ? "chevron-down" : "chevron-right",
                   QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     p.setFont(hf);
-    p.drawText(36, y, QStringLiteral("AI 元数据"));
+    p.drawText(36, y, tr("AI 元数据"));
     if (!m_metadataExpanded) return y + 8;
     y += 24;
 
-    QString sourceDisplay = m_metadata.source;
-    if (sourceDisplay == "stable-diffusion") sourceDisplay = "Stable Diffusion";
-    else if (sourceDisplay == "midjourney") sourceDisplay = "Midjourney";
-    else if (sourceDisplay == "dalle") sourceDisplay = "DALL-E";
-    drawField(p, 16, y, QStringLiteral("来源"), sourceDisplay, Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("来源"), UIUtils::displayNameForSource(m_metadata.source), Visual::DetailFieldLabelWidth);
     if (!m_metadata.modelName.isEmpty())
         drawField(p, 16, y, "Model", m_metadata.modelName, Visual::DetailFieldLabelWidth);
     if (m_metadata.seed > 0)
@@ -215,7 +219,7 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
                                               : (m_copyPromptHovered ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY),
                   12);
 
-    QString promptText = m_metadata.prompt.isEmpty() ? QStringLiteral("暂无 Prompt") : m_metadata.prompt;
+    QString promptText = m_metadata.prompt.isEmpty() ? tr("暂无 Prompt") : m_metadata.prompt;
     QRect promptRect(16, y + 8, width() - 34, m_promptExpanded ? Visual::DetailPromptHeight : 22);
     p.setPen(m_metadata.prompt.isEmpty() ? Color::TEXT_SECONDARY : Color::TEXT_PRIMARY);
     if (m_promptExpanded) {
@@ -253,7 +257,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right",
                   QRect(14, y - 18, 16, 22), Color::TEXT_SECONDARY, 12);
     p.setFont(hf);
-    p.drawText(36, y, QStringLiteral("标签"));
+    p.drawText(36, y, tr("标签"));
     if (!m_tagsExpanded) return y + 8;
     y += 24;
 
@@ -268,7 +272,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     if (m_tags.isEmpty()) {
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(QRect(tagX, y - 2, width() - 32, 22),
-                   Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("暂无标签"));
+                   Qt::AlignLeft | Qt::AlignVCenter, tr("暂无标签"));
         y += 28;
     }
 
@@ -290,7 +294,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
         tagX += tw + 6;
     }
 
-    QString addText = QStringLiteral("添加标签");
+    QString addText = tr("添加标签");
     int addW = p.fontMetrics().horizontalAdvance(addText) + 34;
     if (tagX + addW > width() - 16) { tagX = 16; y += 26; }
     m_addTagRect = QRect(tagX, y - 2, addW, 22);
@@ -338,7 +342,7 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
     }
     if (m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty()) {
         QApplication::clipboard()->setText(m_metadata.prompt);
-        ToastNotification::show(this, QStringLiteral("已复制 Prompt"));
+        ToastNotification::show(this, tr("已复制 Prompt"));
         return;
     }
     if (m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty()) {

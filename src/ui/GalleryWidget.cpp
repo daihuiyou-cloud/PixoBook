@@ -18,6 +18,7 @@
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
+#include "ui/UIUtils.h"
 
 namespace {
 QString metaLine(const Asset &asset)
@@ -56,6 +57,11 @@ GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     setAcceptDrops(true);
     setFocusPolicy(Qt::StrongFocus);
     setMinimumWidth(m_itemWidth() + kPadding * 2);
+
+    m_labelFont.setPixelSize(Visual::FontBody);
+    m_labelFm = QFontMetrics(m_labelFont);
+    m_metaFont.setPixelSize(Visual::FontCaption);
+    m_metaFm = QFontMetrics(m_metaFont);
 }
 
 void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, const QPixmap &pixmap)
@@ -194,8 +200,8 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(center.adjusted(0, -44, 0, 0), Qt::AlignCenter,
                searching
-                   ? QStringLiteral("没有找到匹配 \"%1\" 的素材").arg(m_searchKeyword)
-                   : QStringLiteral("把 AI 素材放进来，开始整理"));
+                   ? tr("没有找到匹配 \"%1\" 的素材").arg(m_searchKeyword)
+                   : tr("把 AI 素材放进来，开始整理"));
 
     QFont body = p.font();
     body.setPixelSize(Visual::FontBody);
@@ -204,15 +210,15 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     p.setPen(Color::TEXT_SECONDARY);
     p.drawText(center.adjusted(0, -4, 0, 0), Qt::AlignCenter,
                searching
-                   ? QStringLiteral("试试放宽来源、收藏或关键词筛选")
-                   : QStringLiteral("导入文件夹会持续整理素材；导入图片适合临时收集"));
+                   ? tr("试试放宽来源、收藏或关键词筛选")
+                   : tr("导入文件夹会持续整理素材；导入图片适合临时收集"));
 
     if (searching)
         return;
 
     const QVector<QPair<QRect, QString>> buttons = {
-        { emptyFolderButtonRect(), QStringLiteral("导入文件夹") },
-        { emptyFilesButtonRect(), QStringLiteral("导入图片") }
+        { emptyFolderButtonRect(), tr("导入文件夹") },
+        { emptyFilesButtonRect(), tr("导入图片") }
     };
     const QVector<QString> icons = { "folder-opened", "file-media" };
 
@@ -270,13 +276,6 @@ void GalleryWidget::paintEvent(QPaintEvent *)
     int startIdx = qMin(firstRow * m_columns, m_assets.size());
     int endIdx = qMin((firstRow + visibleRows) * m_columns, m_assets.size());
 
-    QFont labelFont = p.font();
-    labelFont.setPixelSize(Visual::FontBody);
-    QFontMetrics labelFm(labelFont);
-    QFont metaFont = p.font();
-    metaFont.setPixelSize(Visual::FontCaption);
-    QFontMetrics metaFm(metaFont);
-
     for (int i = startIdx; i < endIdx; i++) {
         const Asset &asset = m_assets[i];
         QRect r = itemRect(i);
@@ -319,11 +318,11 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         }
         if (!fileExists) {
             p.setPen(Color::ERROR_TEXT);
-            p.drawText(thumbArea, Qt::AlignCenter, QStringLiteral("文件不存在"));
+            p.drawText(thumbArea, Qt::AlignCenter, tr("文件不存在"));
         } else if (m_requestedThumbnails.contains(asset.filePath)) {
             p.setPen(Color::TEXT_SECONDARY);
             p.drawText(thumbArea, Qt::AlignCenter,
-                       asset.format.isEmpty() ? QStringLiteral("加载中") : asset.format.toUpper());
+                       asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
         } else {
             QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
             if (thumb.isNull()) {
@@ -331,7 +330,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
                 m_cache->requestThumbnail(asset.filePath, thumbSize);
                 p.setPen(Color::TEXT_SECONDARY);
                 p.drawText(thumbArea, Qt::AlignCenter,
-                           asset.format.isEmpty() ? QStringLiteral("加载中") : asset.format.toUpper());
+                           asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
             } else {
                 QPainterPath clipPath;
                 clipPath.addRoundedRect(QRectF(thumbArea), Visual::RadiusSmall, Visual::RadiusSmall);
@@ -347,9 +346,9 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
         QRect labelRect(r.left() + kPadding, r.top() + kPadding + m_thumbSize + 8,
                         r.width() - kPadding * 2 - 32, 16);
-        p.setFont(labelFont);
+        p.setFont(m_labelFont);
         QString fileName = compactFileName(asset.fileName);
-        QString elided = labelFm.elidedText(fileName, Qt::ElideRight, labelRect.width());
+        QString elided = m_labelFm.elidedText(fileName, Qt::ElideRight, labelRect.width());
         if (!m_searchKeyword.isEmpty() && fileName.contains(m_searchKeyword, Qt::CaseInsensitive)) {
             p.fillRect(labelRect.adjusted(0, 2, 0, -2), Color::SEARCH_HIGHLIGHT);
         }
@@ -357,10 +356,10 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
 
         QRect metaRect(labelRect.left(), labelRect.bottom() + 1, r.width() - kPadding * 2 - 32, 14);
-        p.setFont(metaFont);
+        p.setFont(m_metaFont);
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
-                   metaFm.elidedText(metaLine(asset), Qt::ElideRight, metaRect.width()));
+                   m_metaFm.elidedText(metaLine(asset), Qt::ElideRight, metaRect.width()));
 
         QRect starRect(r.right() - 40, r.bottom() - 40, 32, 32);
         if (asset.isFavorite || isHovered || isSelected) {
@@ -438,7 +437,10 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
 {
     int oldHover = m_hoveredIndex;
     m_hoveredIndex = indexAt(event->pos());
-    if (oldHover != m_hoveredIndex) update();
+    if (oldHover != m_hoveredIndex) {
+        if (oldHover >= 0) update(itemRect(oldHover));
+        if (m_hoveredIndex >= 0) update(itemRect(m_hoveredIndex));
+    }
 }
 
 void GalleryWidget::mousePressEvent(QMouseEvent *event)
@@ -559,17 +561,12 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
     if (idx < 0 && m_selectedIndices.isEmpty() && m_selectedAsset.id.isEmpty()) return;
 
     QMenu menu(this);
-    QPalette mPal;
-    mPal.setColor(QPalette::Window, Color::BG_DARK);
-    mPal.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
-    mPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
-    mPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
-    menu.setPalette(mPal);
+    UIUtils::setupMenuPalette(menu);
 
     auto sel = selectedAssets();
     if (sel.size() == 1) {
         bool isFav = sel[0].isFavorite;
-        QAction *favAction = menu.addAction(isFav ? QStringLiteral("取消收藏") : QStringLiteral("收藏"));
+        QAction *favAction = menu.addAction(isFav ? tr("取消收藏") : tr("收藏"));
         favAction->setIcon(menuIcon(isFav ? "star-empty" : "star",
                                     isFav ? Color::FAVORITE_OFF : Color::FAVORITE_ON));
         connect(favAction, &QAction::triggered, this, [this, sel]() {
@@ -578,7 +575,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
     }
     if (!sel.isEmpty()) {
         menu.addSeparator();
-        QAction *tagAction = menu.addAction(QStringLiteral("添加标签..."));
+        QAction *tagAction = menu.addAction(tr("添加标签..."));
         tagAction->setIcon(menuIcon("tag", Color::TEXT_PRIMARY));
         connect(tagAction, &QAction::triggered, this, [this, sel]() {
             QVector<QString> ids;
@@ -586,7 +583,7 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
             emit tagAddRequested(ids);
         });
         menu.addSeparator();
-        QAction *delAction = menu.addAction(QStringLiteral("删除"));
+        QAction *delAction = menu.addAction(tr("删除"));
         delAction->setIcon(menuIcon("trash", Color::TEXT_PRIMARY));
         delAction->setShortcut(QKeySequence::Delete);
         connect(delAction, &QAction::triggered, this, [this, sel]() {

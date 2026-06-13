@@ -15,10 +15,10 @@ TitleBar::TitleBar(QWidget *parent)
     setMouseTracking(true);
 
     m_menus = {
-        { QStringLiteral("文件"), "file" },
-        { QStringLiteral("编辑"), "edit" },
-        { QStringLiteral("查看"), "eye" },
-        { QStringLiteral("帮助"), "question" },
+        { tr("文件"), "file" },
+        { tr("编辑"), "edit" },
+        { tr("查看"), "eye" },
+        { tr("帮助"), "question" },
     };
 }
 
@@ -69,7 +69,7 @@ void TitleBar::paintEvent(QPaintEvent *)
     p.setFont(f);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(QRect(36, 0, 78, kHeight), Qt::AlignVCenter | Qt::AlignLeft,
-               QStringLiteral("AI 素材库"));
+               tr("AI 素材库"));
 
     for (int i = 0; i < m_menus.size(); i++) {
         QRect r = menuItemRect(i);
@@ -241,11 +241,11 @@ bool TitleBar::event(QEvent *event)
     if (event->type() == QEvent::ToolTip) {
         auto *he = static_cast<QHelpEvent *>(event);
         if (minimizeBtnRect().contains(he->pos()))
-            QToolTip::showText(he->globalPos(), QStringLiteral("最小化"), this);
+            QToolTip::showText(he->globalPos(), tr("最小化"), this);
         else if (maximizeBtnRect().contains(he->pos()))
-            QToolTip::showText(he->globalPos(), m_maximized ? QStringLiteral("还原") : QStringLiteral("最大化"), this);
+            QToolTip::showText(he->globalPos(), m_maximized ? tr("还原") : tr("最大化"), this);
         else if (closeBtnRect().contains(he->pos()))
-            QToolTip::showText(he->globalPos(), QStringLiteral("关闭"), this);
+            QToolTip::showText(he->globalPos(), tr("关闭"), this);
         else
             QToolTip::hideText();
         return true;

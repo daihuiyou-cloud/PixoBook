@@ -15,9 +15,9 @@ TabBar::TabBar(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
 
     m_tabs = {
-        { QStringLiteral("所有素材"), QStringLiteral("layout") },
-        { QStringLiteral("收藏夹"), QStringLiteral("star") },
-        { QStringLiteral("最近导入"), QStringLiteral("history") },
+        { tr("所有素材"), QStringLiteral("layout") },
+        { tr("收藏夹"), QStringLiteral("star") },
+        { tr("最近导入"), QStringLiteral("history") },
     };
 }
 
@@ -123,7 +123,7 @@ void TabBar::mouseMoveEvent(QMouseEvent *event)
     m_hoveredAdd = addButtonRect().contains(event->pos());
 
     if (m_hoveredAdd)
-        QToolTip::showText(mapToGlobal(addButtonRect().center()), QStringLiteral("导入素材文件夹"), this);
+        QToolTip::showText(mapToGlobal(addButtonRect().center()), tr("导入素材文件夹"), this);
     else if (oldHoveredAdd)
         QToolTip::hideText();
 

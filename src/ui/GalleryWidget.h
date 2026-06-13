@@ -5,6 +5,8 @@
 #include <QVector>
 #include <QSet>
 #include <QHash>
+#include <QFont>
+#include <QFontMetrics>
 #include "ui/VisualConstants.h"
 #include "models/Asset.h"
 #include "core/IImageCache.h"
@@ -86,6 +88,11 @@ private:
     QSet<QString> m_requestedThumbnails;
     QHash<QString, bool> m_fileExistsCache;
     IImageCache *m_cache;
+
+    QFont m_labelFont;
+    QFontMetrics m_labelFm{m_labelFont};
+    QFont m_metaFont;
+    QFontMetrics m_metaFm{m_metaFont};
 };
 
 #endif

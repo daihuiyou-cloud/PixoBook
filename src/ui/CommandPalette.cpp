@@ -95,7 +95,7 @@ void CommandPalette::paintEvent(QPaintEvent *)
     if (totalFiltered == 0) {
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(rect().adjusted(0, 36, 0, -8), Qt::AlignCenter,
-                   QStringLiteral("无匹配命令"));
+                   tr("无匹配命令"));
         return;
     }
 

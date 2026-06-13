@@ -36,7 +36,7 @@ SearchBar::SearchBar(QWidget *parent)
     m_searchInput = new QLineEdit();
     m_searchInput->setMinimumHeight(Visual::ControlHeight);
     m_searchInput->setFont(controlFont);
-    m_searchInput->setPlaceholderText(QStringLiteral("搜索文件名、Prompt、模型..."));
+    m_searchInput->setPlaceholderText(tr("搜索文件名、Prompt、模型..."));
     QPalette inputPal;
     inputPal.setColor(QPalette::Base, Color::BG_INPUT);
     inputPal.setColor(QPalette::Text, Color::TEXT_PRIMARY);
@@ -68,7 +68,7 @@ SearchBar::SearchBar(QWidget *parent)
     QPalette labelPal;
     labelPal.setColor(QPalette::WindowText, Color::TEXT_SECONDARY);
 
-    auto *sourceLabel = new QLabel(QStringLiteral("来源"));
+    auto *sourceLabel = new QLabel(tr("来源"));
     sourceLabel->setFont(controlFont);
     sourceLabel->setPalette(labelPal);
     layout->addWidget(sourceLabel);
@@ -78,13 +78,13 @@ SearchBar::SearchBar(QWidget *parent)
     m_sourceCombo->setMinimumWidth(120);
     m_sourceCombo->setFont(controlFont);
     m_sourceCombo->setPalette(comboPal);
-    m_sourceCombo->addItem(QStringLiteral("全部来源"), "");
+    m_sourceCombo->addItem(tr("全部来源"), "");
     m_sourceCombo->addItem("Stable Diffusion", "stable-diffusion");
     m_sourceCombo->addItem("Midjourney", "midjourney");
     m_sourceCombo->addItem("DALL-E", "dalle");
     layout->addWidget(m_sourceCombo);
 
-    auto *sortLabel = new QLabel(QStringLiteral("排序"));
+    auto *sortLabel = new QLabel(tr("排序"));
     sortLabel->setFont(controlFont);
     sortLabel->setPalette(labelPal);
     layout->addWidget(sortLabel);
@@ -94,15 +94,15 @@ SearchBar::SearchBar(QWidget *parent)
     m_sortCombo->setMinimumWidth(100);
     m_sortCombo->setFont(controlFont);
     m_sortCombo->setPalette(comboPal);
-    m_sortCombo->addItem(QStringLiteral("时间↓"), "created_at|DESC");
-    m_sortCombo->addItem(QStringLiteral("时间↑"), "created_at|ASC");
-    m_sortCombo->addItem(QStringLiteral("名称 A-Z"), "file_name|ASC");
-    m_sortCombo->addItem(QStringLiteral("名称 Z-A"), "file_name|DESC");
-    m_sortCombo->addItem(QStringLiteral("大小↑"), "file_size|ASC");
-    m_sortCombo->addItem(QStringLiteral("大小↓"), "file_size|DESC");
+    m_sortCombo->addItem(tr("时间↓"), "created_at|DESC");
+    m_sortCombo->addItem(tr("时间↑"), "created_at|ASC");
+    m_sortCombo->addItem(tr("名称 A-Z"), "file_name|ASC");
+    m_sortCombo->addItem(tr("名称 Z-A"), "file_name|DESC");
+    m_sortCombo->addItem(tr("大小↑"), "file_size|ASC");
+    m_sortCombo->addItem(tr("大小↓"), "file_size|DESC");
     layout->addWidget(m_sortCombo);
 
-    auto *sizeLabel = new QLabel(QStringLiteral("视图"));
+    auto *sizeLabel = new QLabel(tr("视图"));
     sizeLabel->setFont(controlFont);
     sizeLabel->setPalette(labelPal);
     layout->addWidget(sizeLabel);
@@ -117,9 +117,9 @@ SearchBar::SearchBar(QWidget *parent)
     QVector<QPushButton *> sizeButtons = {m_sizeSmallBtn, m_sizeMediumBtn, m_sizeLargeBtn};
     const QVector<QString> iconNames = {"zoom-in", "screen-normal", "screen-full"};
     const QVector<QString> tips = {
-        QStringLiteral("小缩略图 (100px)"),
-        QStringLiteral("中缩略图 (180px)"),
-        QStringLiteral("大缩略图 (280px)")
+        tr("小缩略图 (100px)"),
+        tr("中缩略图 (180px)"),
+        tr("大缩略图 (280px)")
     };
     for (int i = 0; i < sizeButtons.size(); i++) {
         auto *btn = sizeButtons[i];
@@ -156,14 +156,14 @@ SearchBar::SearchBar(QWidget *parent)
         connect(btn, &QPushButton::toggled, this, refreshSizeIcons);
     }
 
-    m_favButton = new QPushButton(iconFor("star-empty", Color::TEXT_PRIMARY, 14), QStringLiteral("收藏"));
+    m_favButton = new QPushButton(iconFor("star-empty", Color::TEXT_PRIMARY, 14), tr("收藏"));
     m_favButton->setCheckable(true);
     m_favButton->setMinimumHeight(Visual::ControlHeight);
     m_favButton->setMinimumWidth(70);
     m_favButton->setFont(controlFont);
     m_favButton->setCursor(Qt::PointingHandCursor);
     m_favButton->setProperty("toolbarButton", true);
-    m_favButton->setToolTip(QStringLiteral("仅显示收藏素材"));
+    m_favButton->setToolTip(tr("仅显示收藏素材"));
     layout->addWidget(m_favButton);
 
     m_resultSummary = new QLabel();
@@ -199,7 +199,7 @@ SearchBar::SearchBar(QWidget *parent)
         m_onlyFavorites = checked;
         m_favButton->setIcon(iconFor(checked ? "star" : "star-empty",
                                      checked ? Color::FAVORITE_ON : Color::TEXT_PRIMARY, 14));
-        m_favButton->setText(QStringLiteral("收藏"));
+        m_favButton->setText(tr("收藏"));
         if (m_ready) emit filterChanged();
     });
 

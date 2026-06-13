@@ -98,7 +98,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
         p.drawText(rect(), Qt::AlignCenter,
                    m_assets.isEmpty()
                        ? QStringLiteral("No images")
-                       : QStringLiteral("无法加载图片"));
+                       : tr("无法加载图片"));
         return;
     }
 

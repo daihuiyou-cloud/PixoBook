@@ -13,6 +13,7 @@
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
+#include "ui/UIUtils.h"
 
 SidebarWidget::SidebarWidget(QWidget *parent)
     : QWidget(parent)
@@ -86,7 +87,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     Codicon::draw(p, m_foldersExpanded ? "chevron-down" : "chevron-right",
                   QRect(8, 0, 14, kSectionHeight), Color::TEXT_SECONDARY, 14);
     p.setFont(sectionFont);
-    p.drawText(folderHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, QStringLiteral("素材文件夹"));
+    p.drawText(folderHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, tr("素材文件夹"));
 
     QRect addRect(width() - 30, 5, 22, 22);
     if (m_hoveredAddButton)
@@ -100,7 +101,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         if (m_folders.isEmpty()) {
             p.setPen(Color::TEXT_SECONDARY);
             p.drawText(QRect(16, kSectionHeight + 4, width() - 32, kItemHeight),
-                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("添加素材文件夹"));
+                       Qt::AlignVCenter | Qt::AlignLeft, tr("添加素材文件夹"));
         }
         for (int i = 0; i < m_folders.size(); i++) {
             QRect itemRect(0, kSectionHeight + i * kItemHeight, width(), kItemHeight);
@@ -132,7 +133,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right",
                   QRect(8, tagHeader.top(), 14, kSectionHeight), Color::TEXT_SECONDARY, 14);
     p.setFont(sectionFont);
-    p.drawText(tagHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, QStringLiteral("标签"));
+    p.drawText(tagHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, tr("标签"));
     p.setPen(Color::BORDER_MUTED);
     p.drawLine(12, tagHeader.bottom(), width() - 12, tagHeader.bottom());
 
@@ -141,7 +142,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
         if (m_tags.isEmpty()) {
             p.setPen(Color::TEXT_SECONDARY);
             p.drawText(QRect(16, m_sectionTagY + kSectionHeight + 4, width() - 32, kItemHeight),
-                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("暂无标签"));
+                       Qt::AlignVCenter | Qt::AlignLeft, tr("暂无标签"));
             m_addTagRect = QRect(16, m_sectionTagY + kSectionHeight + kItemHeight + 4, width() - 32, 26);
             p.setBrush(m_hoveredAddTagButton ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON);
             p.setPen(QPen(m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
@@ -151,7 +152,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
                           addColor, 12);
             p.setPen(addColor);
             p.drawText(m_addTagRect.adjusted(28, 0, -8, 0),
-                       Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("添加标签"));
+                       Qt::AlignVCenter | Qt::AlignLeft, tr("添加标签"));
         } else {
             m_addTagRect = {};
         }
@@ -381,21 +382,16 @@ void SidebarWidget::activateCurrentFocus()
 void SidebarWidget::showFolderContextMenu(int idx, const QPoint &pos)
 {
     QMenu menu(this);
-    QPalette mPal;
-    mPal.setColor(QPalette::Window, Color::BG_DARK);
-    mPal.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
-    mPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
-    mPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
-    menu.setPalette(mPal);
+    UIUtils::setupMenuPalette(menu);
 
-    QAction *refreshAction = menu.addAction(QStringLiteral("刷新"));
+    QAction *refreshAction = menu.addAction(tr("刷新"));
     connect(refreshAction, &QAction::triggered, this, [this, idx]() { emit folderRefreshRequested(m_folders[idx]); });
 
-    QAction *removeAction = menu.addAction(QStringLiteral("从库中移除"));
+    QAction *removeAction = menu.addAction(tr("从库中移除"));
     connect(removeAction, &QAction::triggered, this, [this, idx]() { emit folderRemoveRequested(m_folders[idx]); });
 
     menu.addSeparator();
-    QAction *explorerAction = menu.addAction(QStringLiteral("在资源管理器中打开"));
+    QAction *explorerAction = menu.addAction(tr("在资源管理器中打开"));
     connect(explorerAction, &QAction::triggered, this, [this, idx]() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_folders[idx]));
     });
@@ -406,17 +402,12 @@ void SidebarWidget::showFolderContextMenu(int idx, const QPoint &pos)
 void SidebarWidget::showTagContextMenu(int idx, const QPoint &pos)
 {
     QMenu menu(this);
-    QPalette mPal;
-    mPal.setColor(QPalette::Window, Color::BG_DARK);
-    mPal.setColor(QPalette::WindowText, Color::TEXT_PRIMARY);
-    mPal.setColor(QPalette::Highlight, Color::HIGHLIGHT);
-    mPal.setColor(QPalette::HighlightedText, Color::TEXT_PRIMARY);
-    menu.setPalette(mPal);
+    UIUtils::setupMenuPalette(menu);
 
-    QAction *editAction = menu.addAction(QStringLiteral("编辑标签"));
+    QAction *editAction = menu.addAction(tr("编辑标签"));
     connect(editAction, &QAction::triggered, this, [this, idx]() { emit tagEditRequested(m_tags[idx].id); });
 
-    QAction *delAction = menu.addAction(QStringLiteral("删除标签"));
+    QAction *delAction = menu.addAction(tr("删除标签"));
     connect(delAction, &QAction::triggered, this, [this, idx]() { emit tagDeleteRequested(m_tags[idx].id); });
 
     menu.exec(pos);

@@ -25,6 +25,7 @@
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
+#include "ui/UIUtils.h"
 #include "database/DatabaseManager.h"
 #include "services/ImageCache.h"
 #include "services/FileScanner.h"
@@ -40,7 +41,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Create dependencies
     m_db = new DatabaseManager(dbPath);
     if (!m_db->initialize()) {
-        QMessageBox::critical(this, QStringLiteral("错误"), QStringLiteral("数据库初始化失败"));
+        QMessageBox::critical(this, tr("错误"), tr("数据库初始化失败"));
         return;
     }
 
@@ -142,20 +143,20 @@ void MainWindow::setupTitleBar()
         switch (menuIndex) {
         case 0: { // File
             QMenu menu(this);
-            QMenu *importSub = menu.addMenu(QStringLiteral("导入"));
-            QAction *importFolder = importSub->addAction(QStringLiteral("导入文件夹..."));
+            QMenu *importSub = menu.addMenu(tr("导入"));
+            QAction *importFolder = importSub->addAction(tr("导入文件夹..."));
             connect(importFolder, &QAction::triggered, this, [this]() {
                 QString dir = QFileDialog::getExistingDirectory(this,
-                    QStringLiteral("选择素材文件夹"));
+                    tr("选择素材文件夹"));
                 if (!dir.isEmpty()) {
                     m_library->scanFolder(dir);
                     m_sidebar->setFolders(m_library->folders());
                 }
             });
-            QAction *importFile = importSub->addAction(QStringLiteral("导入图片..."));
+            QAction *importFile = importSub->addAction(tr("导入图片..."));
             connect(importFile, &QAction::triggered, this, &MainWindow::onImportFile);
             menu.addSeparator();
-            QAction *exit = menu.addAction(QStringLiteral("退出"));
+            QAction *exit = menu.addAction(tr("退出"));
             connect(exit, &QAction::triggered, qApp, &QApplication::quit);
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(0).left(), m_titleBar->menuItemRect(0).bottom()));
             menu.exec(pos);
@@ -163,7 +164,7 @@ void MainWindow::setupTitleBar()
         }
         case 1: { // Edit
             QMenu menu(this);
-            QAction *selectAll = menu.addAction(QStringLiteral("全选"));
+            QAction *selectAll = menu.addAction(tr("全选"));
             connect(selectAll, &QAction::triggered, this, [this]() {
                 QKeyEvent ev(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
                 QApplication::sendEvent(m_gallery, &ev);
@@ -175,13 +176,13 @@ void MainWindow::setupTitleBar()
         case 2: { // View
             QMenu menu(this);
             int curSize = m_gallery->thumbnailSize();
-            QAction *smallThumb = menu.addAction(QStringLiteral("小缩略图 (100px)"));
+            QAction *smallThumb = menu.addAction(tr("小缩略图 (100px)"));
             smallThumb->setCheckable(true); smallThumb->setChecked(curSize <= 100);
             connect(smallThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(100); m_searchBar->setThumbnailSizeSelection(100); });
-            QAction *mediumThumb = menu.addAction(QStringLiteral("中缩略图 (180px)"));
+            QAction *mediumThumb = menu.addAction(tr("中缩略图 (180px)"));
             mediumThumb->setCheckable(true); mediumThumb->setChecked(curSize > 100 && curSize <= 200);
             connect(mediumThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(180); m_searchBar->setThumbnailSizeSelection(180); });
-            QAction *largeThumb = menu.addAction(QStringLiteral("大缩略图 (280px)"));
+            QAction *largeThumb = menu.addAction(tr("大缩略图 (280px)"));
             largeThumb->setCheckable(true); largeThumb->setChecked(curSize >= 280);
             connect(largeThumb, &QAction::triggered, this, [this]() { m_gallery->setThumbnailSize(280); m_searchBar->setThumbnailSizeSelection(280); });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(2).left(), m_titleBar->menuItemRect(2).bottom()));
@@ -190,10 +191,10 @@ void MainWindow::setupTitleBar()
         }
         case 3: { // Help
             QMenu menu(this);
-            QAction *about = menu.addAction(QStringLiteral("关于 AI 素材库"));
+            QAction *about = menu.addAction(tr("关于 AI 素材库"));
             connect(about, &QAction::triggered, this, [this]() {
-                QMessageBox::about(this, QStringLiteral("关于"),
-                    QStringLiteral("AI 素材库 v1.0.0\nAI 生成素材管理工具"));
+                QMessageBox::about(this, tr("关于"),
+                    tr("AI 素材库 v1.0.0\nAI 生成素材管理工具"));
             });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(3).left(), m_titleBar->menuItemRect(3).bottom()));
             menu.exec(pos);
@@ -211,7 +212,7 @@ void MainWindow::setupStatusBar()
     statusBar()->setPalette(sbPal);
     statusBar()->setAutoFillBackground(true);
 
-    m_statusMsg = new QLabel(QStringLiteral("就绪"));
+    m_statusMsg = new QLabel(tr("就绪"));
     m_statusMsg->setPalette(sbPal);
     QFont sf = m_statusMsg->font();
     sf.setPixelSize(Visual::FontControl);
@@ -228,17 +229,17 @@ void MainWindow::setupConnections()
 {
     // Library signals
     connect(m_library, &LibraryController::scanProgress, this, [this](int cur, int total) {
-        m_statusMsg->setText(QStringLiteral("扫描中 %1/%2...").arg(cur).arg(total));
+        m_statusMsg->setText(tr("扫描中 %1/%2...").arg(cur).arg(total));
     });
 
     connect(m_library, &LibraryController::scanFinished, this, [this]() {
-        m_statusMsg->setText(QStringLiteral("就绪"));
+        m_statusMsg->setText(tr("就绪"));
         loadAssets();
     });
 
     connect(m_library, &LibraryController::dataChanged, this, [this]() {
         m_statusCount->setText(
-            QStringLiteral("%1 张图片").arg(m_gallery->assetCount()));
+            tr("%1 张图片").arg(m_gallery->assetCount()));
     });
 
     // Cache thumbnail ready -> gallery update
@@ -249,8 +250,8 @@ void MainWindow::setupConnections()
     connect(m_sidebar, &SidebarWidget::tagCreateRequested, this, [this]() {
         bool ok = false;
         QString name = QInputDialog::getText(this,
-            QStringLiteral("添加标签"),
-            QStringLiteral("标签名称："),
+            tr("添加标签"),
+            tr("标签名称："),
             QLineEdit::Normal, QString(), &ok);
         if (ok && !name.trimmed().isEmpty()) {
             m_library->createTag(name.trimmed());
@@ -259,8 +260,8 @@ void MainWindow::setupConnections()
     });
     connect(m_sidebar, &SidebarWidget::tagDeleteRequested, this, [this](int tagId) {
         auto reply = QMessageBox::question(this,
-            QStringLiteral("删除标签"),
-            QStringLiteral("确定删除该标签？"),
+            tr("删除标签"),
+            tr("确定删除该标签？"),
             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
             m_library->deleteTag(tagId);
@@ -274,7 +275,7 @@ void MainWindow::setupConnections()
     });
     connect(m_sidebar, &SidebarWidget::addFolderClicked, this, [this]() {
         QString dir = QFileDialog::getExistingDirectory(this,
-            QStringLiteral("选择素材文件夹"));
+            tr("选择素材文件夹"));
         if (!dir.isEmpty()) {
             m_library->scanFolder(dir);
             m_sidebar->setFolders(m_library->folders());
@@ -321,9 +322,9 @@ void MainWindow::setupConnections()
     connect(m_gallery, &GalleryWidget::deleteRequested, this, [this](const QVector<Asset> &assets) {
         if (assets.isEmpty()) return;
         QString msg = assets.size() == 1
-            ? QStringLiteral("确定删除该项目？")
-            : QStringLiteral("确定删除这 %1 个项目？").arg(assets.size());
-        auto reply = QMessageBox::question(this, QStringLiteral("删除"), msg,
+            ? tr("确定删除该项目？")
+            : tr("确定删除这 %1 个项目？").arg(assets.size());
+        auto reply = QMessageBox::question(this, tr("删除"), msg,
                                             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
             m_library->deleteAssets(assets);
@@ -449,7 +450,7 @@ void MainWindow::setupConnections()
         case ActivityBar::Settings:
             m_tabBar->blockSignals(false);
             m_searchBar->blockSignals(false);
-            ToastNotification::show(this, QStringLiteral("设置功能即将推出"));
+            ToastNotification::show(this, tr("设置功能即将推出"));
             return;
         }
 
@@ -468,22 +469,22 @@ void MainWindow::setupShortcuts()
     auto *cpShortcut = new QShortcut(QKeySequence("Ctrl+Shift+P"), this);
     connect(cpShortcut, &QShortcut::activated, this, [this]() {
         QVector<CommandPalette::Command> cmds;
-        cmds.append({QStringLiteral("导入文件夹..."), "Ctrl+O",
+        cmds.append({tr("导入文件夹..."), "Ctrl+O",
                      [this]() {
                          QString dir = QFileDialog::getExistingDirectory(this,
-                             QStringLiteral("选择素材文件夹"));
+                             tr("选择素材文件夹"));
                          if (!dir.isEmpty()) m_library->scanFolder(dir);
                      }});
-        cmds.append({QStringLiteral("导入图片..."), "Ctrl+I",
+        cmds.append({tr("导入图片..."), "Ctrl+I",
                      [this]() { MainWindow::onImportFile(); }});
-        cmds.append({QStringLiteral("搜索..."), "Ctrl+F",
+        cmds.append({tr("搜索..."), "Ctrl+F",
                      [this]() { m_searchBar->focusSearch(); }});
-        cmds.append({QStringLiteral("全选"), "Ctrl+A",
+        cmds.append({tr("全选"), "Ctrl+A",
                      [this]() {
                          QKeyEvent ev(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
                          QApplication::sendEvent(m_gallery, &ev);
                      }});
-        cmds.append({QStringLiteral("仅显示收藏"), "",
+        cmds.append({tr("仅显示收藏"), "",
                      [this]() { m_searchBar->setFavFilter(!m_searchBar->onlyFavorites()); }});
         m_commandPalette->show(cmds);
     });
@@ -496,7 +497,7 @@ void MainWindow::setupShortcuts()
 void MainWindow::onImportFolder()
 {
     QString dir = QFileDialog::getExistingDirectory(this,
-        QStringLiteral("选择素材文件夹"));
+        tr("选择素材文件夹"));
     if (!dir.isEmpty()) {
         m_library->scanFolder(dir);
         m_sidebar->setFolders(m_library->folders());
@@ -506,14 +507,14 @@ void MainWindow::onImportFolder()
 void MainWindow::onImportFile()
 {
     QString file = QFileDialog::getOpenFileName(this,
-        QStringLiteral("导入图片"),
+        tr("导入图片"),
         QString(),
-        QStringLiteral("图片 (*.png *.jpg *.jpeg *.webp)"));
+        tr("图片 (*.png *.jpg *.jpeg *.webp)"));
     if (!file.isEmpty()) {
         m_library->scanAndInsertFile(file);
         loadAssets();
-        m_statusMsg->setText(QStringLiteral("就绪"));
-        ToastNotification::show(this, QStringLiteral("已导入 1 张图片"));
+        m_statusMsg->setText(tr("就绪"));
+        ToastNotification::show(this, tr("已导入 1 张图片"));
     }
 }
 
@@ -545,28 +546,23 @@ void MainWindow::loadAssets()
     m_sidebar->setTags(m_library->getAllTags());
 
     m_statusCount->setText(
-        QStringLiteral("%1 张图片").arg(assets.size()));
+        tr("%1 张图片").arg(assets.size()));
 
     QStringList summary;
-    summary << QStringLiteral("%1 张图片").arg(assets.size());
+    summary << tr("%1 张图片").arg(assets.size());
     if (tabIdx == 1)
-        summary << QStringLiteral("收藏夹");
+        summary << tr("收藏夹");
     else if (tabIdx == 2)
-        summary << QStringLiteral("最近导入");
+        summary << tr("最近导入");
     else
-        summary << QStringLiteral("所有素材");
+        summary << tr("所有素材");
 
-    if (!source.isEmpty()) {
-        QString sourceName = source;
-        if (source == "stable-diffusion") sourceName = "Stable Diffusion";
-        else if (source == "midjourney") sourceName = "Midjourney";
-        else if (source == "dalle") sourceName = "DALL-E";
-        summary << sourceName;
-    }
+    if (!source.isEmpty())
+        summary << UIUtils::displayNameForSource(source);
     if (onlyFavs)
-        summary << QStringLiteral("仅收藏");
+        summary << tr("仅收藏");
     if (m_activeTagId >= 0)
-        summary << QStringLiteral("标签筛选");
+        summary << tr("标签筛选");
     m_searchBar->setResultSummary(summary.join(QStringLiteral(" / ")));
 }
 
@@ -593,8 +589,8 @@ void MainWindow::onTagEditRequested(int tagId)
 
     bool ok;
     QString newName = QInputDialog::getText(this,
-        QStringLiteral("编辑标签"),
-        QStringLiteral("标签名称："),
+        tr("编辑标签"),
+        tr("标签名称："),
         QLineEdit::Normal, tag.name, &ok);
     if (ok && !newName.isEmpty() && newName != tag.name) {
         m_library->renameTag(tagId, newName);

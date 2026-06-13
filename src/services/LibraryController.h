@@ -32,6 +32,7 @@ public:
     Asset getAsset(const QString &id);
     Metadata getMetadata(const QString &assetId);
     QVector<Tag> getTagsForAsset(const QString &assetId);
+    bool updateMetadata(const Metadata &metadata);
 
     // Tag operations
     QVector<Tag> getAllTags();

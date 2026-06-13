@@ -22,6 +22,7 @@ signals:
     void tagRemoved(const QString &assetId, int tagId);
     void tagAddRequested(const QString &assetId);
     void previewRequested(const QString &assetId);
+    void promptEditRequested(const QString &assetId);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -55,7 +56,9 @@ private:
     QRect m_addTagRect;
     QRect m_closeBtnRect;
     QRect m_copyPromptRect;
+    QRect m_editPromptRect;
     QRect m_promptHeaderRect;
+    QRect m_promptContentRect;
     QRect m_fileInfoHeaderRect;
     QRect m_metadataHeaderRect;
     QRect m_tagsHeaderRect;
@@ -65,6 +68,7 @@ private:
     QVector<QPair<int, QRect>> m_tagRects;
     bool m_addTagHovered = false;
     bool m_copyPromptHovered = false;
+    bool m_editPromptHovered = false;
     bool m_closeBtnHovered = false;
     bool m_copyFileNameHovered = false;
     bool m_openFolderHovered = false;

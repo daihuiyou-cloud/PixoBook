@@ -440,6 +440,31 @@ void MainWindow::setupConnections()
         }
     });
 
+    connect(m_detailPanel, &DetailPanel::promptEditRequested, this, [this](const QString &assetId) {
+        Asset asset = m_library->getAsset(assetId);
+        if (asset.id.isEmpty()) return;
+
+        Metadata meta = m_library->getMetadata(assetId);
+        bool ok = false;
+        QString updated = QInputDialog::getMultiLineText(
+            this,
+            tr("编辑 Prompt"),
+            tr("Prompt"),
+            meta.prompt,
+            &ok
+        );
+        if (!ok) return;
+
+        meta.assetId = assetId;
+        meta.prompt = updated.trimmed();
+        if (m_library->updateMetadata(meta)) {
+            QVector<Tag> tags = m_library->getTagsForAsset(assetId);
+            m_detailPanel->showAsset(asset, meta, tags);
+            loadAssets();
+            ToastNotification::show(this, tr("已保存 Prompt"));
+        }
+    });
+
     // Lightbox
     connect(m_lightbox, &LightboxWidget::closed, this, [this]() { m_gallery->setFocus(); });
     connect(m_lightbox, &LightboxWidget::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {

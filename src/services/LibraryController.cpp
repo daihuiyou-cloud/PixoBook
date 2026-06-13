@@ -72,6 +72,14 @@ QVector<Tag> LibraryController::getTagsForAsset(const QString &assetId)
     return m_db->getTagsForAsset(assetId);
 }
 
+bool LibraryController::updateMetadata(const Metadata &metadata)
+{
+    bool ok = m_db->upsertMetadata(metadata);
+    if (ok)
+        emit dataChanged();
+    return ok;
+}
+
 QVector<Tag> LibraryController::getAllTags()
 {
     return m_db->getAllTags();

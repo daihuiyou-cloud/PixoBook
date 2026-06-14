@@ -83,7 +83,9 @@ void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, con
 void GalleryWidget::setThumbnailSize(int size)
 {
     m_thumbSize = qBound(80, size, 320);
+    m_requestedThumbnails.clear();
     layoutItems();
+    ensureThumbnailsForVisibleItems();
     update();
 }
 
@@ -118,6 +120,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_scrollOffset = 0;
     prefetchFileExistence(assets);
     layoutItems();
+    ensureThumbnailsForVisibleItems();
     update();
 }
 
@@ -134,6 +137,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     m_scrollOffset = 0;
     prefetchFileExistence(assets);
     layoutItems();
+    ensureThumbnailsForVisibleItems();
     update();
 }
 
@@ -143,6 +147,7 @@ void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
     m_assets.append(assets);
     prefetchFileExistence(assets);
     layoutItems();
+    ensureThumbnailsForVisibleItems();
     update();
 }
 
@@ -151,6 +156,7 @@ void GalleryWidget::appendAssets(const QVector<Asset> &assets)
     m_assets.append(assets);
     m_fileExistsCache.clear();
     layoutItems();
+    ensureThumbnailsForVisibleItems();
     update();
 }
 
@@ -281,7 +287,7 @@ void GalleryWidget::drawEmptyState(QPainter &p)
 
     for (int i = 0; i < buttons.size(); i++) {
         QRect r = buttons[i].first;
-        bool hovered = r.contains(mapFromGlobal(QCursor::pos()));
+        bool hovered = (m_emptyHoveredButton == i);
         QPainterPath path;
         path.addRoundedRect(QRectF(r), Visual::RadiusSmall, Visual::RadiusSmall);
         p.fillPath(path, i == 0 ? Color::ACCENT : (hovered ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON));
@@ -371,8 +377,30 @@ void GalleryWidget::navigateTo(int index)
     else if (r.bottom() > height())
         m_scrollOffset += r.bottom() - height();
     m_scrollOffset = qBound(0, m_scrollOffset, qMax(0, m_totalHeight - height()));
+    ensureThumbnailsForVisibleItems();
     update();
     emit assetSelected(m_selectedAsset);
+}
+
+void GalleryWidget::ensureThumbnailsForVisibleItems()
+{
+    if (m_assets.isEmpty() || m_columns == 0) return;
+    int rowH = m_itemHeight() + kGap;
+    int firstRow = qMax(0, m_scrollOffset / rowH);
+    int visibleRows = height() / rowH + 2;
+    int startIdx = qMin(firstRow * m_columns, m_assets.size());
+    int endIdx = qMin((firstRow + visibleRows) * m_columns, m_assets.size());
+    for (int i = startIdx; i < endIdx; i++) {
+        const Asset &asset = m_assets[i];
+        QSize thumbSize(m_thumbSize, m_thumbSize);
+        if (!m_requestedThumbnails.contains(asset.filePath)) {
+            QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
+            if (thumb.isNull()) {
+                m_requestedThumbnails.insert(asset.filePath);
+                m_cache->requestThumbnail(asset.filePath, thumbSize);
+            }
+        }
+    }
 }
 
 void GalleryWidget::paintEvent(QPaintEvent *)
@@ -450,8 +478,6 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         } else {
             QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
             if (thumb.isNull()) {
-                m_requestedThumbnails.insert(asset.filePath);
-                m_cache->requestThumbnail(asset.filePath, thumbSize);
                 p.setPen(Color::TEXT_SECONDARY);
                 p.drawText(thumbArea, Qt::AlignCenter, asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
             } else {
@@ -594,6 +620,14 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
         if (oldHover >= 0) update(itemRect(oldHover));
         if (m_hoveredIndex >= 0) update(itemRect(m_hoveredIndex));
     }
+    int oldEmpty = m_emptyHoveredButton;
+    m_emptyHoveredButton = -1;
+    if (m_assets.isEmpty() && m_searchKeyword.isEmpty()) {
+        if (emptyFolderButtonRect().contains(event->pos())) m_emptyHoveredButton = 0;
+        else if (emptyFilesButtonRect().contains(event->pos())) m_emptyHoveredButton = 1;
+    }
+    if (oldEmpty != m_emptyHoveredButton)
+        update();
 }
 
 void GalleryWidget::mousePressEvent(QMouseEvent *event)
@@ -718,6 +752,7 @@ void GalleryWidget::wheelEvent(QWheelEvent *event)
         int snapRow = (m_scrollOffset + rowH / 2) / rowH;
         m_scrollOffset = qBound(0, snapRow * rowH, qMax(0, m_totalHeight - height()));
     }
+    ensureThumbnailsForVisibleItems();
     update();
     checkLoadMore();
 }
@@ -725,6 +760,8 @@ void GalleryWidget::wheelEvent(QWheelEvent *event)
 void GalleryWidget::resizeEvent(QResizeEvent *)
 {
     layoutItems();
+    m_scrollOffset = qBound(0, m_scrollOffset, qMax(0, m_totalHeight - height()));
+    ensureThumbnailsForVisibleItems();
     update();
 }
 

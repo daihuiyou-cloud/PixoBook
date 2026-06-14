@@ -15,11 +15,8 @@ QPixmap ImageCache::get(const QString &filePath, const QSize &size) const
     QMutexLocker lock(&m_mutex);
     CacheKey key{filePath, size};
     auto it = m_cache.find(key);
-    if (it != m_cache.end()) {
-        m_accessOrder.removeAll(key);
-        m_accessOrder.append(key);
+    if (it != m_cache.end())
         return it.value();
-    }
     return {};
 }
 

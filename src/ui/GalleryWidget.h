@@ -74,6 +74,7 @@ private:
     QRect emptyFolderButtonRect() const;
     QRect emptyFilesButtonRect() const;
     void drawBatchToolbar(QPainter &p);
+    void ensureThumbnailsForVisibleItems();
     void clearSelection();
     void checkLoadMore();
     void prefetchFileExistence(const QVector<Asset> &assets);
@@ -97,6 +98,7 @@ private:
     int m_columns = 4;
     QString m_searchKeyword;
     bool m_isDragOver = false;
+    int m_emptyHoveredButton = -1;
     QSet<QString> m_requestedThumbnails;
     QHash<QString, bool> m_fileExistsCache;
     QRect m_batchTagRect;

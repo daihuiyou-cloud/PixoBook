@@ -410,7 +410,7 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
         p.setPen(QPen(Color::BORDER_FAINT, 1));
         p.drawPath(promptPath);
 
-        QRect textRect = promptRect.adjusted(10, 8, -10, -8);
+        QRect textRect = promptRect.adjusted(8, 8, -8, -8);
         p.setPen(hasPrompt ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY);
         if (hasPrompt) {
             QTextOption opt;
@@ -544,7 +544,7 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
         ToastNotification::show(this, tr("已复制 Prompt"));
         return;
     }
-    if (m_editPromptRect.contains(event->pos()) && !m_asset.id.isEmpty() && !m_metadata.prompt.isEmpty()) {
+    if (m_editPromptRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
         startPromptEdit();
         return;
     }
@@ -649,6 +649,8 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
 {
     if (m_isEditingPrompt) {
         finishPromptEdit(true);
+        event->accept();
+        return;
     }
     QPoint pixelDelta = event->pixelDelta();
     QPoint angleDelta = event->angleDelta();
@@ -667,11 +669,19 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
 void DetailPanel::startPromptEdit()
 {
     m_isEditingPrompt = true;
+    if (!m_promptExpanded) {
+        m_promptExpanded = true;
+        update();
+    }
+    QRect editorRect = m_promptContentRect;
+    if (editorRect.height() < Visual::DetailPromptHeight)
+        editorRect.setHeight(Visual::DetailPromptHeight);
     m_promptEditor->setPlainText(m_metadata.prompt);
-    m_promptEditor->setGeometry(m_promptContentRect);
+    m_promptEditor->setGeometry(editorRect);
     m_promptEditor->setVisible(true);
     m_promptEditor->setFocus();
     m_promptEditor->selectAll();
+    m_promptEditor->setToolTip(tr("Ctrl+Enter 保存，Esc 取消"));
 }
 
 void DetailPanel::finishPromptEdit(bool accepted)
@@ -707,6 +717,12 @@ bool DetailPanel::eventFilter(QObject *obj, QEvent *event)
     return QWidget::eventFilter(obj, event);
 }
 
+void DetailPanel::hideEvent(QHideEvent *event)
+{
+    finishPromptEdit(false);
+    QWidget::hideEvent(event);
+}
+
 void DetailPanel::clampScrollOffset()
 {
     m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
@@ -725,6 +741,9 @@ void DetailPanel::drawScrollIndicator(QPainter &p)
 
 void DetailPanel::resizeEvent(QResizeEvent *)
 {
+    if (m_isEditingPrompt) {
+        finishPromptEdit(true);
+    }
     clampScrollOffset();
     update();
 }

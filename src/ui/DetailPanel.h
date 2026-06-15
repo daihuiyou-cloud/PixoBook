@@ -34,6 +34,7 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void leaveEvent(QEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
 
 private:
     void startPromptEdit();

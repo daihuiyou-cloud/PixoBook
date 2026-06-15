@@ -448,10 +448,12 @@ void MainWindow::setupConnections()
         meta.assetId = assetId;
         meta.prompt = newPrompt;
         if (m_library->updateMetadata(meta)) {
-            QVector<Tag> tags = m_library->getTagsForAsset(assetId);
-            m_detailPanel->showAsset(asset, meta, tags);
-            loadAssets();
-            ToastNotification::show(this, tr("已保存 Prompt"));
+            QTimer::singleShot(0, this, [this, asset, meta]() {
+                QVector<Tag> tags = m_library->getTagsForAsset(asset.id);
+                m_detailPanel->showAsset(asset, meta, tags);
+                loadAssets();
+                ToastNotification::show(this, tr("已保存 Prompt"));
+            });
         }
     });
 

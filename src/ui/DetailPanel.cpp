@@ -37,10 +37,31 @@ DetailPanel::DetailPanel(IImageCache *cache, QWidget *parent)
 {
     setMouseTracking(true);
     setMinimumWidth(340);
+
+    m_promptEditor = new QPlainTextEdit(this);
+    m_promptEditor->setVisible(false);
+    m_promptEditor->setFrameShape(QFrame::NoFrame);
+    m_promptEditor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_promptEditor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_promptEditor->setStyleSheet(
+        "QPlainTextEdit {"
+        "  background-color: #252525;"
+        "  color: #e0e0e0;"
+        "  border: 1px solid #4a6cf7;"
+        "  border-radius: 4px;"
+        "  padding: 8px;"
+        "  font-size: 12px;"
+        "  selection-background-color: #4a6cf7;"
+        "  selection-color: #ffffff;"
+        "}"
+    );
+    m_promptEditor->installEventFilter(this);
 }
 
 void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const QVector<Tag> &tags)
 {
+    if (m_isEditingPrompt)
+        finishPromptEdit(true);
     m_asset = asset;
     m_metadata = metadata;
     m_tags = tags;
@@ -62,6 +83,10 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
 
 void DetailPanel::clear()
 {
+    if (m_isEditingPrompt) {
+        m_isEditingPrompt = false;
+        m_promptEditor->setVisible(false);
+    }
     m_asset = {};
     m_metadata = {};
     m_tags.clear();
@@ -519,12 +544,12 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
         ToastNotification::show(this, tr("已复制 Prompt"));
         return;
     }
-    if (m_editPromptRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
-        emit promptEditRequested(m_asset.id);
+    if (m_editPromptRect.contains(event->pos()) && !m_asset.id.isEmpty() && !m_metadata.prompt.isEmpty()) {
+        startPromptEdit();
         return;
     }
-    if (m_promptContentRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
-        emit promptEditRequested(m_asset.id);
+    if (m_promptContentRect.contains(event->pos()) && !m_asset.id.isEmpty() && !m_metadata.prompt.isEmpty() && !m_isEditingPrompt) {
+        startPromptEdit();
         return;
     }
     if (m_copyFileNameRect.contains(event->pos()) && !m_asset.fileName.isEmpty()) {
@@ -622,6 +647,9 @@ void DetailPanel::mouseReleaseEvent(QMouseEvent *)
 
 void DetailPanel::wheelEvent(QWheelEvent *event)
 {
+    if (m_isEditingPrompt) {
+        finishPromptEdit(true);
+    }
     QPoint pixelDelta = event->pixelDelta();
     QPoint angleDelta = event->angleDelta();
     if (imageArea().contains(event->pos())) {
@@ -634,6 +662,49 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
         m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
         update();
     }
+}
+
+void DetailPanel::startPromptEdit()
+{
+    m_isEditingPrompt = true;
+    m_promptEditor->setPlainText(m_metadata.prompt);
+    m_promptEditor->setGeometry(m_promptContentRect);
+    m_promptEditor->setVisible(true);
+    m_promptEditor->setFocus();
+    m_promptEditor->selectAll();
+}
+
+void DetailPanel::finishPromptEdit(bool accepted)
+{
+    if (!m_isEditingPrompt) return;
+    m_isEditingPrompt = false;
+    m_promptEditor->setVisible(false);
+
+    if (accepted) {
+        QString newPrompt = m_promptEditor->toPlainText().trimmed();
+        if (newPrompt != m_metadata.prompt) {
+            m_metadata.prompt = newPrompt;
+            emit promptSaved(m_asset.id, newPrompt);
+        }
+    }
+    setFocus();
+    update();
+}
+
+bool DetailPanel::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == m_promptEditor && event->type() == QEvent::KeyPress) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_Return && (key->modifiers() & Qt::ControlModifier)) {
+            finishPromptEdit(true);
+            return true;
+        }
+        if (key->key() == Qt::Key_Escape) {
+            finishPromptEdit(false);
+            return true;
+        }
+    }
+    return QWidget::eventFilter(obj, event);
 }
 
 void DetailPanel::clampScrollOffset()

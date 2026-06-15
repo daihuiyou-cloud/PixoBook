@@ -2,6 +2,7 @@
 #define DETAILPANEL_H
 
 #include <QWidget>
+#include <QPlainTextEdit>
 #include "models/Asset.h"
 #include "models/Metadata.h"
 #include "models/Tag.h"
@@ -22,9 +23,10 @@ signals:
     void tagRemoved(const QString &assetId, int tagId);
     void tagAddRequested(const QString &assetId);
     void previewRequested(const QString &assetId);
-    void promptEditRequested(const QString &assetId);
+    void promptSaved(const QString &assetId, const QString &newPrompt);
 
 protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -34,9 +36,15 @@ protected:
     void leaveEvent(QEvent *event) override;
 
 private:
+    void startPromptEdit();
+    void finishPromptEdit(bool accepted);
+
     Asset m_asset;
     Metadata m_metadata;
     QVector<Tag> m_tags;
+
+    QPlainTextEdit *m_promptEditor = nullptr;
+    bool m_isEditingPrompt = false;
 
     QPixmap m_fullImage;
     double m_zoom = 1.0;

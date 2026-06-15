@@ -55,6 +55,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -78,6 +79,8 @@ private:
     void clearSelection();
     void checkLoadMore();
     void prefetchFileExistence(const QVector<Asset> &assets);
+    void drawRubberBand(QPainter &p);
+    void updateRubberBandSelection(const QRect &oldBand);
 
     int m_thumbSize = 180;
     static constexpr int kPadding = Visual::GalleryCardPadding;
@@ -105,6 +108,14 @@ private:
     QRect m_batchDeleteRect;
     QRect m_batchClearRect;
     IImageCache *m_cache;
+
+    bool m_isRubberBanding = false;
+    QPoint m_rubberBandStart;
+    QPoint m_rubberBandEnd;
+    QSet<int> m_rubberBandOrigSelection;
+    bool m_rubberBandAdditive = false;
+    bool m_rubberBandToggle = false;
+    bool m_rubberBandSubtract = false;
 
     QFont m_labelFont;
     QFontMetrics m_labelFm{m_labelFont};

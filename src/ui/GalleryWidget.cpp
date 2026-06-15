@@ -356,6 +356,7 @@ void GalleryWidget::drawBatchToolbar(QPainter &p)
 
 void GalleryWidget::clearSelection()
 {
+    m_isRubberBanding = false;
     m_selectedIndices.clear();
     m_selectedAsset = {};
     m_lastClickedIndex = -1;
@@ -548,6 +549,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
     }
 
     drawBatchToolbar(p);
+    drawRubberBand(p);
 }
 
 void GalleryWidget::keyPressEvent(QKeyEvent *event)
@@ -558,6 +560,7 @@ void GalleryWidget::keyPressEvent(QKeyEvent *event)
         return;
     }
     if (event->key() == Qt::Key_Escape) {
+        m_isRubberBanding = false;
         m_selectedIndices.clear();
         m_selectedAsset = {};
         update();
@@ -614,6 +617,13 @@ void GalleryWidget::keyPressEvent(QKeyEvent *event)
 
 void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_isRubberBanding && (event->buttons() & Qt::LeftButton)) {
+        QRect oldBand = QRect(m_rubberBandStart, m_rubberBandEnd).normalized();
+        m_rubberBandEnd = event->pos();
+        updateRubberBandSelection(oldBand);
+        return;
+    }
+
     int oldHover = m_hoveredIndex;
     m_hoveredIndex = indexAt(event->pos());
     if (oldHover != m_hoveredIndex) {
@@ -718,24 +728,112 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
             update();
             emit assetSelected(m_selectedAsset);
         }
+    } else if (idx < 0) {
+        m_isRubberBanding = true;
+        m_rubberBandStart = event->pos();
+        m_rubberBandEnd = event->pos();
+        m_rubberBandOrigSelection = m_selectedIndices;
+        m_rubberBandAdditive = event->modifiers() & Qt::ShiftModifier;
+        m_rubberBandToggle = event->modifiers() & Qt::ControlModifier;
+        m_rubberBandSubtract = event->modifiers() & Qt::AltModifier;
+        if (!m_rubberBandAdditive && !m_rubberBandToggle && !m_rubberBandSubtract) {
+            m_selectedIndices.clear();
+            m_selectedAsset = {};
+        }
     } else {
         m_selectedIndices.clear();
-        if (idx >= 0) {
-            m_lastClickedIndex = idx;
-            m_selectedAsset = m_assets[idx];
-            m_selectedIndices.insert(idx);
-            update();
-            emit assetSelected(m_assets[idx]);
-        } else {
-            clearSelection();
-        }
+        m_lastClickedIndex = idx;
+        m_selectedAsset = m_assets[idx];
+        m_selectedIndices.insert(idx);
+        update();
+        emit assetSelected(m_assets[idx]);
     }
+}
+
+void GalleryWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && m_isRubberBanding) {
+        m_isRubberBanding = false;
+        QPoint delta = event->pos() - m_rubberBandStart;
+        if (qAbs(delta.x()) < 3 && qAbs(delta.y()) < 3) {
+            clearSelection();
+        } else {
+            if (!m_selectedIndices.isEmpty()) {
+                m_lastClickedIndex = *m_selectedIndices.constBegin();
+            }
+            emit assetSelected({});
+        }
+        update();
+        return;
+    }
+    QWidget::mouseReleaseEvent(event);
 }
 
 void GalleryWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     int idx = indexAt(event->pos());
     if (idx >= 0) emit assetDoubleClicked(m_assets[idx]);
+}
+
+void GalleryWidget::drawRubberBand(QPainter &p)
+{
+    if (!m_isRubberBanding) return;
+    QRect band = QRect(m_rubberBandStart, m_rubberBandEnd).normalized();
+    if (band.isEmpty()) return;
+
+    QColor fill = Color::ACCENT;
+    fill.setAlpha(25);
+    p.fillRect(band, fill);
+
+    QPen pen(Color::ACCENT, 1, Qt::DashLine);
+    p.setPen(pen);
+    p.drawRect(band);
+}
+
+void GalleryWidget::updateRubberBandSelection(const QRect &oldBand)
+{
+    QRect band = QRect(m_rubberBandStart, m_rubberBandEnd).normalized();
+    if (band.isEmpty() && oldBand.isEmpty()) return;
+
+    int rowH = m_itemHeight() + kGap;
+    int bandTop = band.top() + m_scrollOffset;
+    int bandBottom = band.bottom() + m_scrollOffset;
+    int firstRow = qMax(0, bandTop / rowH - 1);
+    int lastRow = qMin((m_assets.size() - 1) / m_columns, bandBottom / rowH + 1);
+    int startIdx = firstRow * m_columns;
+    int endIdx = qMin(m_assets.size(), (lastRow + 1) * m_columns);
+
+    QVarLengthArray<int, 32> intersected;
+    for (int i = startIdx; i < endIdx; i++) {
+        if (itemRect(i).intersects(band))
+            intersected.append(i);
+    }
+
+    QSet<int> newSelection;
+    if (m_rubberBandSubtract) {
+        newSelection = m_rubberBandOrigSelection;
+        for (int i : intersected) newSelection.remove(i);
+    } else if (m_rubberBandToggle) {
+        newSelection = m_rubberBandOrigSelection;
+        for (int i : intersected) {
+            if (newSelection.contains(i)) newSelection.remove(i);
+            else newSelection.insert(i);
+        }
+    } else if (m_rubberBandAdditive) {
+        newSelection = m_rubberBandOrigSelection;
+        for (int i : intersected) newSelection.insert(i);
+    } else {
+        newSelection.clear();
+        for (int i : intersected) newSelection.insert(i);
+    }
+
+    if (newSelection != m_selectedIndices) {
+        m_selectedIndices = newSelection;
+        update();
+    } else {
+        QRect dirty = oldBand.united(band).adjusted(-2, -2, 2, 2);
+        update(dirty);
+    }
 }
 
 void GalleryWidget::wheelEvent(QWheelEvent *event)

@@ -10,6 +10,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QTextOption>
+#include <QTimer>
 #include <QUrl>
 #include <QWheelEvent>
 #include "ui/Codicon.h"
@@ -661,6 +662,16 @@ void DetailPanel::startPromptEdit()
     m_promptEditor->setFocus();
     m_promptEditor->selectAll();
     m_promptEditor->setToolTip(tr("Ctrl+Enter 保存，Esc 取消"));
+
+    QTimer::singleShot(0, this, [this]() {
+        QRect r = m_promptContentRect;
+        if (!r.isValid()) return;
+        QFontMetrics fm2(font());
+        const int textH2 = fm2.boundingRect(QRect(0, 0, width() - 52, 600),
+                                            Qt::TextWordWrap, m_metadata.prompt).height();
+        r.setHeight(qBound(52, textH2 + 20, Visual::DetailPromptHeight));
+        m_promptEditor->setGeometry(r);
+    });
 }
 
 void DetailPanel::finishPromptEdit(bool accepted)

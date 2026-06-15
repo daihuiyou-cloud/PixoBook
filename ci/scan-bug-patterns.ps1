@@ -509,6 +509,56 @@ if ($nonConstDraws.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 17: Missing Q_DECLARE_METATYPE for types used in cross-thread signals
+# ====================================================================
+$metatypeIssues = @()
+$checkedMetatype = @{}
+Get-ChildItem $SrcDir -Recurse -Filter "*.h" | Where-Object {
+    $content = Get-Content $_.FullName -Raw
+    $content -match '\bsignals:\s*' -and $content -match 'Q_OBJECT'
+} | ForEach-Object {
+    $hFile = $_.FullName
+    $lines = Get-Content $hFile
+    $hasSignals = $false
+    foreach ($line in $lines) {
+        if ($line -match '^\s*signals\s*:' -or $line -match 'Q_SIGNALS\s*:') {
+            $hasSignals = $true
+            continue
+        }
+        if ($line -match '^\s*(public|private|protected)\s*(signals|slots)?\s*:') {
+            if ($line -notmatch 'signals') { $hasSignals = $false }
+            continue
+        }
+        if ($hasSignals -and $line -match 'void\s+\w+\s*\(([^)]*)\)') {
+            $params = $Matches[1]
+            $params -split ',' | ForEach-Object {
+                $typeCandidate = $_.Trim() -replace '^(const\s+)?' -replace '\s+(&|\*)?\s*\w*\s*$' -replace '^const ' -replace '\s*&$' -replace '\s*\*$' -replace '^\s+|\s+$'
+                $typeCandidate = $typeCandidate.Trim()
+                if ($typeCandidate -match '^(int|bool|double|float|qint64|quint32|qint32|QString|QSize|QPoint|QRect|QColor|QPixmap|QImage|QByteArray|QUrl|QDate|QTime|QDateTime|QVariant|QModelIndex|QWidget\*|QObject\*)$') { return }
+                if ($typeCandidate -eq '' -or $typeCandidate -match '^\s*$') { return }
+                if ($checkedMetatype.ContainsKey($typeCandidate)) { return }
+                $checkedMetatype[$typeCandidate] = $true
+
+                $typeHeader = Get-ChildItem $SrcDir -Recurse -Filter "*.h" | Where-Object {
+                    (Get-Content $_.FullName -Raw) -match "(struct|class)\s+$typeCandidate\b"
+                } | Select-Object -First 1
+                if (-not $typeHeader) { return }
+
+                $typeContent = Get-Content $typeHeader.FullName -Raw
+                if ($typeContent -notmatch "Q_DECLARE_METATYPE\s*\(\s*$typeCandidate\s*\)") {
+                    $metatypeIssues += "$($typeHeader.FullName) — type '$typeCandidate' used in signal but missing Q_DECLARE_METATYPE"
+                }
+            }
+        }
+    }
+}
+if ($metatypeIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "missing-q-declare-metatype"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "missing-q-declare-metatype"; Status = "FAIL"; Details = ($metatypeIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

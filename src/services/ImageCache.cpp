@@ -84,10 +84,20 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
 QPixmap ImageCache::generateThumbnail(const QString &filePath, const QSize &size) const
 {
     QImageReader reader(filePath);
-    reader.setScaledSize(size);
+    QSize imgSize = reader.size();
+    if (!imgSize.isValid())
+        return {};
+
+    QSize fitSize = imgSize.scaled(size, Qt::KeepAspectRatio);
+    if (fitSize != imgSize)
+        reader.setScaledSize(fitSize);
+
     QImage img = reader.read();
     if (img.isNull())
         return {};
+
+    if (img.size() != fitSize)
+        img = img.scaled(fitSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
     QPixmap result(size);
     result.fill(Qt::transparent);

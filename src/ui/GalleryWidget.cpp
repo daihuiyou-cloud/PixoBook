@@ -129,9 +129,8 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_lastClickedIndex = -1;
     m_selectedAsset = {};
     m_selectedIndices.clear();
-    m_requestedThumbnails.clear();
-    m_fileExistsCache.clear();
     m_scrollOffset = 0;
+    pruneRequestedThumbnails(assets);
     prefetchFileExistence(assets);
     rebuildMetaLines();
     layoutItems();
@@ -147,9 +146,8 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     m_lastClickedIndex = -1;
     m_selectedAsset = {};
     m_selectedIndices.clear();
-    m_requestedThumbnails.clear();
-    m_fileExistsCache.clear();
     m_scrollOffset = 0;
+    pruneRequestedThumbnails(assets);
     prefetchFileExistence(assets);
     rebuildMetaLines();
     layoutItems();
@@ -174,7 +172,7 @@ void GalleryWidget::appendAssets(const QVector<Asset> &assets)
     m_assets.append(assets);
     for (const auto &a : assets)
         m_metaLines.append(metaLine(a));
-    m_fileExistsCache.clear();
+    prefetchFileExistence(assets);
     layoutItems();
     ensureThumbnailsForVisibleItems();
     update();
@@ -214,6 +212,16 @@ void GalleryWidget::prefetchFileExistence(const QVector<Asset> &assets)
         if (!m_fileExistsCache.contains(a.filePath))
             m_fileExistsCache.insert(a.filePath, QFileInfo::exists(a.filePath));
     }
+}
+
+void GalleryWidget::pruneRequestedThumbnails(const QVector<Asset> &assets)
+{
+    if (m_requestedThumbnails.isEmpty()) return;
+    QSet<QString> currentPaths;
+    currentPaths.reserve(assets.size());
+    for (const auto &a : assets)
+        currentPaths.insert(a.filePath);
+    m_requestedThumbnails.intersect(currentPaths);
 }
 
 void GalleryWidget::rebuildMetaLines()
@@ -412,18 +420,22 @@ void GalleryWidget::ensureThumbnailsForVisibleItems()
     int visibleRows = height() / rowH + 2;
     int startIdx = qMin(firstRow * m_columns, m_assets.size());
     int endIdx = qMin((firstRow + visibleRows) * m_columns, m_assets.size());
+    QSize thumbSize(m_thumbSize, m_thumbSize);
     for (int i = startIdx; i < endIdx; i++) {
         const Asset &asset = m_assets[i];
         auto existsIt = m_fileExistsCache.find(asset.filePath);
         if (existsIt != m_fileExistsCache.end() && !existsIt.value())
             continue;
-        QSize thumbSize(m_thumbSize, m_thumbSize);
-        if (!m_requestedThumbnails.contains(asset.filePath)) {
+        if (m_requestedThumbnails.contains(asset.filePath)) {
             QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
-            if (thumb.isNull()) {
-                m_requestedThumbnails.insert(asset.filePath);
-                m_cache->requestThumbnail(asset.filePath, thumbSize);
-            }
+            if (!thumb.isNull())
+                m_requestedThumbnails.remove(asset.filePath);
+            continue;
+        }
+        QPixmap thumb = m_cache->get(asset.filePath, thumbSize);
+        if (thumb.isNull()) {
+            m_requestedThumbnails.insert(asset.filePath);
+            m_cache->requestThumbnail(asset.filePath, thumbSize);
         }
     }
 }

@@ -68,7 +68,7 @@ void ImageCache::invalidateDir(const QString &dirPath)
         prefix += '/';
     auto it = m_cache.begin();
     while (it != m_cache.end()) {
-        if (it.key().filePath.startsWith(prefix)) {
+        if (it.key().filePath.startsWith(prefix, Qt::CaseInsensitive)) {
             m_currentBytes -= pixmapBytes(it.value());
             m_accessOrder.removeAll(it.key());
             it = m_cache.erase(it);

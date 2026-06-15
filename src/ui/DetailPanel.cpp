@@ -650,7 +650,13 @@ void DetailPanel::startPromptEdit()
         m_promptExpanded = true;
         update();
     }
-    QFontMetrics fm(font());
+    auto promptFont = [this]() {
+        QFont f = font();
+        f.setPixelSize(Visual::FontBody);
+        f.setBold(false);
+        return f;
+    };
+    QFontMetrics fm(promptFont());
     const int textW = width() - 52;
     const int textH = fm.boundingRect(QRect(0, 0, textW, 600),
                                       Qt::TextWordWrap, m_metadata.prompt).height();
@@ -663,10 +669,10 @@ void DetailPanel::startPromptEdit()
     m_promptEditor->selectAll();
     m_promptEditor->setToolTip(tr("Ctrl+Enter 保存，Esc 取消"));
 
-    QTimer::singleShot(0, this, [this]() {
+    QTimer::singleShot(0, this, [this, promptFont]() {
         QRect r = m_promptContentRect;
         if (!r.isValid()) return;
-        QFontMetrics fm2(font());
+        QFontMetrics fm2(promptFont());
         const int textH2 = fm2.boundingRect(QRect(0, 0, width() - 52, 600),
                                             Qt::TextWordWrap, m_metadata.prompt).height();
         r.setHeight(qBound(52, textH2 + 20, Visual::DetailPromptHeight));

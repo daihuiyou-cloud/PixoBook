@@ -112,14 +112,19 @@ bool LibraryController::deleteTag(int tagId)
 
 void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tagId)
 {
-    m_db->beginTransaction();
+    if (!m_db->beginTransaction()) {
+        qWarning("addTagToAssets: beginTransaction failed");
+        return;
+    }
     for (const auto &aid : assetIds) {
         if (!m_db->addTagToAsset(aid, tagId)) {
             m_db->rollbackTransaction();
+            emit dataChanged();
             return;
         }
     }
-    m_db->commitTransaction();
+    if (!m_db->commitTransaction())
+        qWarning("addTagToAssets: commitTransaction failed");
 }
 
 void LibraryController::removeTagFromAsset(const QString &assetId, int tagId)
@@ -164,7 +169,10 @@ void LibraryController::scanAndInsertFile(const QString &path)
 
 bool LibraryController::deleteAssets(const QVector<Asset> &assets)
 {
-    m_db->beginTransaction();
+    if (!m_db->beginTransaction()) {
+        qWarning("deleteAssets: beginTransaction failed");
+        return false;
+    }
     for (const auto &a : assets) {
         if (!m_db->deleteAsset(a.id)) {
             m_db->rollbackTransaction();
@@ -172,7 +180,8 @@ bool LibraryController::deleteAssets(const QVector<Asset> &assets)
             return false;
         }
     }
-    m_db->commitTransaction();
+    if (!m_db->commitTransaction())
+        qWarning("deleteAssets: commitTransaction failed");
     emit dataChanged();
     return true;
 }

@@ -1,6 +1,7 @@
 #include "LightboxWidget.h"
 #include <QCursor>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -66,10 +67,18 @@ void LightboxWidget::loadCurrentImage()
         return;
     }
     const Asset &asset = m_assets[m_currentIndex];
-    if (QFileInfo::exists(asset.filePath))
-        m_currentPixmap = QPixmap(asset.filePath);
-    else
+    if (!QFileInfo::exists(asset.filePath)) {
         m_currentPixmap = QPixmap();
+        return;
+    }
+    QImageReader reader(asset.filePath);
+    QSize imgSize = reader.size();
+    if (imgSize.isValid()) {
+        QSize maxSize(1920, 1080);
+        if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
+            reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
+    }
+    m_currentPixmap = QPixmap::fromImage(reader.read());
 }
 
 void LightboxWidget::resetView()

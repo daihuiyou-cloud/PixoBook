@@ -34,8 +34,10 @@ bool DatabaseManager::initialize()
 void DatabaseManager::createSchema()
 {
     QSqlQuery q(m_db);
-    q.exec("PRAGMA journal_mode=WAL");
-    q.exec("PRAGMA foreign_keys=ON");
+    if (!q.exec("PRAGMA journal_mode=WAL"))
+        qWarning("Failed to enable WAL mode: %s", q.lastError().text().toUtf8().constData());
+    if (!q.exec("PRAGMA foreign_keys=ON"))
+        qWarning("Failed to enable foreign keys: %s", q.lastError().text().toUtf8().constData());
 
     q.exec(
         "CREATE TABLE IF NOT EXISTS assets ("

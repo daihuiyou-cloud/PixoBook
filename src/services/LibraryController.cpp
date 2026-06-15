@@ -112,8 +112,14 @@ bool LibraryController::deleteTag(int tagId)
 
 void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tagId)
 {
-    for (const auto &aid : assetIds)
-        m_db->addTagToAsset(aid, tagId);
+    m_db->beginTransaction();
+    for (const auto &aid : assetIds) {
+        if (!m_db->addTagToAsset(aid, tagId)) {
+            m_db->rollbackTransaction();
+            return;
+        }
+    }
+    m_db->commitTransaction();
 }
 
 void LibraryController::removeTagFromAsset(const QString &assetId, int tagId)
@@ -158,8 +164,15 @@ void LibraryController::scanAndInsertFile(const QString &path)
 
 bool LibraryController::deleteAssets(const QVector<Asset> &assets)
 {
-    for (const auto &a : assets)
-        m_db->deleteAsset(a.id);
+    m_db->beginTransaction();
+    for (const auto &a : assets) {
+        if (!m_db->deleteAsset(a.id)) {
+            m_db->rollbackTransaction();
+            emit dataChanged();
+            return false;
+        }
+    }
+    m_db->commitTransaction();
     emit dataChanged();
     return true;
 }

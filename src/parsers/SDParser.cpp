@@ -42,6 +42,7 @@ Metadata SDParser::parseFromPNGChunks(const QString &filePath)
                 if (nullPos + 2 > chunkData.size()) break;
                 QByteArray compressed = chunkData.mid(nullPos + 2);
                 chunkData = qUncompress(compressed);
+                if (chunkData.isEmpty()) break;
                 QByteArray fullData = keyword + '\0' + chunkData;
                 chunkData = fullData;
             }

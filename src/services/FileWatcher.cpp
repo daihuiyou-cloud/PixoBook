@@ -11,8 +11,6 @@ FileWatcher::FileWatcher(QObject *parent)
     m_watcher = new QFileSystemWatcher(this);
     connect(m_watcher, &QFileSystemWatcher::directoryChanged,
             this, &FileWatcher::onDirectoryChanged);
-    connect(m_watcher, &QFileSystemWatcher::fileChanged,
-            this, &FileWatcher::onFileChanged);
 
     m_debounceTimer.setSingleShot(true);
     m_debounceTimer.setInterval(300);
@@ -91,14 +89,6 @@ void FileWatcher::onDirectoryChanged(const QString &path)
     if (!m_pendingDirs.contains(path))
         m_pendingDirs.append(path);
     m_debounceTimer.start();
-}
-
-void FileWatcher::onFileChanged(const QString &path)
-{
-    if (!QFileInfo::exists(path))
-        emit fileRemoved(path);
-    else
-        emit fileModified(path);
 }
 
 void FileWatcher::checkForNewFiles(const QString &dirPath)

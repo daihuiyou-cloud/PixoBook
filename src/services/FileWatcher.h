@@ -24,7 +24,6 @@ signals:
 
 private slots:
     void onDirectoryChanged(const QString &path);
-    void onFileChanged(const QString &path);
 
 private:
     void watchDirectoryTree(const QString &rootPath);

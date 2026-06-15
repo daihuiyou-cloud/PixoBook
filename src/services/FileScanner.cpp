@@ -2,7 +2,7 @@
 #include "core/ImageFormats.h"
 #include <QDirIterator>
 #include <QFileInfo>
-#include <QImage>
+#include <QImageReader>
 #include <QUuid>
 #include <QDateTime>
 #include <QFile>
@@ -51,10 +51,11 @@ QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recur
         asset.createdAt = fi.birthTime();
         asset.updatedAt = fi.lastModified();
 
-        QImage img(asset.filePath);
-        if (!img.isNull()) {
-            asset.width = img.width();
-            asset.height = img.height();
+        QImageReader reader(asset.filePath);
+        QSize dims = reader.size();
+        if (dims.isValid()) {
+            asset.width = dims.width();
+            asset.height = dims.height();
         }
 
         asset.hash = computeHash(asset.filePath);
@@ -95,10 +96,11 @@ Asset FileScanner::scanSingleFile(const QString &filePath)
     asset.createdAt = fi.birthTime();
     asset.updatedAt = fi.lastModified();
 
-    QImage img(asset.filePath);
-    if (!img.isNull()) {
-        asset.width = img.width();
-        asset.height = img.height();
+    QImageReader reader(asset.filePath);
+    QSize dims = reader.size();
+    if (dims.isValid()) {
+        asset.width = dims.width();
+        asset.height = dims.height();
     }
 
     asset.hash = computeHash(asset.filePath);

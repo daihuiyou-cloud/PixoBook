@@ -90,6 +90,10 @@ void DatabaseManager::createSchema()
 
     q.exec("CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(hash)");
     q.exec("CREATE INDEX IF NOT EXISTS idx_assets_folder ON assets(folder_id)");
+    q.exec("CREATE INDEX IF NOT EXISTS idx_assets_favorite ON assets(is_favorite)");
+    q.exec("CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at)");
+    q.exec("CREATE INDEX IF NOT EXISTS idx_metadata_source ON metadata(source)");
+    q.exec("CREATE INDEX IF NOT EXISTS idx_asset_tags_tag ON asset_tags(tag_id)");
 
     q.exec(
         "CREATE TABLE IF NOT EXISTS schema_version ("

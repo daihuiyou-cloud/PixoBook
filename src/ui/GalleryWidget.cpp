@@ -71,6 +71,14 @@ GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     m_labelFm = QFontMetrics(m_labelFont);
     m_metaFont.setPixelSize(Visual::FontCaption);
     m_metaFm = QFontMetrics(m_metaFont);
+    m_badgeFont = m_metaFont;
+    m_badgeFont.setBold(true);
+    m_emptyTitleFont = m_labelFont;
+    m_emptyTitleFont.setPixelSize(Visual::FontHeading);
+    m_emptyTitleFont.setBold(true);
+    m_emptyBodyFont = m_labelFont;
+    m_controlFont.setPixelSize(Visual::FontControl);
+    m_actionFont = m_metaFont;
 }
 
 void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, const QPixmap &pixmap)
@@ -252,20 +260,14 @@ void GalleryWidget::drawEmptyState(QPainter &p)
                   QRect(center.center().x() - 24, center.center().y() - 100, 48, 48),
                   Color::TEXT_SECONDARY, 36);
 
-    QFont title = p.font();
-    title.setPixelSize(Visual::FontHeading);
-    title.setBold(true);
-    p.setFont(title);
+    p.setFont(m_emptyTitleFont);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(center.adjusted(0, -44, 0, 0), Qt::AlignCenter,
                searching
                    ? tr("没有找到匹配“%1”的素材").arg(m_searchKeyword)
                    : tr("把 AI 素材放进来，开始整理"));
 
-    QFont body = p.font();
-    body.setPixelSize(Visual::FontBody);
-    body.setBold(false);
-    p.setFont(body);
+    p.setFont(m_emptyBodyFont);
     p.setPen(Color::TEXT_SECONDARY);
     p.drawText(center.adjusted(0, -4, 0, 0), Qt::AlignCenter,
                searching
@@ -281,9 +283,7 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     };
     const QVector<QString> icons = { "folder-opened", "file-media" };
 
-    QFont buttonFont = p.font();
-    buttonFont.setPixelSize(Visual::FontControl);
-    p.setFont(buttonFont);
+    p.setFont(m_controlFont);
 
     for (int i = 0; i < buttons.size(); i++) {
         QRect r = buttons[i].first;
@@ -319,7 +319,7 @@ void GalleryWidget::drawBatchToolbar(QPainter &p)
     p.setPen(QPen(Color::BORDER_SUBTLE, 1));
     p.drawPath(barPath);
 
-    QFont f = p.font();
+    QFont f(p.font());
     f.setPixelSize(Visual::FontControl);
     f.setBold(true);
     p.setFont(f);
@@ -498,10 +498,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         const bool hasPrompt = !asset.metadataPrompt.trimmed().isEmpty();
         if (hasSource) {
             QString badge = sourceBadge(asset);
-            QFont badgeFont = p.font();
-            badgeFont.setPixelSize(Visual::FontCaption);
-            badgeFont.setBold(true);
-            p.setFont(badgeFont);
+            p.setFont(m_badgeFont);
             const int badgeW = qMin(96, p.fontMetrics().horizontalAdvance(badge) + 16);
             QRect badgeRect(thumbArea.left() + 8, thumbArea.top() + 8, badgeW, 20);
             QPainterPath badgePath;

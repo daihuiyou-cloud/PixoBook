@@ -7,7 +7,7 @@
 
 DatabaseManager::DatabaseManager(const QString &dbPath)
 {
-    m_connectionName = QStringLiteral("aimaterial_%1").arg(dbPath);
+    m_connectionName = QStringLiteral("pixobook_%1").arg(dbPath);
     m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
     m_db.setDatabaseName(dbPath);
 }

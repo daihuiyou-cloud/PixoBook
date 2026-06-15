@@ -69,7 +69,7 @@ void TitleBar::paintEvent(QPaintEvent *)
     f.setPixelSize(Visual::FontControl);
     p.setFont(f);
     p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(QRect(36, 0, 90, kHeight), Qt::AlignVCenter | Qt::AlignLeft, tr("AI 素材库"));
+    p.drawText(QRect(36, 0, 90, kHeight), Qt::AlignVCenter | Qt::AlignLeft, tr("PixoBook"));
 
     for (int i = 0; i < m_menus.size(); i++) {
         QRect r = menuItemRect(i);

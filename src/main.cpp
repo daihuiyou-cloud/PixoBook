@@ -18,9 +18,9 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("AI 素材库"));
+    app.setApplicationName(QStringLiteral("PixoBook"));
     app.setApplicationVersion("1.0.0");
-    app.setOrganizationName("AIMaterialLibrary");
+    app.setOrganizationName("PixoBook");
 
     QFont appFont = app.font();
     appFont.setFamily(QStringLiteral("Microsoft YaHei UI"));
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     app.setPalette(style->standardPalette());
 
     MainWindow window;
-    window.setWindowTitle(QStringLiteral("AI 素材库"));
+    window.setWindowTitle(QStringLiteral("PixoBook"));
     window.resize(1600, 1000);
     window.show();
 

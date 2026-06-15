@@ -36,7 +36,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     QString dbPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dbPath);
-    dbPath += "/aimateriallibrary.db";
+    dbPath += "/pixobook.db";
 
     // Create dependencies
     m_db = new DatabaseManager(dbPath);
@@ -191,10 +191,10 @@ void MainWindow::setupTitleBar()
         }
         case 3: { // Help
             QMenu menu(this);
-            QAction *about = menu.addAction(tr("关于 AI 素材库"));
+            QAction *about = menu.addAction(tr("关于 PixoBook"));
             connect(about, &QAction::triggered, this, [this]() {
                 QMessageBox::about(this, tr("关于"),
-                    tr("AI 素材库 v1.0.0\nAI 生成素材管理工具"));
+                    tr("PixoBook v1.0.0\nAI 生成素材管理工具"));
             });
             QPoint pos = m_titleBar->mapToGlobal(QPoint(m_titleBar->menuItemRect(3).left(), m_titleBar->menuItemRect(3).bottom()));
             menu.exec(pos);

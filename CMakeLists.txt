@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(AIMaterialLibrary LANGUAGES CXX)
+project(PixoBook LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,17 +13,17 @@ enable_testing()
 file(GLOB_RECURSE LIB_SOURCES src/*.cpp)
 list(REMOVE_ITEM LIB_SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")
 
-add_library(aimateriallib_lib STATIC ${LIB_SOURCES})
-target_include_directories(aimateriallib_lib PUBLIC src)
-target_link_libraries(aimateriallib_lib PUBLIC Qt5::Widgets Qt5::Sql Qt5::Concurrent)
+add_library(pixobook_lib STATIC ${LIB_SOURCES})
+target_include_directories(pixobook_lib PUBLIC src)
+target_link_libraries(pixobook_lib PUBLIC Qt5::Widgets Qt5::Sql Qt5::Concurrent)
 
-add_executable(aimateriallib src/main.cpp resources/resources.qrc)
-target_link_libraries(aimateriallib PRIVATE aimateriallib_lib)
-target_include_directories(aimateriallib PRIVATE src)
+add_executable(pixobook src/main.cpp resources/resources.qrc)
+target_link_libraries(pixobook PRIVATE pixobook_lib)
+target_include_directories(pixobook PRIVATE src)
 
 function(add_qt_test TEST_NAME TEST_SOURCE)
     add_executable(${TEST_NAME} ${TEST_SOURCE})
-    target_link_libraries(${TEST_NAME} PRIVATE aimateriallib_lib Qt5::Test)
+    target_link_libraries(${TEST_NAME} PRIVATE pixobook_lib Qt5::Test)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endfunction()
 

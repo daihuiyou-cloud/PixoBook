@@ -4,6 +4,7 @@
 #include <memory>
 #include "ui/MainWindow.h"
 #include "ui/CustomStyle.h"
+#include "models/Asset.h"
 #include "ui/Codicon.h"
 #include "core/ParserRegistry.h"
 #include "parsers/SDParser.h"
@@ -28,6 +29,7 @@ int main(int argc, char *argv[])
     app.setFont(appFont);
     QToolTip::setFont(appFont);
 
+    qRegisterMetaType<Asset>();
     Codicon::init();
 
     ParserRegistry::instance().registerParser(std::make_unique<SDParser>());

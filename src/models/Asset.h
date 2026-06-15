@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QDateTime>
+#include <QMetaType>
 
 struct Asset {
     QString id;
@@ -23,5 +24,7 @@ struct Asset {
     bool operator==(const Asset &other) const { return id == other.id; }
     bool operator!=(const Asset &other) const { return id != other.id; }
 };
+
+Q_DECLARE_METATYPE(Asset)
 
 #endif

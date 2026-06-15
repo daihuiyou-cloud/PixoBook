@@ -13,7 +13,7 @@ public:
 
     void scanDirectory(const QString &dirPath, bool recursive = true);
     static Asset scanSingleFile(const QString &filePath);
-    static bool isSupportedFormat(const QString &filePath);
+    [[nodiscard]] static bool isSupportedFormat(const QString &filePath);
     static QString computeHash(const QString &filePath);
     static QString detectFormat(const QString &filePath);
 

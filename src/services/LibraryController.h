@@ -32,13 +32,13 @@ public:
     Asset getAsset(const QString &id) const;
     Metadata getMetadata(const QString &assetId) const;
     QVector<Tag> getTagsForAsset(const QString &assetId) const;
-    bool updateMetadata(const Metadata &metadata);
+    [[nodiscard]] bool updateMetadata(const Metadata &metadata);
 
     // Tag operations
     QVector<Tag> getAllTags() const;
-    int createTag(const QString &name, const QColor &color = QColor(0x60, 0xa0, 0xff));
-    bool renameTag(int tagId, const QString &newName);
-    bool deleteTag(int tagId);
+    [[nodiscard]] int createTag(const QString &name, const QColor &color = QColor(0x60, 0xa0, 0xff));
+    [[nodiscard]] bool renameTag(int tagId, const QString &newName);
+    [[nodiscard]] bool deleteTag(int tagId);
     void addTagToAssets(const QVector<QString> &assetIds, int tagId);
     void removeTagFromAsset(const QString &assetId, int tagId);
 
@@ -48,11 +48,11 @@ public:
     void removeFolder(const QString &dir);
     QStringList folders() const { return m_folders; }
     void setFolders(const QStringList &folders) { m_folders = folders; }
-    bool hasFolder(const QString &dir) const { return m_folders.contains(dir); }
+    [[nodiscard]] bool hasFolder(const QString &dir) const { return m_folders.contains(dir); }
 
     // File operations
     void scanAndInsertFile(const QString &path);
-    bool deleteAssets(const QVector<Asset> &assets);
+    [[nodiscard]] bool deleteAssets(const QVector<Asset> &assets);
     void toggleFavorite(const QString &assetId, bool isFavorite);
 
     // Count

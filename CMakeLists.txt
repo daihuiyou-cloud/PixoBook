@@ -5,10 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+add_compile_options(/utf-8)
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Sql Concurrent Test)
 enable_testing()
+option(BUILD_TESTING "Build tests" ON)
 
 # ── Clang-Tidy (opt-in during cmake configure, not on by default) ──
 option(RUN_CLANG_TIDY "Run clang-tidy during compilation" OFF)
@@ -36,17 +38,19 @@ target_link_libraries(pixobook PRIVATE pixobook_lib)
 target_include_directories(pixobook PRIVATE src)
 
 # ── Tests ──
-function(add_qt_test TEST_NAME TEST_SOURCE)
-    add_executable(${TEST_NAME} ${TEST_SOURCE})
-    target_link_libraries(${TEST_NAME} PRIVATE pixobook_lib Qt5::Test)
-    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-endfunction()
+if(BUILD_TESTING)
+    function(add_qt_test TEST_NAME TEST_SOURCE)
+        add_executable(${TEST_NAME} ${TEST_SOURCE})
+        target_link_libraries(${TEST_NAME} PRIVATE pixobook_lib Qt5::Test)
+        add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    endfunction()
 
-file(GLOB TEST_SOURCES tests/tst_*.cpp)
-foreach(TEST_SOURCE ${TEST_SOURCES})
-    get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
-    add_qt_test(${TEST_NAME} ${TEST_SOURCE})
-endforeach()
+    file(GLOB TEST_SOURCES tests/tst_*.cpp)
+    foreach(TEST_SOURCE ${TEST_SOURCES})
+        get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
+        add_qt_test(${TEST_NAME} ${TEST_SOURCE})
+    endforeach()
+endif()
 
 # ── clang-format targets (non-blocking) ──
 find_program(CLANG_FORMAT_BIN clang-format)
@@ -85,5 +89,16 @@ if(CLANG_TIDY_BIN)
 else()
     add_custom_target(run-tidy
         COMMAND ${CMAKE_COMMAND} -E echo "clang-tidy not found — install LLVM to enable static analysis"
+    )
+endif()
+
+# ── Bug pattern scanner (zero-dependency PowerShell) ──
+find_program(POWERSHELL_BIN powershell)
+if(POWERSHELL_BIN)
+    add_custom_target(scan-bugs
+        COMMAND ${POWERSHELL_BIN} -ExecutionPolicy Bypass -File
+                "${CMAKE_SOURCE_DIR}/ci/scan-bug-patterns.ps1"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Running PixoBook bug pattern scanner..."
     )
 endif()

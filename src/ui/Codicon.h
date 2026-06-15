@@ -62,7 +62,7 @@ public:
             { "ellipsis",     QString(QChar(0xea7c)) },
             { "eye",          QString(QChar(0xea70)) },
             { "file-media",   QString(QChar(0xeada)) },
-            { "folder-opened",QString(QChar(0xea84)) },
+            { "folder-opened",QString(QChar(0xeaf7)) },
             { "question",     QString(QChar(0xeb32)) },
             { "chrome-close", QString(QChar(0xeab8)) },
             { "chrome-maximize", QString(QChar(0xeab9)) },

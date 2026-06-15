@@ -273,8 +273,11 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
     else if (sortField == "file_size") sortCol = "a.file_size";
     sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC");
 
-    if (limit > 0)
-        sql += QStringLiteral(" LIMIT %1 OFFSET %2").arg(limit).arg(offset);
+    if (limit > 0) {
+        sql += " LIMIT ? OFFSET ?";
+        binds.append(limit);
+        binds.append(offset);
+    }
 
     QSqlQuery q(m_db);
     q.prepare(sql);

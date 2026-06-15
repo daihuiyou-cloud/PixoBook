@@ -62,7 +62,10 @@ MainWindow::MainWindow(QWidget *parent)
     loadSettings();
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow()
+{
+    delete m_db;
+}
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {

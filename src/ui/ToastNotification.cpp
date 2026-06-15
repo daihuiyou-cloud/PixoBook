@@ -1,11 +1,12 @@
 #include "ToastNotification.h"
 #include <QPainter>
+#include <QPointer>
 #include <QVBoxLayout>
 #include <QApplication>
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
 
-static ToastNotification *s_currentToast = nullptr;
+static QPointer<ToastNotification> s_currentToast;
 
 ToastNotification::ToastNotification(QWidget *parent)
     : QWidget(parent)

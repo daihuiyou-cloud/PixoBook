@@ -18,6 +18,7 @@ public:
     QPixmap get(const QString &filePath, const QSize &size) const override;
     void insert(const QString &filePath, const QSize &size, const QPixmap &pixmap) override;
     void invalidate(const QString &filePath) override;
+    void invalidateDir(const QString &dirPath) override;
     void clear() override;
 
     void requestThumbnail(const QString &filePath, const QSize &size) override;
@@ -45,7 +46,7 @@ private:
     mutable QMutex m_mutex;
 
     static qint64 pixmapBytes(const QPixmap &p) {
-        return static_cast<qint64>(p.width()) * p.height() * (p.depth() / 8);
+        return static_cast<qint64>(p.width()) * static_cast<qint64>(p.height()) * (p.depth() / 8);
     }
 };
 

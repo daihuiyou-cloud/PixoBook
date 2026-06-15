@@ -132,7 +132,7 @@ void LibraryController::addFolder(const QString &dir)
 void LibraryController::scanFolder(const QString &dir)
 {
     addFolder(dir);
-    m_cache->clear();
+    m_cache->invalidateDir(dir);
     m_scanner->scanDirectory(dir, true);
 }
 

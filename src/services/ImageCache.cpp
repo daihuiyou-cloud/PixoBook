@@ -1,4 +1,5 @@
 #include "ImageCache.h"
+#include <QDir>
 #include <QImageReader>
 #include <QPainter>
 #include <QMutexLocker>
@@ -50,6 +51,24 @@ void ImageCache::invalidate(const QString &filePath)
     auto it = m_cache.begin();
     while (it != m_cache.end()) {
         if (it.key().filePath == filePath) {
+            m_currentBytes -= pixmapBytes(it.value());
+            m_accessOrder.removeAll(it.key());
+            it = m_cache.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void ImageCache::invalidateDir(const QString &dirPath)
+{
+    QMutexLocker lock(&m_mutex);
+    QString prefix = QDir::fromNativeSeparators(dirPath);
+    if (!prefix.endsWith('/'))
+        prefix += '/';
+    auto it = m_cache.begin();
+    while (it != m_cache.end()) {
+        if (it.key().filePath.startsWith(prefix)) {
             m_currentBytes -= pixmapBytes(it.value());
             m_accessOrder.removeAll(it.key());
             it = m_cache.erase(it);

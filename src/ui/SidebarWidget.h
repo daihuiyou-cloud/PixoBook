@@ -68,6 +68,8 @@ private:
 
     FocusSection m_focusSection = FocusNone;
     int m_focusIndex = -1;
+    QFont m_sectionFont;
+    QFont m_itemFont;
 
     void updateLayout();
 };

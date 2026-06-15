@@ -1,9 +1,7 @@
 #include "TitleBar.h"
-#include <QApplication>
 #include <QHelpEvent>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
 #include <QToolTip>
 #include "Codicon.h"
 #include "ColorConstants.h"
@@ -14,6 +12,9 @@ TitleBar::TitleBar(QWidget *parent)
 {
     setFixedHeight(kHeight);
     setMouseTracking(true);
+
+    QFont base = font();
+    m_titleFont = base; m_titleFont.setPixelSize(Visual::FontControl);
 
     m_menus = {
         { tr("文件"), "file" },
@@ -65,49 +66,51 @@ void TitleBar::paintEvent(QPaintEvent *)
 
     Codicon::draw(p, "image", QRect(8, 5, 24, 22), Color::TEXT_PRIMARY, 18);
 
-    QFont f = font();
-    f.setPixelSize(Visual::FontControl);
-    p.setFont(f);
+    p.setFont(m_titleFont);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(QRect(36, 0, 90, kHeight), Qt::AlignVCenter | Qt::AlignLeft, tr("PixoBook"));
 
     for (int i = 0; i < m_menus.size(); i++) {
         QRect r = menuItemRect(i);
         if (i == m_hoveredMenu) {
-            QPainterPath menuPath;
-            menuPath.addRoundedRect(QRectF(r.adjusted(4, 4, -4, -4)), Visual::RadiusSmall, Visual::RadiusSmall);
-            p.fillPath(menuPath, Color::BG_HOVER);
+            p.setBrush(Color::BG_HOVER);
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(r.adjusted(4, 4, -4, -4), Visual::RadiusSmall, Visual::RadiusSmall);
+            p.setBrush(Qt::NoBrush);
         }
 
         QColor textColor = i == m_hoveredMenu ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
         QColor iconColor = i == m_hoveredMenu ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
         Codicon::draw(p, m_menus[i].iconName, QRect(r.left() + 8, r.top(), 14, r.height()), iconColor, 12);
-        p.setFont(f);
+        p.setFont(m_titleFont);
         p.setPen(textColor);
         p.drawText(r.adjusted(24, 0, 0, 0), Qt::AlignVCenter, m_menus[i].text);
     }
 
     QRect minRect = minimizeBtnRect();
     if (m_hoveredControl == CtrlMinimize) {
-        QPainterPath minPath;
-        minPath.addRoundedRect(QRectF(minRect.adjusted(4, 2, -4, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(minPath, Color::BG_SELECTED);
+        p.setBrush(Color::BG_SELECTED);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(minRect.adjusted(4, 2, -4, -2), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.setBrush(Qt::NoBrush);
     }
     Codicon::draw(p, "chrome-minimize", minRect, Color::TEXT_PRIMARY, 14);
 
     QRect maxRect = maximizeBtnRect();
     if (m_hoveredControl == CtrlMaximize) {
-        QPainterPath maxPath;
-        maxPath.addRoundedRect(QRectF(maxRect.adjusted(4, 2, -4, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(maxPath, Color::BG_SELECTED);
+        p.setBrush(Color::BG_SELECTED);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(maxRect.adjusted(4, 2, -4, -2), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.setBrush(Qt::NoBrush);
     }
     Codicon::draw(p, m_maximized ? "chrome-restore" : "chrome-maximize", maxRect, Color::TEXT_PRIMARY, 14);
 
     QRect closeRect = closeBtnRect();
     if (m_hoveredControl == CtrlClose) {
-        QPainterPath closePath;
-        closePath.addRoundedRect(QRectF(closeRect.adjusted(4, 2, -4, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(closePath, Color::CLOSE_HOVER);
+        p.setBrush(Color::CLOSE_HOVER);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(closeRect.adjusted(4, 2, -4, -2), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.setBrush(Qt::NoBrush);
         Codicon::draw(p, "chrome-close", closeRect, Qt::white, 14);
     } else {
         Codicon::draw(p, "chrome-close", closeRect, Color::TEXT_PRIMARY, 14);

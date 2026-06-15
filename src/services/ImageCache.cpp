@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QMutexLocker>
 #include <QtConcurrent>
+#include <QPointer>
 
 ImageCache::ImageCache(qint64 maxBytes, QObject *parent)
     : IImageCache(parent), m_maxBytes(maxBytes)
@@ -83,6 +84,7 @@ void ImageCache::clear()
     QMutexLocker lock(&m_mutex);
     m_cache.clear();
     m_accessOrder.clear();
+    m_currentBytes = 0;
 }
 
 void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
@@ -93,10 +95,13 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
         return;
     }
 
-    QtConcurrent::run([this, filePath, size]() {
-        QPixmap thumb = generateThumbnail(filePath, size);
-        insert(filePath, size, thumb);
-        emit thumbnailReady(filePath, size, thumb);
+    QPointer<ImageCache> guard(this);
+    QtConcurrent::run([guard, filePath, size]() {
+        ImageCache *self = guard.data();
+        if (!self) return;
+        QPixmap thumb = self->generateThumbnail(filePath, size);
+        self->insert(filePath, size, thumb);
+        emit self->thumbnailReady(filePath, size, thumb);
     });
 }
 

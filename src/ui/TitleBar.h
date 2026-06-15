@@ -58,6 +58,7 @@ private:
         QString iconName;
     };
     QVector<MenuDef> m_menus;
+    QFont m_titleFont;
     static constexpr int kHeight = 32;
 };
 

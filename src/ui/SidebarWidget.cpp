@@ -22,6 +22,10 @@ SidebarWidget::SidebarWidget(QWidget *parent)
     setFixedWidth(Visual::SidebarWidth);
     setMinimumHeight(200);
     setFocusPolicy(Qt::StrongFocus);
+
+    QFont base = font();
+    m_sectionFont = base; m_sectionFont.setPixelSize(Visual::FontMeta); m_sectionFont.setBold(true);
+    m_itemFont = base; m_itemFont.setPixelSize(Visual::FontControl);
 }
 
 void SidebarWidget::setTags(const QVector<Tag> &tags)
@@ -75,20 +79,13 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     p.setRenderHint(QPainter::Antialiasing);
     p.fillRect(rect(), Color::BG_DARK);
 
-    QFont sectionFont = font();
-    sectionFont.setPixelSize(Visual::FontMeta);
-    sectionFont.setBold(true);
-    QFont itemFont = font();
-    itemFont.setPixelSize(Visual::FontControl);
-
     QRect folderHeader(0, 0, width(), kSectionHeight);
     if (m_hoveredFolderHeader)
         p.fillRect(folderHeader, Color::BG_HOVER);
-    p.setFont(sectionFont);
+    p.setFont(m_sectionFont);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_foldersExpanded ? "chevron-down" : "chevron-right",
                   QRect(8, 0, 14, kSectionHeight), Color::TEXT_SECONDARY, 14);
-    p.setFont(sectionFont);
     p.drawText(folderHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, tr("素材文件夹"));
 
     QRect addRect(width() - 30, 5, 22, 22);
@@ -99,7 +96,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     p.drawLine(12, folderHeader.bottom(), width() - 12, folderHeader.bottom());
 
     if (m_foldersExpanded) {
-        p.setFont(itemFont);
+        p.setFont(m_itemFont);
         if (m_folders.isEmpty()) {
             p.setPen(Color::TEXT_SECONDARY);
             p.drawText(QRect(16, kSectionHeight + 4, width() - 32, kItemHeight),
@@ -123,7 +120,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             QString display = QFileInfo(m_folders[i]).fileName();
             if (display.isEmpty()) display = m_folders[i];
             p.setPen(isActive ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
-            p.setFont(itemFont);
+            p.setFont(m_itemFont);
             p.drawText(itemRect.adjusted(36, 0, -10, 0), Qt::AlignVCenter,
                        p.fontMetrics().elidedText(display, Qt::ElideRight, width() - 50));
         }
@@ -132,17 +129,17 @@ void SidebarWidget::paintEvent(QPaintEvent *)
     QRect tagHeader(0, m_sectionTagY, width(), kSectionHeight);
     if (m_hoveredTagHeader)
         p.fillRect(tagHeader, Color::BG_HOVER);
-    p.setFont(sectionFont);
+    p.setFont(m_sectionFont);
     p.setPen(Color::TEXT_SECONDARY);
     Codicon::draw(p, m_tagsExpanded ? "chevron-down" : "chevron-right",
                   QRect(8, tagHeader.top(), 14, kSectionHeight), Color::TEXT_SECONDARY, 14);
-    p.setFont(sectionFont);
+    p.setFont(m_sectionFont);
     p.drawText(tagHeader.adjusted(28, 0, 0, 0), Qt::AlignVCenter, tr("标签"));
     p.setPen(Color::BORDER_MUTED);
     p.drawLine(12, tagHeader.bottom(), width() - 12, tagHeader.bottom());
 
     if (m_tagsExpanded) {
-        p.setFont(itemFont);
+        p.setFont(m_itemFont);
         if (m_tags.isEmpty()) {
             p.setPen(Color::TEXT_SECONDARY);
             p.drawText(QRect(16, m_sectionTagY + kSectionHeight + 4, width() - 32, kItemHeight),
@@ -176,7 +173,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
 
             drawTagDot(p, QPoint(22, itemRect.center().y()), m_tags[i].color);
             p.setPen(isActive ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
-            p.setFont(itemFont);
+            p.setFont(m_itemFont);
             p.drawText(itemRect.adjusted(38, 0, -10, 0), Qt::AlignVCenter,
                        p.fontMetrics().elidedText(m_tags[i].name, Qt::ElideRight, width() - 52));
         }

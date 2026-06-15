@@ -53,6 +53,13 @@ private:
     QRect m_zoomOutBtnRect;
     QRect m_resetZoomBtnRect;
     QRect m_zoomInBtnRect;
+
+    QFont m_fontControl;
+    QFont m_fontMeta;
+    void rebuildInfoStrings();
+    QString m_counterText;
+    QString m_infoText;
+    QString m_zoomText;
 };
 
 #endif

@@ -57,9 +57,10 @@ void ActivityBar::paintEvent(QPaintEvent *)
 
         if (active) {
             QRect activeRect = r.adjusted(6, 6, -6, -6);
-            QPainterPath activePath;
-            activePath.addRoundedRect(QRectF(activeRect), Visual::RadiusSmall, Visual::RadiusSmall);
-            p.fillPath(activePath, Color::BG_SELECTED);
+            p.setBrush(Color::BG_SELECTED);
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(activeRect, Visual::RadiusSmall, Visual::RadiusSmall);
+            p.setBrush(Qt::NoBrush);
             p.fillRect(QRect(r.left(), r.top() + 10, 3, r.height() - 20), Color::ACCENT);
         } else if (hovered) {
             p.setBrush(Color::BG_HOVER);

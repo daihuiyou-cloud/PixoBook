@@ -87,18 +87,24 @@ private:
 
     IImageCache *m_cache;
 
+    QFont m_fontBody;
+    QFont m_fontMeta;
+    QFont m_fontTitle;
+    QFont m_fontCaption;
+    QFont m_fontControl;
+
     QRect imageArea() const;
     int drawImage(QPainter &p);
     int drawAssetSummary(QPainter &p, int y);
     void drawSummaryAction(QPainter &p, const QRect &rect, const QString &icon,
-                           const QString &text, bool hovered, bool enabled);
+                           const QString &text, bool hovered, bool enabled) const;
     int drawFileInfo(QPainter &p, int y);
     int drawMetadataSection(QPainter &p, int y);
     int drawTagsSection(QPainter &p, int y);
-    void drawSectionDivider(QPainter &p, int y);
+    void drawSectionDivider(QPainter &p, int y) const;
     void clampScrollOffset();
-    void drawScrollIndicator(QPainter &p);
-    void drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW = 88);
+    void drawScrollIndicator(QPainter &p) const;
+    void drawField(QPainter &p, int x, int &y, const QString &label, const QString &value, int labelW = 88) const;
 };
 
 #endif

@@ -1,0 +1,26 @@
+---
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  cert-*,
+  modernize-use-override,
+  modernize-use-nullptr,
+  -bugprone-narrowing-conversions,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-floating-point-result,
+  -bugprone-reserved-identifier,
+  -bugprone-signed-char-misuse,
+  -bugprone-unhandled-exception-at-new,
+  -cert-err58-cpp,
+  -cert-msc30-c,
+  -cert-msc50-cpp,
+  -cert-dcl21-cpp,
+  -cert-oop54-cpp,
+WarningsAsErrors: false
+HeaderFilterRegex: 'src/.*\.h$'
+FormatStyle: file
+CheckOptions:
+  - key: bugprone-implicit-widening-of-multiplication-result.UseCxxScalarizeBinaryExpr
+    value: 1
+...

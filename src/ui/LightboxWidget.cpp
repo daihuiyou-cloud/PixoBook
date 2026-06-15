@@ -5,7 +5,6 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
 #include <QWheelEvent>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
@@ -14,11 +13,10 @@
 namespace {
 void drawToolbarButton(QPainter &p, const QRect &rect, const QString &icon, const QColor &color, bool hovered)
 {
-    QPainterPath path;
-    path.addRoundedRect(QRectF(rect), Visual::RadiusSmall, Visual::RadiusSmall);
-    p.fillPath(path, hovered ? Color::BG_BUTTON_HOVER : QColor(0xff, 0xff, 0xff, 12));
+    p.setBrush(hovered ? Color::BG_BUTTON_HOVER : QColor(0xff, 0xff, 0xff, 12));
     p.setPen(QPen(hovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT, 1));
-    p.drawPath(path);
+    p.drawRoundedRect(rect, Visual::RadiusSmall, Visual::RadiusSmall);
+    p.setBrush(Qt::NoBrush);
     Codicon::draw(p, icon, rect, color, 16);
 }
 }
@@ -37,6 +35,21 @@ LightboxWidget::LightboxWidget(QWidget *parent)
         m_overlayVisible = false;
         update();
     });
+
+    QFont base = font();
+    m_fontControl = base; m_fontControl.setPixelSize(Visual::FontControl);
+    m_fontMeta = base; m_fontMeta.setPixelSize(Visual::FontMeta);
+}
+
+void LightboxWidget::rebuildInfoStrings()
+{
+    m_counterText = QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size());
+    if (m_currentIndex >= 0 && m_currentIndex < m_assets.size()) {
+        const auto &a = m_assets[m_currentIndex];
+        m_infoText = QString("%1 x %2 | %3 | %4 KB")
+                         .arg(a.width).arg(a.height).arg(a.format.toUpper()).arg(a.fileSize / 1024);
+    }
+    m_zoomText = QString("%1%").arg((int)(m_zoom * 100));
 }
 
 void LightboxWidget::show(const QVector<Asset> &assets, int startIndex)
@@ -88,6 +101,7 @@ void LightboxWidget::resetView()
     m_isPanning = false;
     m_overlayVisible = true;
     m_overlayTimer->start();
+    rebuildInfoStrings();
 }
 
 void LightboxWidget::navigateTo(int index)
@@ -153,9 +167,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     const QPoint localCursor = mapFromGlobal(QCursor::pos());
     const Asset &asset = m_assets[m_currentIndex];
 
-    QFont f = p.font();
-    f.setPixelSize(Visual::FontControl);
-    p.setFont(f);
+    p.setFont(m_fontControl);
 
     QRect topBar(0, 0, width(), 40);
     p.fillRect(topBar, Color::OVERLAY_BG);
@@ -170,20 +182,13 @@ void LightboxWidget::paintEvent(QPaintEvent *)
 
     int cx = width() / 2;
 
-    QFont metaFont = p.font();
-    metaFont.setPixelSize(Visual::FontMeta);
-    p.setFont(metaFont);
+    p.setFont(m_fontMeta);
     p.setPen(Color::TEXT_SECONDARY);
     p.drawText(QRect(cx - 320, height() - 43, 60, 34), Qt::AlignVCenter | Qt::AlignLeft,
-               QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size()));
+               m_counterText);
 
     p.setPen(Color::TEXT_PRIMARY);
-    QString info = QString("%1 x %2 | %3 | %4 KB")
-                       .arg(asset.width)
-                       .arg(asset.height)
-                       .arg(asset.format.toUpper())
-                       .arg(asset.fileSize / 1024);
-    p.drawText(QRect(cx - 244, height() - 43, 200, 34), Qt::AlignLeft | Qt::AlignVCenter, info);
+    p.drawText(QRect(cx - 244, height() - 43, 200, 34), Qt::AlignLeft | Qt::AlignVCenter, m_infoText);
 
     m_zoomOutBtnRect = QRect(cx - 28, height() - 43, 34, 34);
     m_resetZoomBtnRect = QRect(cx + 12, height() - 43, 58, 34);
@@ -191,14 +196,13 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     drawToolbarButton(p, m_zoomOutBtnRect, "zoom-out", Color::TEXT_PRIMARY, m_zoomOutBtnRect.contains(localCursor));
     drawToolbarButton(p, m_zoomInBtnRect, "zoom-in", Color::TEXT_PRIMARY, m_zoomInBtnRect.contains(localCursor));
 
-    QPainterPath resetPath;
-    resetPath.addRoundedRect(QRectF(m_resetZoomBtnRect), Visual::RadiusSmall, Visual::RadiusSmall);
     bool resetHovered = m_resetZoomBtnRect.contains(localCursor);
-    p.fillPath(resetPath, resetHovered ? Color::BG_BUTTON_HOVER : QColor(0xff, 0xff, 0xff, 12));
+    p.setBrush(resetHovered ? Color::BG_BUTTON_HOVER : QColor(0xff, 0xff, 0xff, 12));
     p.setPen(QPen(resetHovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT, 1));
-    p.drawPath(resetPath);
+    p.drawRoundedRect(m_resetZoomBtnRect, Visual::RadiusSmall, Visual::RadiusSmall);
+    p.setBrush(Qt::NoBrush);
     p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(m_resetZoomBtnRect, Qt::AlignCenter, QString("%1%").arg((int)(m_zoom * 100)));
+    p.drawText(m_resetZoomBtnRect, Qt::AlignCenter, m_zoomText);
 
     m_prevBtnRect = QRect(cx + 96, height() - 43, 34, 34);
     QColor prevClr = (m_currentIndex > 0) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
@@ -289,11 +293,13 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
     }
     if (m_overlayVisible && m_zoomOutBtnRect.contains(event->pos())) {
         m_zoom = qBound(0.1, m_zoom * 0.85, 10.0);
+        rebuildInfoStrings();
         update();
         return;
     }
     if (m_overlayVisible && m_zoomInBtnRect.contains(event->pos())) {
         m_zoom = qBound(0.1, m_zoom * 1.15, 10.0);
+        rebuildInfoStrings();
         update();
         return;
     }
@@ -373,5 +379,6 @@ void LightboxWidget::wheelEvent(QWheelEvent *event)
     m_panOffset.setY(event->pos().y() - imgArea.center().y() - relY * ratio);
 
     m_zoom = newZoom;
+    rebuildInfoStrings();
     update();
 }

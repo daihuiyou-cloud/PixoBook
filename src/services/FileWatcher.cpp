@@ -52,7 +52,7 @@ void FileWatcher::unwatchDirectoryTree(const QString &rootPath)
     m_watchedDirs.remove(rootPath);
     QStringList toRemove;
     for (const auto &dir : m_watcher->directories()) {
-        if (dir.startsWith(rootPath))
+        if (dir.startsWith(rootPath, Qt::CaseInsensitive))
             toRemove.append(dir);
     }
     for (const auto &dir : toRemove)
@@ -60,7 +60,7 @@ void FileWatcher::unwatchDirectoryTree(const QString &rootPath)
 
     m_knownFiles.erase(
         std::remove_if(m_knownFiles.begin(), m_knownFiles.end(),
-                       [&](const QString &f) { return f.startsWith(rootPath); }),
+                       [&](const QString &f) { return f.startsWith(rootPath, Qt::CaseInsensitive); }),
         m_knownFiles.end());
 }
 

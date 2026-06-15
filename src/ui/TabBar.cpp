@@ -2,7 +2,6 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
 #include <QToolTip>
 #include "Codicon.h"
 #include "ColorConstants.h"
@@ -14,6 +13,9 @@ TabBar::TabBar(QWidget *parent)
     setFixedHeight(kTabHeight);
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
+
+    QFont base = font();
+    m_tabFont = base; m_tabFont.setPixelSize(Visual::FontControl);
 
     m_tabs = {
         { tr("所有素材"), QStringLiteral("layout") },
@@ -84,9 +86,7 @@ void TabBar::paintEvent(QPaintEvent *)
     p.fillRect(rect(), Color::BG_DARK);
     p.fillRect(QRect(0, height() - 1, width(), 1), Color::BORDER);
 
-    QFont tf = font();
-    tf.setPixelSize(Visual::FontControl);
-    p.setFont(tf);
+    p.setFont(m_tabFont);
 
     for (int i = 0; i < m_tabs.size(); i++) {
         QRect r = tabRect(i);
@@ -103,7 +103,6 @@ void TabBar::paintEvent(QPaintEvent *)
         QColor textColor = active ? Color::TEXT_BRIGHT
                          : (i == m_hoveredIndex ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY);
         Codicon::draw(p, m_tabs[i].icon, QRect(r.left() + 12, 0, 16, kTabHeight), textColor, 14);
-        p.setFont(tf);
         p.setPen(textColor);
         p.drawText(QRect(r.left() + 34, r.top(), r.width() - 34 - kTabPadding, kTabHeight),
                    Qt::AlignVCenter | Qt::AlignLeft, m_tabs[i].label);
@@ -111,9 +110,10 @@ void TabBar::paintEvent(QPaintEvent *)
 
     QRect r = addButtonRect();
     if (m_hoveredAdd) {
-        QPainterPath addPath;
-        addPath.addRoundedRect(QRectF(r.adjusted(2, 2, -2, -2)), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(addPath, Color::BG_HOVER);
+        p.setBrush(Color::BG_HOVER);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(r.adjusted(2, 2, -2, -2), Visual::RadiusSmall, Visual::RadiusSmall);
+        p.setBrush(Qt::NoBrush);
     }
     Codicon::draw(p, "add", r, Color::TEXT_PRIMARY, 14);
 }

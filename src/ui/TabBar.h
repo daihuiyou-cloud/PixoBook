@@ -44,6 +44,7 @@ private:
     static constexpr int kTabHeight = 38;
     static constexpr int kTabMinWidth = 96;
     static constexpr int kTabPadding = 16;
+    QFont m_tabFont;
 };
 
 #endif

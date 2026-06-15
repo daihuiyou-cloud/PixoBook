@@ -84,7 +84,9 @@ GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     m_emptyTitleFont.setBold(true);
     m_emptyBodyFont = m_labelFont;
     m_controlFont.setPixelSize(Visual::FontControl);
+    m_controlFont.setBold(true);
     m_actionFont = m_metaFont;
+    rebuildThumbClipPath();
 }
 
 void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, const QPixmap &pixmap)
@@ -94,9 +96,16 @@ void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, con
     m_thumbDebounceTimer->start();
 }
 
+void GalleryWidget::rebuildThumbClipPath()
+{
+    m_thumbClipPath = QPainterPath();
+    m_thumbClipPath.addRoundedRect(QRectF(0, 0, m_thumbSize, m_thumbSize), Visual::RadiusSmall, Visual::RadiusSmall);
+}
+
 void GalleryWidget::setThumbnailSize(int size)
 {
     m_thumbSize = qBound(80, size, 320);
+    rebuildThumbClipPath();
     m_requestedThumbnails.clear();
     layoutItems();
     ensureThumbnailsForVisibleItems();
@@ -280,7 +289,7 @@ QRect GalleryWidget::emptyFilesButtonRect() const
     return emptyFolderButtonRect().translated(Visual::GalleryEmptyButtonWidth + Visual::SpaceSm, 0);
 }
 
-void GalleryWidget::drawEmptyState(QPainter &p)
+void GalleryWidget::drawEmptyState(QPainter &p) const
 {
     QRect center = rect().adjusted(40, 0, -40, 0);
     const bool searching = !m_searchKeyword.isEmpty();
@@ -317,11 +326,10 @@ void GalleryWidget::drawEmptyState(QPainter &p)
     for (int i = 0; i < buttons.size(); i++) {
         QRect r = buttons[i].first;
         bool hovered = (m_emptyHoveredButton == i);
-        QPainterPath path;
-        path.addRoundedRect(QRectF(r), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(path, i == 0 ? Color::ACCENT : (hovered ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON));
+        p.setBrush(i == 0 ? Color::ACCENT : (hovered ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON));
         p.setPen(QPen(i == 0 ? Color::FOCUS_BORDER : Color::BORDER_SUBTLE, 1));
-        p.drawPath(path);
+        p.drawRoundedRect(r, Visual::RadiusSmall, Visual::RadiusSmall);
+        p.setBrush(Qt::NoBrush);
 
         QColor textColor = i == 0 ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY;
         Codicon::draw(p, icons[i], QRect(r.left() + 12, r.top(), 16, r.height()), textColor, 13);
@@ -342,32 +350,24 @@ void GalleryWidget::drawBatchToolbar(QPainter &p)
     const int barW = 390;
     const int barH = 36;
     QRect bar(width() - barW - 18, 12, barW, barH);
-    QPainterPath barPath;
-    barPath.addRoundedRect(QRectF(bar), Visual::RadiusMedium, Visual::RadiusMedium);
-    p.fillPath(barPath, Color::BG_MEDIUM);
+    p.setBrush(Color::BG_MEDIUM);
     p.setPen(QPen(Color::BORDER_SUBTLE, 1));
-    p.drawPath(barPath);
+    p.drawRoundedRect(bar, Visual::RadiusMedium, Visual::RadiusMedium);
+    p.setBrush(Qt::NoBrush);
 
-    QFont f(p.font());
-    f.setPixelSize(Visual::FontControl);
-    f.setBold(true);
-    p.setFont(f);
+    p.setFont(m_controlFont);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(bar.adjusted(14, 0, -260, 0), Qt::AlignVCenter | Qt::AlignLeft,
                tr("已选择 %1 项").arg(m_selectedIndices.size()));
 
     auto drawAction = [&](QRect &target, int x, int w, const QString &icon, const QString &text, const QColor &color) {
         target = QRect(x, bar.top() + 5, w, 26);
-        QPainterPath path;
-        path.addRoundedRect(QRectF(target), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(path, Color::BG_BUTTON_SUBTLE);
+        p.setBrush(Color::BG_BUTTON_SUBTLE);
         p.setPen(QPen(Color::BORDER_FAINT, 1));
-        p.drawPath(path);
+        p.drawRoundedRect(target, Visual::RadiusSmall, Visual::RadiusSmall);
+        p.setBrush(Qt::NoBrush);
         Codicon::draw(p, icon, QRect(target.left() + 8, target.top(), 14, target.height()), color, 12);
-        QFont actionFont = p.font();
-        actionFont.setPixelSize(Visual::FontCaption);
-        actionFont.setBold(false);
-        p.setFont(actionFont);
+        p.setFont(m_actionFont);
         p.setPen(color);
         p.drawText(target.adjusted(27, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, text);
     };
@@ -375,11 +375,10 @@ void GalleryWidget::drawBatchToolbar(QPainter &p)
     drawAction(m_batchTagRect, bar.right() - 214, 82, "tag", tr("标签"), Color::TEXT_PRIMARY);
     drawAction(m_batchDeleteRect, bar.right() - 126, 72, "trash", tr("删除"), Color::ERROR_TEXT);
     m_batchClearRect = QRect(bar.right() - 45, bar.top() + 5, 28, 26);
-    QPainterPath clearPath;
-    clearPath.addRoundedRect(QRectF(m_batchClearRect), Visual::RadiusSmall, Visual::RadiusSmall);
-    p.fillPath(clearPath, Color::BG_BUTTON_SUBTLE);
+    p.setBrush(Color::BG_BUTTON_SUBTLE);
     p.setPen(QPen(Color::BORDER_FAINT, 1));
-    p.drawPath(clearPath);
+    p.drawRoundedRect(m_batchClearRect, Visual::RadiusSmall, Visual::RadiusSmall);
+    p.setBrush(Qt::NoBrush);
     Codicon::draw(p, "close", m_batchClearRect, Color::TEXT_SECONDARY, 12);
 }
 
@@ -452,9 +451,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.setPen(dashPen);
         p.setBrush(QColor(Color::ACCENT.red(), Color::ACCENT.green(), Color::ACCENT.blue(), 20));
         p.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 8, 8);
-        QFont df = p.font();
-        df.setPixelSize(Visual::FontHeading);
-        p.setFont(df);
+        p.setFont(m_emptyTitleFont);
         p.setPen(Color::ACCENT);
         p.drawText(rect(), Qt::AlignCenter, tr("拖放文件以导入"));
         return;
@@ -516,11 +513,10 @@ void GalleryWidget::paintEvent(QPaintEvent *)
                 p.setPen(Color::TEXT_SECONDARY);
                 p.drawText(thumbArea, Qt::AlignCenter, asset.format.isEmpty() ? tr("加载中") : asset.format.toUpper());
             } else {
-                QPainterPath clipPath;
-                clipPath.addRoundedRect(QRectF(thumbArea), Visual::RadiusSmall, Visual::RadiusSmall);
                 p.save();
-                p.setClipPath(clipPath);
-                p.drawPixmap(thumbArea.topLeft(), thumb);
+                p.translate(thumbArea.topLeft());
+                p.setClipPath(m_thumbClipPath);
+                p.drawPixmap(0, 0, thumb);
                 p.restore();
             }
         }
@@ -535,19 +531,21 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             p.setFont(m_badgeFont);
             const int badgeW = qMin(96, p.fontMetrics().horizontalAdvance(badge) + 16);
             QRect badgeRect(thumbArea.left() + 8, thumbArea.top() + 8, badgeW, 20);
-            QPainterPath badgePath;
-            badgePath.addRoundedRect(QRectF(badgeRect), Visual::RadiusSmall, Visual::RadiusSmall);
             QColor badgeBg = sourceBadgeColor(asset);
             badgeBg.setAlpha(210);
-            p.fillPath(badgePath, badgeBg);
+            p.setBrush(badgeBg);
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(badgeRect, Visual::RadiusSmall, Visual::RadiusSmall);
+            p.setBrush(Qt::NoBrush);
             p.setPen(Color::TEXT_BRIGHT);
             p.drawText(badgeRect, Qt::AlignCenter, badge);
         }
         if (hasPrompt) {
             QRect promptRect(thumbArea.right() - 32, thumbArea.top() + 8, 24, 20);
-            QPainterPath promptPath;
-            promptPath.addRoundedRect(QRectF(promptRect), Visual::RadiusSmall, Visual::RadiusSmall);
-            p.fillPath(promptPath, QColor(0, 0, 0, 150));
+            p.setBrush(QColor(0, 0, 0, 150));
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(promptRect, Visual::RadiusSmall, Visual::RadiusSmall);
+            p.setBrush(Qt::NoBrush);
             Codicon::draw(p, "quote", promptRect, Color::TEXT_PRIMARY, 13);
         }
 
@@ -571,9 +569,10 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         if (asset.isFavorite || isHovered || isSelected) {
             QColor starColor = asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
             if (isHovered || isSelected) {
-                QPainterPath starPath;
-                starPath.addRoundedRect(QRectF(starRect.adjusted(4, 4, -4, -4)), Visual::RadiusSmall, Visual::RadiusSmall);
-                p.fillPath(starPath, QColor(0, 0, 0, 110));
+                p.setBrush(QColor(0, 0, 0, 110));
+                p.setPen(Qt::NoPen);
+                p.drawRoundedRect(starRect.adjusted(4, 4, -4, -4), Visual::RadiusSmall, Visual::RadiusSmall);
+                p.setBrush(Qt::NoBrush);
             }
             Codicon::draw(p, asset.isFavorite ? "star" : "star-empty", starRect, starColor, 15);
         }
@@ -806,7 +805,7 @@ void GalleryWidget::mouseDoubleClickEvent(QMouseEvent *event)
     if (idx >= 0) emit assetDoubleClicked(m_assets[idx]);
 }
 
-void GalleryWidget::drawRubberBand(QPainter &p)
+void GalleryWidget::drawRubberBand(QPainter &p) const
 {
     if (!m_isRubberBanding) return;
     QRect band = QRect(m_rubberBandStart, m_rubberBandEnd).normalized();

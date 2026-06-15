@@ -7,6 +7,7 @@
 #include <QHash>
 #include <QFont>
 #include <QFontMetrics>
+#include <QPainterPath>
 #include "ui/VisualConstants.h"
 #include "models/Asset.h"
 #include "core/IImageCache.h"
@@ -71,7 +72,7 @@ private:
     QRect itemRect(int index) const;
     int indexAt(const QPoint &pos) const;
     void navigateTo(int index);
-    void drawEmptyState(QPainter &p);
+    void drawEmptyState(QPainter &p) const;
     QRect emptyFolderButtonRect() const;
     QRect emptyFilesButtonRect() const;
     void drawBatchToolbar(QPainter &p);
@@ -80,9 +81,10 @@ private:
     void checkLoadMore();
     void prefetchFileExistence(const QVector<Asset> &assets);
     void pruneRequestedThumbnails(const QVector<Asset> &assets);
-    void drawRubberBand(QPainter &p);
+    void drawRubberBand(QPainter &p) const;
     void updateRubberBandSelection(const QRect &oldBand);
     void rebuildMetaLines();
+    void rebuildThumbClipPath();
 
     int m_thumbSize = 180;
     static constexpr int kPadding = Visual::GalleryCardPadding;
@@ -130,6 +132,7 @@ private:
     QFont m_emptyBodyFont;
     QFont m_controlFont;
     QFont m_actionFont;
+    QPainterPath m_thumbClipPath;
 };
 
 #endif

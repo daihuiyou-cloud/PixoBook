@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QCryptographicHash>
 #include <QtConcurrent>
+#include <QPointer>
 
 FileScanner::FileScanner(QObject *parent)
     : QObject(parent)
@@ -16,14 +17,17 @@ FileScanner::FileScanner(QObject *parent)
 
 void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
 {
-    QtConcurrent::run([this, dirPath, recursive]() {
-        auto assets = scanDirectorySync(dirPath, recursive);
+    QPointer<FileScanner> guard(this);
+    QtConcurrent::run([guard, dirPath, recursive]() {
+        FileScanner *self = guard.data();
+        if (!self) return;
+        auto assets = self->scanDirectorySync(dirPath, recursive);
         int total = assets.size();
         for (int i = 0; i < assets.size(); i++) {
-            emit assetFound(assets[i]);
-            emit scanProgress(i + 1, total);
+            emit self->assetFound(assets[i]);
+            emit self->scanProgress(i + 1, total);
         }
-        emit scanFinished();
+        emit self->scanFinished();
     });
 }
 

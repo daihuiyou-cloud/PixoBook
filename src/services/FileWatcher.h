@@ -20,7 +20,6 @@ public:
 signals:
     void fileAdded(const QString &filePath);
     void fileRemoved(const QString &filePath);
-    void fileModified(const QString &filePath);
 
 private slots:
     void onDirectoryChanged(const QString &path);

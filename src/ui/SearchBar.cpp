@@ -5,7 +5,6 @@
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPainter>
-#include <QPainterPath>
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include "ui/Codicon.h"
@@ -257,11 +256,10 @@ void SearchBar::paintEvent(QPaintEvent *event)
 
     if (!m_resultSummary->text().isEmpty()) {
         QRect sr = m_resultSummary->geometry();
-        QPainterPath pillPath;
-        pillPath.addRoundedRect(QRectF(sr), Visual::RadiusSmall, Visual::RadiusSmall);
-        p.fillPath(pillPath, Color::BG_MEDIUM);
+        p.setBrush(Color::BG_MEDIUM);
         p.setPen(QPen(Color::BORDER_SUBTLE, 1));
-        p.drawPath(pillPath);
+        p.drawRoundedRect(sr, Visual::RadiusSmall, Visual::RadiusSmall);
+        p.setBrush(Qt::NoBrush);
     }
 }
 

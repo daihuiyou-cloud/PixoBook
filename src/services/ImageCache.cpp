@@ -1,7 +1,6 @@
 #include "ImageCache.h"
-#include <QImage>
+#include <QImageReader>
 #include <QPainter>
-#include <QFileInfo>
 #include <QMutexLocker>
 #include <QtConcurrent>
 
@@ -84,21 +83,18 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
 
 QPixmap ImageCache::generateThumbnail(const QString &filePath, const QSize &size) const
 {
-    if (!QFileInfo::exists(filePath))
-        return {};
-
-    QImage img(filePath);
+    QImageReader reader(filePath);
+    reader.setScaledSize(size);
+    QImage img = reader.read();
     if (img.isNull())
         return {};
-
-    QImage scaled = img.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
     QPixmap result(size);
     result.fill(Qt::transparent);
     QPainter p(&result);
-    int x = (size.width() - scaled.width()) / 2;
-    int y = (size.height() - scaled.height()) / 2;
-    p.drawImage(x, y, scaled);
+    int x = (size.width() - img.width()) / 2;
+    int y = (size.height() - img.height()) / 2;
+    p.drawImage(x, y, img);
     p.end();
 
     return result;

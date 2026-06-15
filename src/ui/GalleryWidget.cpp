@@ -15,6 +15,7 @@
 #include <QToolTip>
 #include <QUrl>
 #include <QWheelEvent>
+#include <QTimer>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/UIUtils.h"
@@ -67,6 +68,11 @@ GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
     setMinimumWidth(m_itemWidth() + kPadding * 2);
 
+    m_thumbDebounceTimer = new QTimer(this);
+    m_thumbDebounceTimer->setSingleShot(true);
+    m_thumbDebounceTimer->setInterval(50);
+    connect(m_thumbDebounceTimer, &QTimer::timeout, this, [this]() { update(); });
+
     m_labelFont.setPixelSize(Visual::FontBody);
     m_labelFm = QFontMetrics(m_labelFont);
     m_metaFont.setPixelSize(Visual::FontCaption);
@@ -85,7 +91,7 @@ void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, con
 {
     if (!pixmap.isNull())
         m_requestedThumbnails.remove(filePath);
-    update();
+    m_thumbDebounceTimer->start();
 }
 
 void GalleryWidget::setThumbnailSize(int size)
@@ -393,6 +399,9 @@ void GalleryWidget::ensureThumbnailsForVisibleItems()
     int endIdx = qMin((firstRow + visibleRows) * m_columns, m_assets.size());
     for (int i = startIdx; i < endIdx; i++) {
         const Asset &asset = m_assets[i];
+        auto existsIt = m_fileExistsCache.find(asset.filePath);
+        if (existsIt != m_fileExistsCache.end() && !existsIt.value())
+            continue;
         QSize thumbSize(m_thumbSize, m_thumbSize);
         if (!m_requestedThumbnails.contains(asset.filePath)) {
             QPixmap thumb = m_cache->get(asset.filePath, thumbSize);

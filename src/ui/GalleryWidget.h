@@ -108,6 +108,7 @@ private:
     QRect m_batchDeleteRect;
     QRect m_batchClearRect;
     IImageCache *m_cache;
+    QTimer *m_thumbDebounceTimer = nullptr;
 
     bool m_isRubberBanding = false;
     QPoint m_rubberBandStart;

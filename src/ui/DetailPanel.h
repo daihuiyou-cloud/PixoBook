@@ -65,7 +65,6 @@ private:
     QRect m_addTagRect;
     QRect m_closeBtnRect;
     QRect m_copyPromptRect;
-    QRect m_editPromptRect;
     QRect m_promptHeaderRect;
     QRect m_promptContentRect;
     QRect m_fileInfoHeaderRect;
@@ -77,7 +76,6 @@ private:
     QVector<QPair<int, QRect>> m_tagRects;
     bool m_addTagHovered = false;
     bool m_copyPromptHovered = false;
-    bool m_editPromptHovered = false;
     bool m_closeBtnHovered = false;
     bool m_copyFileNameHovered = false;
     bool m_openFolderHovered = false;

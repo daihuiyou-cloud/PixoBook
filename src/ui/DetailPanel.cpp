@@ -93,7 +93,6 @@ void DetailPanel::clear()
     m_fullImage = QPixmap();
     m_closeBtnRect = QRect();
     m_copyPromptRect = QRect();
-    m_editPromptRect = QRect();
     m_promptContentRect = QRect();
     m_copyFileNameRect = QRect();
     m_openFolderRect = QRect();
@@ -350,22 +349,6 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
         m_copyPromptRect = quickCopy;
     }
 
-    QRect editRect(width() - 92, y - 19, 74, 22);
-    QPainterPath editPath;
-    editPath.addRoundedRect(QRectF(editRect), Visual::RadiusSmall, Visual::RadiusSmall);
-    p.fillPath(editPath, m_editPromptHovered ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON_SUBTLE);
-    p.setPen(QPen(Color::BORDER_FAINT, 1));
-    p.drawPath(editPath);
-    Codicon::draw(p, "edit", QRect(editRect.left() + 8, editRect.top(), 14, editRect.height()),
-                  Color::TEXT_SECONDARY, 11);
-    QFont editFont = p.font();
-    editFont.setPixelSize(Visual::FontCaption);
-    editFont.setBold(false);
-    p.setFont(editFont);
-    p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(editRect.adjusted(26, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft, tr("编辑"));
-    m_editPromptRect = editRect;
-
     if (!m_metadataExpanded) return y + 8;
     y += 24;
 
@@ -544,11 +527,7 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
         ToastNotification::show(this, tr("已复制 Prompt"));
         return;
     }
-    if (m_editPromptRect.contains(event->pos()) && !m_asset.id.isEmpty()) {
-        startPromptEdit();
-        return;
-    }
-    if (m_promptContentRect.contains(event->pos()) && !m_asset.id.isEmpty() && !m_metadata.prompt.isEmpty() && !m_isEditingPrompt) {
+    if (m_promptContentRect.contains(event->pos()) && !m_asset.id.isEmpty() && !m_isEditingPrompt) {
         startPromptEdit();
         return;
     }
@@ -599,7 +578,6 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
 {
     bool oldAddHover = m_addTagHovered;
     bool oldCopyHover = m_copyPromptHovered;
-    bool oldEditHover = m_editPromptHovered;
     bool oldCloseHover = m_closeBtnHovered;
     bool oldCopyFileNameHover = m_copyFileNameHovered;
     bool oldOpenFolderHover = m_openFolderHovered;
@@ -610,7 +588,6 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
     bool oldTagHover = m_tagsHeaderHovered;
     m_addTagHovered = m_addTagRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_copyPromptHovered = m_copyPromptRect.contains(event->pos()) && !m_metadata.prompt.isEmpty();
-    m_editPromptHovered = m_editPromptRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_closeBtnHovered = m_closeBtnRect.contains(event->pos()) && !m_asset.id.isEmpty();
     m_copyFileNameHovered = m_copyFileNameRect.contains(event->pos()) && !m_asset.fileName.isEmpty();
     m_openFolderHovered = m_openFolderRect.contains(event->pos()) && !m_asset.filePath.isEmpty();
@@ -621,7 +598,6 @@ void DetailPanel::mouseMoveEvent(QMouseEvent *event)
     m_tagsHeaderHovered = m_tagsHeaderRect.contains(event->pos()) && !m_asset.id.isEmpty();
     if (oldAddHover != m_addTagHovered) update(m_addTagRect);
     if (oldCopyHover != m_copyPromptHovered) update(m_copyPromptRect);
-    if (oldEditHover != m_editPromptHovered) update(m_editPromptRect);
     if (oldCloseHover != m_closeBtnHovered) update(m_closeBtnRect);
     if (oldCopyFileNameHover != m_copyFileNameHovered) update(m_copyFileNameRect);
     if (oldOpenFolderHover != m_openFolderHovered) update(m_openFolderRect);
@@ -750,13 +726,12 @@ void DetailPanel::resizeEvent(QResizeEvent *)
 
 void DetailPanel::leaveEvent(QEvent *)
 {
-    if (m_addTagHovered || m_copyPromptHovered || m_editPromptHovered || m_closeBtnHovered
+    if (m_addTagHovered || m_copyPromptHovered || m_closeBtnHovered
         || m_copyFileNameHovered || m_openFolderHovered || m_openPreviewHovered
         || m_promptHeaderHovered || m_fileInfoHeaderHovered
         || m_metadataHeaderHovered || m_tagsHeaderHovered) {
         m_addTagHovered = false;
         m_copyPromptHovered = false;
-        m_editPromptHovered = false;
         m_closeBtnHovered = false;
         m_copyFileNameHovered = false;
         m_openFolderHovered = false;

@@ -133,6 +133,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_fileExistsCache.clear();
     m_scrollOffset = 0;
     prefetchFileExistence(assets);
+    rebuildMetaLines();
     layoutItems();
     ensureThumbnailsForVisibleItems();
     update();
@@ -150,6 +151,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     m_fileExistsCache.clear();
     m_scrollOffset = 0;
     prefetchFileExistence(assets);
+    rebuildMetaLines();
     layoutItems();
     ensureThumbnailsForVisibleItems();
     update();
@@ -159,6 +161,8 @@ void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
 {
     m_totalAssetCount = totalCount;
     m_assets.append(assets);
+    for (const auto &a : assets)
+        m_metaLines.append(metaLine(a));
     prefetchFileExistence(assets);
     layoutItems();
     ensureThumbnailsForVisibleItems();
@@ -168,6 +172,8 @@ void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
 void GalleryWidget::appendAssets(const QVector<Asset> &assets)
 {
     m_assets.append(assets);
+    for (const auto &a : assets)
+        m_metaLines.append(metaLine(a));
     m_fileExistsCache.clear();
     layoutItems();
     ensureThumbnailsForVisibleItems();
@@ -177,6 +183,7 @@ void GalleryWidget::appendAssets(const QVector<Asset> &assets)
 void GalleryWidget::clearAssets()
 {
     m_assets.clear();
+    m_metaLines.clear();
     m_hoveredIndex = -1;
     m_lastClickedIndex = -1;
     m_selectedAsset = {};
@@ -207,6 +214,14 @@ void GalleryWidget::prefetchFileExistence(const QVector<Asset> &assets)
         if (!m_fileExistsCache.contains(a.filePath))
             m_fileExistsCache.insert(a.filePath, QFileInfo::exists(a.filePath));
     }
+}
+
+void GalleryWidget::rebuildMetaLines()
+{
+    m_metaLines.clear();
+    m_metaLines.reserve(m_assets.size());
+    for (const auto &asset : m_assets)
+        m_metaLines.append(metaLine(asset));
 }
 
 void GalleryWidget::checkLoadMore()
@@ -457,14 +472,12 @@ void GalleryWidget::paintEvent(QPaintEvent *)
             p.drawRoundedRect(shadowRect, Visual::RadiusMedium, Visual::RadiusMedium);
         }
 
-        QPainterPath cardPath;
-        cardPath.addRoundedRect(QRectF(r), Visual::RadiusMedium, Visual::RadiusMedium);
-        p.fillPath(cardPath, isSelected ? Color::BG_CARD_HOVER
-                                        : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
+        p.setBrush(isSelected ? Color::BG_CARD_HOVER
+                              : (isHovered ? Color::BG_CARD_HOVER : Color::BG_CARD));
         p.setPen(QPen(isSelected ? Color::FOCUS_BORDER
                                  : (isHovered ? Color::BORDER_SUBTLE : Color::BORDER_FAINT),
                       1));
-        p.drawPath(cardPath);
+        p.drawRoundedRect(r, Visual::RadiusMedium, Visual::RadiusMedium);
 
         if (isSelected) {
             p.fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), Color::FOCUS_BORDER);
@@ -540,7 +553,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.setFont(m_metaFont);
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
-                   m_metaFm.elidedText(metaLine(asset), Qt::ElideRight, metaRect.width()));
+                   m_metaFm.elidedText(m_metaLines[i], Qt::ElideRight, metaRect.width()));
 
         QRect starRect(r.right() - 40, r.bottom() - 40, 32, 32);
         if (asset.isFavorite || isHovered || isSelected) {

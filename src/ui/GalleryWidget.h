@@ -81,6 +81,7 @@ private:
     void prefetchFileExistence(const QVector<Asset> &assets);
     void drawRubberBand(QPainter &p);
     void updateRubberBandSelection(const QRect &oldBand);
+    void rebuildMetaLines();
 
     int m_thumbSize = 180;
     static constexpr int kPadding = Visual::GalleryCardPadding;
@@ -102,6 +103,7 @@ private:
     QString m_searchKeyword;
     bool m_isDragOver = false;
     int m_emptyHoveredButton = -1;
+    QStringList m_metaLines;
     QSet<QString> m_requestedThumbnails;
     QHash<QString, bool> m_fileExistsCache;
     QRect m_batchTagRect;

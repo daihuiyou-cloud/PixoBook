@@ -6,7 +6,6 @@
 #include <QList>
 #include <QString>
 #include <QMutex>
-#include <functional>
 #include "core/IImageCache.h"
 
 class ImageCache : public IImageCache

@@ -31,7 +31,7 @@ void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
     });
 }
 
-QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recursive)
+QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recursive) const
 {
     QVector<Asset> assets;
     QDirIterator::IteratorFlags flags = recursive ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags;

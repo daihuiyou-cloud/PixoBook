@@ -3,7 +3,6 @@
 
 #include <QWidget>
 #include <QLineEdit>
-#include <QStringList>
 #include <QVector>
 #include <functional>
 

@@ -3,7 +3,6 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include <QVBoxLayout>
-#include <QApplication>
 
 CommandPalette::CommandPalette(QWidget *parent)
     : QWidget(parent)

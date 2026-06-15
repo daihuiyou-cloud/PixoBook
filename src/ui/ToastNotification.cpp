@@ -1,8 +1,8 @@
 #include "ToastNotification.h"
+#include <QEvent>
 #include <QPainter>
 #include <QPointer>
 #include <QVBoxLayout>
-#include <QApplication>
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
 

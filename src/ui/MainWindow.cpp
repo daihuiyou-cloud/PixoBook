@@ -1,6 +1,5 @@
 #include "MainWindow.h"
 #include <QVBoxLayout>
-#include <QWindow>
 #include <QScreen>
 #include <QGuiApplication>
 #if defined(Q_OS_WIN)

@@ -17,7 +17,7 @@ public:
     IParser* parserForSource(const QString &source) const;
     QStringList registeredSources() const;
 
-    Metadata parse(const QString &filePath);
+    Metadata parse(const QString &filePath) const;
 
     static QString detectSource(const QString &filePath);
 

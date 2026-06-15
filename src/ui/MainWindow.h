@@ -17,7 +17,6 @@
 #include "services/LibraryController.h"
 #include "services/ImageCache.h"
 #include "core/IDatabaseManager.h"
-#include "database/DatabaseManager.h"
 
 class MainWindow : public QMainWindow
 {

@@ -10,3 +10,5 @@ CMakeFiles/
 *.pro.user
 node_modules/
 *.autogen.sources
+
+Testing/

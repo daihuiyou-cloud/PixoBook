@@ -52,22 +52,22 @@ LibraryController::~LibraryController() = default;
 QVector<Asset> LibraryController::loadAssets(const QString &keyword, const QString &source,
                                               const QVector<int> &tagIds, bool onlyFavorites,
                                               const QString &sortField, bool sortAscending,
-                                              int offset, int limit)
+                                              int offset, int limit) const
 {
     return m_db->searchAssets(keyword, source, tagIds, onlyFavorites, sortField, sortAscending, offset, limit);
 }
 
-Asset LibraryController::getAsset(const QString &id)
+Asset LibraryController::getAsset(const QString &id) const
 {
     return m_db->getAsset(id);
 }
 
-Metadata LibraryController::getMetadata(const QString &assetId)
+Metadata LibraryController::getMetadata(const QString &assetId) const
 {
     return m_db->getMetadata(assetId);
 }
 
-QVector<Tag> LibraryController::getTagsForAsset(const QString &assetId)
+QVector<Tag> LibraryController::getTagsForAsset(const QString &assetId) const
 {
     return m_db->getTagsForAsset(assetId);
 }
@@ -80,7 +80,7 @@ bool LibraryController::updateMetadata(const Metadata &metadata)
     return ok;
 }
 
-QVector<Tag> LibraryController::getAllTags()
+QVector<Tag> LibraryController::getAllTags() const
 {
     return m_db->getAllTags();
 }
@@ -193,7 +193,7 @@ void LibraryController::toggleFavorite(const QString &assetId, bool isFavorite)
 }
 
 int LibraryController::countAssets(const QString &keyword, const QString &source,
-                                    const QVector<int> &tagIds, bool onlyFavorites)
+                                    const QVector<int> &tagIds, bool onlyFavorites) const
 {
     return m_db->countAssets(keyword, source, tagIds, onlyFavorites);
 }

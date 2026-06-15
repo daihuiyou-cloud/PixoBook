@@ -2,7 +2,6 @@
 #define FILESCANNER_H
 
 #include <QObject>
-#include <QStringList>
 #include <QVector>
 #include "models/Asset.h"
 
@@ -24,7 +23,7 @@ signals:
     void scanFinished();
 
 private:
-    QVector<Asset> scanDirectorySync(const QString &dirPath, bool recursive);
+    QVector<Asset> scanDirectorySync(const QString &dirPath, bool recursive) const;
 };
 
 #endif

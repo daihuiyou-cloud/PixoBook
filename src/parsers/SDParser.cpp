@@ -7,7 +7,7 @@ Metadata SDParser::parse(const QString &filePath)
     return parseFromPNGChunks(filePath);
 }
 
-Metadata SDParser::parseFromPNGChunks(const QString &filePath)
+Metadata SDParser::parseFromPNGChunks(const QString &filePath) const
 {
     Metadata meta;
     QFile file(filePath);

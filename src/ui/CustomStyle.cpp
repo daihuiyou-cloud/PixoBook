@@ -6,9 +6,7 @@
 #include <QStyleOptionComboBox>
 #include <QStyleOptionSlider>
 #include <QStyleOptionMenuItem>
-#include <QStyleOptionToolBox>
 #include <QStyleOptionProgressBar>
-#include <QProgressBar>
 #include <QApplication>
 #include <QPainterPath>
 

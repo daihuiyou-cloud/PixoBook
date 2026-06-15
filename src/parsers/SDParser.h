@@ -11,7 +11,7 @@ public:
     Metadata parse(const QString &filePath) override;
     QString sourceName() const override { return QStringLiteral("stable-diffusion"); }
 
-    Metadata parseFromPNGChunks(const QString &filePath);
+    Metadata parseFromPNGChunks(const QString &filePath) const;
 };
 
 #endif

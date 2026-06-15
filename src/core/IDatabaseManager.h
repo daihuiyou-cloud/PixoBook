@@ -3,7 +3,6 @@
 
 #include <QString>
 #include <QVector>
-#include <QColor>
 #include "models/Asset.h"
 #include "models/Tag.h"
 #include "models/Metadata.h"

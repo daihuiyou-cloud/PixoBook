@@ -64,7 +64,7 @@ QStringList ParserRegistry::registeredSources() const
     return keys;
 }
 
-Metadata ParserRegistry::parse(const QString &filePath)
+Metadata ParserRegistry::parse(const QString &filePath) const
 {
     QFileInfo fi(filePath);
     QString ext = fi.suffix().toLower();

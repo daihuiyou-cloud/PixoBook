@@ -26,11 +26,11 @@ QString metaLine(const Asset &asset)
 {
     QStringList parts;
     if (asset.width > 0 && asset.height > 0)
-        parts << QString("%1 x %2").arg(asset.width).arg(asset.height);
+        parts << QStringLiteral("%1 x %2").arg(asset.width).arg(asset.height);
     if (!asset.format.isEmpty())
         parts << asset.format.toUpper();
     if (asset.fileSize > 0)
-        parts << QString("%1 KB").arg(qMax<qint64>(1, asset.fileSize / 1024));
+        parts << QStringLiteral("%1 KB").arg(qMax<qint64>(1, asset.fileSize / 1024));
     return parts.join("  |  ");
 }
 
@@ -975,7 +975,7 @@ bool GalleryWidget::event(QEvent *event)
         int idx = indexAt(he->pos());
         if (idx >= 0 && idx < m_assets.size()) {
             const Asset &a = m_assets[idx];
-            QString tip = QString("%1\n%2").arg(a.fileName).arg(metaLine(a));
+            QString tip = QStringLiteral("%1\n%2").arg(a.fileName).arg(metaLine(a));
             QToolTip::showText(he->globalPos(), tip, this);
         } else {
             QToolTip::hideText();

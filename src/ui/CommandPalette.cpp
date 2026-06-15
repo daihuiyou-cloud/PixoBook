@@ -16,7 +16,7 @@ CommandPalette::CommandPalette(QWidget *parent)
     layout->setSpacing(0);
 
     m_input = new QLineEdit();
-    m_input->setPlaceholderText(QString::fromUtf8("\xe8\xbe\x93\xe5\x85\xa5\xe5\x91\xbd\xe4\xbb\xa4\xe5\x90\x8d..."));
+    m_input->setPlaceholderText(QStringLiteral("\u8F93\u5165\u547D\u4EE4\u540D..."));
     m_input->setFixedHeight(36);
     QPalette inputPal;
     inputPal.setColor(QPalette::Base, Color::BG_INPUT);

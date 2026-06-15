@@ -43,13 +43,13 @@ LightboxWidget::LightboxWidget(QWidget *parent)
 
 void LightboxWidget::rebuildInfoStrings()
 {
-    m_counterText = QString("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size());
+    m_counterText = QStringLiteral("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size());
     if (m_currentIndex >= 0 && m_currentIndex < m_assets.size()) {
         const auto &a = m_assets[m_currentIndex];
-        m_infoText = QString("%1 x %2 | %3 | %4 KB")
+        m_infoText = QStringLiteral("%1 x %2 | %3 | %4 KB")
                          .arg(a.width).arg(a.height).arg(a.format.toUpper()).arg(a.fileSize / 1024);
     }
-    m_zoomText = QString("%1%").arg((int)(m_zoom * 100));
+    m_zoomText = QStringLiteral("%1%").arg((int)(m_zoom * 100));
 }
 
 void LightboxWidget::show(const QVector<Asset> &assets, int startIndex)

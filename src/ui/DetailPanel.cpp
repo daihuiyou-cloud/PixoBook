@@ -23,11 +23,11 @@ QString detailMetaLine(const Asset &asset)
 {
     QStringList parts;
     if (asset.width > 0 && asset.height > 0)
-        parts << QString("%1 x %2").arg(asset.width).arg(asset.height);
+        parts << QStringLiteral("%1 x %2").arg(asset.width).arg(asset.height);
     if (!asset.format.isEmpty())
         parts << asset.format.toUpper();
     if (asset.fileSize > 0)
-        parts << QString("%1 KB").arg(qMax<qint64>(1, asset.fileSize / 1024));
+        parts << QStringLiteral("%1 KB").arg(qMax<qint64>(1, asset.fileSize / 1024));
     return parts.join("  |  ");
 }
 }
@@ -196,7 +196,7 @@ int DetailPanel::drawImage(QPainter &p)
     p.setFont(m_fontMeta);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(infoBg.adjusted(10, 0, -34, 0), Qt::AlignVCenter,
-               QString("%1 x %2  |  %3%").arg(m_asset.width).arg(m_asset.height).arg((int)(m_zoom * 100)));
+               QStringLiteral("%1 x %2  |  %3%").arg(m_asset.width).arg(m_asset.height).arg((int)(m_zoom * 100)));
 
     m_favStarRect = QRect(infoBg.right() - 28, infoBg.top() + 4, 22, 22);
     Codicon::draw(p, m_asset.isFavorite ? "star" : "star-empty", m_favStarRect,
@@ -295,7 +295,7 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     QFileInfo fi(m_asset.filePath);
     drawField(p, 16, y, tr("名称"), m_asset.fileName, Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("大小"), QString::number(m_asset.fileSize / 1024) + " KB", Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, tr("尺寸"), QString("%1 x %2").arg(m_asset.width).arg(m_asset.height), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("尺寸"), QStringLiteral("%1 x %2").arg(m_asset.width).arg(m_asset.height), Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("格式"), m_asset.format.toUpper(), Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("路径"), fi.absolutePath(), Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), Visual::DetailFieldLabelWidth);

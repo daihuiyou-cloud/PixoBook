@@ -649,9 +649,12 @@ void DetailPanel::startPromptEdit()
         m_promptExpanded = true;
         update();
     }
+    QFontMetrics fm(font());
+    const int textW = width() - 52;
+    const int textH = fm.boundingRect(QRect(0, 0, textW, 600),
+                                      Qt::TextWordWrap, m_metadata.prompt).height();
     QRect editorRect = m_promptContentRect;
-    if (editorRect.height() < Visual::DetailPromptHeight)
-        editorRect.setHeight(Visual::DetailPromptHeight);
+    editorRect.setHeight(qBound(52, textH + 20, Visual::DetailPromptHeight));
     m_promptEditor->setPlainText(m_metadata.prompt);
     m_promptEditor->setGeometry(editorRect);
     m_promptEditor->setVisible(true);

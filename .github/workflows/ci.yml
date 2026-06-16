@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          host: 'windows'
+          arch: 'win32_msvc2019'
+          modules: 'qtbase'
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo -j
+      - name: Test
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+      - name: Scan bugs
+        run: cmake --build build --target scan-bugs

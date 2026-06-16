@@ -6,6 +6,8 @@ Checks: >
   cert-*,
   modernize-use-override,
   modernize-use-nullptr,
+  modernize-use-nodiscard,
+  modernize-use-equals-default,
   -bugprone-narrowing-conversions,
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-floating-point-result,

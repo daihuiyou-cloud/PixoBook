@@ -59,6 +59,7 @@ void ImageCache::invalidate(const QString &filePath)
             ++it;
         }
     }
+    m_dimCache.remove(filePath);
 }
 
 void ImageCache::invalidateDir(const QString &dirPath)
@@ -77,6 +78,13 @@ void ImageCache::invalidateDir(const QString &dirPath)
             ++it;
         }
     }
+    auto dit = m_dimCache.begin();
+    while (dit != m_dimCache.end()) {
+        if (dit.key().startsWith(prefix, Qt::CaseInsensitive))
+            dit = m_dimCache.erase(dit);
+        else
+            ++dit;
+    }
 }
 
 void ImageCache::clear()
@@ -85,6 +93,7 @@ void ImageCache::clear()
     m_cache.clear();
     m_accessOrder.clear();
     m_currentBytes = 0;
+    m_dimCache.clear();
 }
 
 void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
@@ -107,11 +116,22 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
 
 QPixmap ImageCache::generateThumbnail(const QString &filePath, const QSize &size) const
 {
-    QImageReader reader(filePath);
-    QSize imgSize = reader.size();
-    if (!imgSize.isValid())
-        return {};
+    QSize imgSize;
+    {
+        QMutexLocker lock(&m_mutex);
+        auto it = m_dimCache.find(filePath);
+        if (it != m_dimCache.end()) {
+            imgSize = it.value();
+        } else {
+            QImageReader probe(filePath);
+            imgSize = probe.size();
+            if (!imgSize.isValid())
+                return {};
+            m_dimCache.insert(filePath, imgSize);
+        }
+    }
 
+    QImageReader reader(filePath);
     QSize fitSize = imgSize.scaled(size, Qt::KeepAspectRatio);
     if (fitSize != imgSize)
         reader.setScaledSize(fitSize);

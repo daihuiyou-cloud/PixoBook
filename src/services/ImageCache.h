@@ -43,6 +43,7 @@ private:
     qint64 m_maxBytes;
     mutable qint64 m_currentBytes = 0;
     mutable QMutex m_mutex;
+    mutable QHash<QString, QSize> m_dimCache;
 
     static qint64 pixmapBytes(const QPixmap &p) {
         return static_cast<qint64>(p.width()) * static_cast<qint64>(p.height()) * (p.depth() / 8);

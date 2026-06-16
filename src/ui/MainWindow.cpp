@@ -256,8 +256,10 @@ void MainWindow::setupConnections()
             tr("标签名称："),
             QLineEdit::Normal, QString(), &ok);
         if (ok && !name.trimmed().isEmpty()) {
-            m_library->createTag(name.trimmed());
-            loadAssets();
+            if (m_library->createTag(name.trimmed()) >= 0)
+                loadAssets();
+            else
+                qWarning("MainWindow: createTag failed");
         }
     });
     connect(m_sidebar, &SidebarWidget::tagDeleteRequested, this, [this](int tagId) {
@@ -266,10 +268,11 @@ void MainWindow::setupConnections()
             tr("确定删除该标签？"),
             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
-            m_library->deleteTag(tagId);
-            if (m_activeTagId == tagId)
-                m_activeTagId = -1;
-            loadAssets();
+            if (m_library->deleteTag(tagId)) {
+                if (m_activeTagId == tagId)
+                    m_activeTagId = -1;
+                loadAssets();
+            }
         }
     });
     connect(m_sidebar, &SidebarWidget::folderSelected, this, [this](const QString &path) {
@@ -329,13 +332,14 @@ void MainWindow::setupConnections()
         auto reply = QMessageBox::question(this, tr("删除"), msg,
                                             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
-            m_library->deleteAssets(assets);
-            if (m_detailPanel->isVisible() && !assets.isEmpty()
-                && m_detailPanel->currentAssetId() == assets[0].id) {
-                m_detailPanel->clear();
-                m_detailPanel->setVisible(false);
+            if (m_library->deleteAssets(assets)) {
+                if (m_detailPanel->isVisible() && !assets.isEmpty()
+                    && m_detailPanel->currentAssetId() == assets[0].id) {
+                    m_detailPanel->clear();
+                    m_detailPanel->setVisible(false);
+                }
+                loadAssets();
             }
-            loadAssets();
         }
     });
 
@@ -634,8 +638,10 @@ void MainWindow::onTagEditRequested(int tagId)
         tr("标签名称："),
         QLineEdit::Normal, tag.name, &ok);
     if (ok && !newName.isEmpty() && newName != tag.name) {
-        m_library->renameTag(tagId, newName);
-        loadAssets();
+        if (m_library->renameTag(tagId, newName))
+            loadAssets();
+        else
+            qWarning("MainWindow: renameTag failed");
     }
 }
 

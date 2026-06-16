@@ -350,7 +350,7 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         QRect r = option->rect.adjusted(1, 1, -1, -1);
         double progress = qBound(0.0, pbOpt->progress / 100.0, 1.0);
         if (progress > 0) {
-            int fillW = qMax(4, (int)(r.width() * progress));
+            int fillW = qMax(4, static_cast<int>(r.width() * progress));
             painter->setBrush(Color::ACCENT);
             painter->setPen(Qt::NoPen);
             painter->drawRoundedRect(QRect(r.left(), r.top(), fillW, r.height()), 2, 2);

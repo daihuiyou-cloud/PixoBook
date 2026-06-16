@@ -49,7 +49,7 @@ void LightboxWidget::rebuildInfoStrings()
         m_infoText = QStringLiteral("%1 x %2 | %3 | %4 KB")
                          .arg(a.width).arg(a.height).arg(a.format.toUpper()).arg(a.fileSize / 1024);
     }
-    m_zoomText = QStringLiteral("%1%").arg((int)(m_zoom * 100));
+    m_zoomText = QStringLiteral("%1%").arg(static_cast<int>(m_zoom * 100));
 }
 
 void LightboxWidget::show(const QVector<Asset> &assets, int startIndex)
@@ -137,14 +137,14 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     }
 
     QRect imgRect = imageRect();
-    double fitScale = qMin((double)imgRect.width() / m_currentPixmap.width(),
-                           (double)imgRect.height() / m_currentPixmap.height());
+    double fitScale = qMin(static_cast<double>(imgRect.width()) / m_currentPixmap.width(),
+                           static_cast<double>(imgRect.height()) / m_currentPixmap.height());
     double scale = fitScale * m_zoom;
 
-    int drawW = (int)(m_currentPixmap.width() * scale);
-    int drawH = (int)(m_currentPixmap.height() * scale);
-    int drawX = imgRect.center().x() - drawW / 2 + (int)m_panOffset.x();
-    int drawY = imgRect.center().y() - drawH / 2 + (int)m_panOffset.y();
+    int drawW = static_cast<int>(m_currentPixmap.width() * scale);
+    int drawH = static_cast<int>(m_currentPixmap.height() * scale);
+    int drawX = imgRect.center().x() - drawW / 2 + static_cast<int>(m_panOffset.x());
+    int drawY = imgRect.center().y() - drawH / 2 + static_cast<int>(m_panOffset.y());
 
     QRect shadowRect(drawX - 4, drawY - 4, drawW + 8, drawH + 8);
     p.setPen(Qt::NoPen);

@@ -180,10 +180,10 @@ int DetailPanel::drawImage(QPainter &p)
         return imgRect.bottom();
     }
 
-    double scale = m_zoom * qMin((double)imgRect.width() / m_fullImage.width(),
-                                 (double)imgRect.height() / m_fullImage.height());
-    int drawW = (int)(m_fullImage.width() * scale);
-    int drawH = (int)(m_fullImage.height() * scale);
+    double scale = m_zoom * qMin(static_cast<double>(imgRect.width()) / m_fullImage.width(),
+                                 static_cast<double>(imgRect.height()) / m_fullImage.height());
+    int drawW = static_cast<int>(m_fullImage.width() * scale);
+    int drawH = static_cast<int>(m_fullImage.height() * scale);
     int imgX = imgRect.center().x() - drawW / 2 + m_panOffset.x();
     int imgY = imgRect.center().y() - drawH / 2 + m_panOffset.y();
     p.drawPixmap(imgX, imgY, drawW, drawH, m_fullImage);
@@ -196,7 +196,7 @@ int DetailPanel::drawImage(QPainter &p)
     p.setFont(m_fontMeta);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(infoBg.adjusted(10, 0, -34, 0), Qt::AlignVCenter,
-               QStringLiteral("%1 x %2  |  %3%").arg(m_asset.width).arg(m_asset.height).arg((int)(m_zoom * 100)));
+               QStringLiteral("%1 x %2  |  %3%").arg(m_asset.width).arg(m_asset.height).arg(static_cast<int>(m_zoom * 100)));
 
     m_favStarRect = QRect(infoBg.right() - 28, infoBg.top() + 4, 22, 22);
     Codicon::draw(p, m_asset.isFavorite ? "star" : "star-empty", m_favStarRect,

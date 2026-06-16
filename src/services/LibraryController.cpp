@@ -15,11 +15,11 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
     connect(m_scanner, &FileScanner::assetFound, this, [this](const Asset &asset) {
         Asset existing = m_db->findByPath(asset.filePath);
         if (existing.id.isEmpty() && m_db->findByHash(asset.hash).id.isEmpty()) {
-            m_db->insertAsset(asset);
+            (void)m_db->insertAsset(asset);
             Metadata meta = MetadataParser::parse(asset.filePath);
             if (!meta.source.isEmpty()) {
                 meta.assetId = asset.id;
-                m_db->upsertMetadata(meta);
+                (void)m_db->upsertMetadata(meta);
             }
         }
     });
@@ -41,7 +41,7 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
     connect(m_watcher, &FileWatcher::fileRemoved, this, [this](const QString &path) {
         Asset a = m_db->findByPath(path);
         if (!a.id.isEmpty()) {
-            m_db->deleteAsset(a.id);
+            (void)m_db->deleteAsset(a.id);
             emit dataChanged();
         }
     });
@@ -118,7 +118,7 @@ void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tag
     }
     for (const auto &aid : assetIds) {
         if (!m_db->addTagToAsset(aid, tagId)) {
-            m_db->rollbackTransaction();
+            (void)m_db->rollbackTransaction();
             emit dataChanged();
             return;
         }
@@ -129,7 +129,7 @@ void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tag
 
 void LibraryController::removeTagFromAsset(const QString &assetId, int tagId)
 {
-    m_db->removeTagFromAsset(assetId, tagId);
+    (void)m_db->removeTagFromAsset(assetId, tagId);
 }
 
 void LibraryController::addFolder(const QString &dir)
@@ -150,6 +150,8 @@ void LibraryController::scanFolder(const QString &dir)
 void LibraryController::removeFolder(const QString &dir)
 {
     m_folders.removeAll(dir);
+    m_watcher->removeWatchPath(dir);
+    m_cache->invalidateDir(dir);
     emit dataChanged();
 }
 
@@ -159,11 +161,11 @@ void LibraryController::scanAndInsertFile(const QString &path)
     if (asset.id.isEmpty()) return;
     if (!m_db->findByHash(asset.hash).id.isEmpty()) return;
 
-    m_db->insertAsset(asset);
+    (void)m_db->insertAsset(asset);
     Metadata meta = MetadataParser::parse(asset.filePath);
     if (!meta.source.isEmpty()) {
         meta.assetId = asset.id;
-        m_db->upsertMetadata(meta);
+        (void)m_db->upsertMetadata(meta);
     }
 }
 
@@ -175,7 +177,7 @@ bool LibraryController::deleteAssets(const QVector<Asset> &assets)
     }
     for (const auto &a : assets) {
         if (!m_db->deleteAsset(a.id)) {
-            m_db->rollbackTransaction();
+            (void)m_db->rollbackTransaction();
             emit dataChanged();
             return false;
         }
@@ -188,7 +190,7 @@ bool LibraryController::deleteAssets(const QVector<Asset> &assets)
 
 void LibraryController::toggleFavorite(const QString &assetId, bool isFavorite)
 {
-    m_db->updateAssetFavorite(assetId, isFavorite);
+    (void)m_db->updateAssetFavorite(assetId, isFavorite);
     emit dataChanged();
 }
 

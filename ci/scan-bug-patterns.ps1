@@ -559,6 +559,21 @@ if ($metatypeIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 18: C-style cast detection (use static_cast instead)
+# ====================================================================
+$cstyleIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern '\(\s*(int|double|float|char|short|long|qint64|qint32|quint32|quint64|quint16|qint16|quint8|qint8|size_t)\s*\)\s*[A-Za-z_(]' | ForEach-Object {
+    $line = $_.Line
+    if ($line -match 'static_cast|dynamic_cast|reinterpret_cast|const_cast|qOverload|QOverload|#define|sizeof') { return }
+    $cstyleIssues += "$($_.Filename):$($_.LineNumber) — C-style cast (use static_cast instead)"
+}
+if ($cstyleIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "cstyle-cast"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "cstyle-cast"; Status = "FAIL"; Details = ($cstyleIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

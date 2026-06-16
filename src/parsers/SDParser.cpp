@@ -1,6 +1,5 @@
 #include "SDParser.h"
 #include <QFile>
-#include <QDebug>
 
 Metadata SDParser::parse(const QString &filePath)
 {

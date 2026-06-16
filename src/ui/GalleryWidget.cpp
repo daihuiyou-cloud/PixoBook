@@ -237,7 +237,7 @@ void GalleryWidget::rebuildMetaLines()
 {
     m_metaLines.clear();
     m_metaLines.reserve(m_assets.size());
-    for (const auto &asset : m_assets)
+    for (const auto &asset : qAsConst(m_assets))
         m_metaLines.append(metaLine(asset));
 }
 

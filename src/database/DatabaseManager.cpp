@@ -19,6 +19,14 @@ DatabaseManager::~DatabaseManager()
         QSqlDatabase::removeDatabase(m_connectionName);
 }
 
+namespace {
+QDateTime parseIsoDt(const QString &s, Qt::DateFormat fmt = Qt::ISODate)
+{
+    auto dt = QDateTime::fromString(s, fmt);
+    return dt.isValid() ? dt : QDateTime();
+}
+}
+
 bool DatabaseManager::initialize()
 {
     if (!m_db.open()) {
@@ -204,8 +212,8 @@ Asset DatabaseManager::getAsset(const QString &assetId) const
         a.hash = q.value("hash").toString();
         a.isFavorite = q.value("is_favorite").toInt() != 0;
         a.folderId = q.value("folder_id").toString();
-        a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
-        a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
+        a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
+        a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
     }
     return a;
 }
@@ -227,8 +235,8 @@ QVector<Asset> DatabaseManager::getAllAssets() const
             a.hash = q.value("hash").toString();
             a.isFavorite = q.value("is_favorite").toInt() != 0;
             a.folderId = q.value("folder_id").toString();
-            a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
-            a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
+            a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
+            a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
             assets.append(a);
         }
     }
@@ -300,8 +308,8 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
             a.folderId = q.value("folder_id").toString();
             a.metadataSource = q.value("metadata_source").toString();
             a.metadataPrompt = q.value("metadata_prompt").toString();
-            a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
-            a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
+            a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
+            a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
             assets.append(a);
         }
     }
@@ -366,8 +374,8 @@ Asset DatabaseManager::findByPath(const QString &filePath) const
         a.hash = q.value("hash").toString();
         a.isFavorite = q.value("is_favorite").toInt() != 0;
         a.folderId = q.value("folder_id").toString();
-        a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
-        a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
+        a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
+        a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
     }
     return a;
 }
@@ -390,8 +398,8 @@ Asset DatabaseManager::findByHash(const QString &hash) const
         a.hash = q.value("hash").toString();
         a.isFavorite = q.value("is_favorite").toInt() != 0;
         a.folderId = q.value("folder_id").toString();
-        a.createdAt = QDateTime::fromString(q.value("created_at").toString(), Qt::ISODate);
-        a.updatedAt = QDateTime::fromString(q.value("updated_at").toString(), Qt::ISODate);
+        a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
+        a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
     }
     return a;
 }

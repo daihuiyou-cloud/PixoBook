@@ -104,7 +104,7 @@ void FileWatcher::checkForNewFiles(const QString &dirPath)
             emit fileAdded(fi.absoluteFilePath());
     }
 
-    for (const auto &known : m_knownFiles) {
+    for (const auto &known : qAsConst(m_knownFiles)) {
         if (!current.contains(known))
             emit fileRemoved(known);
     }

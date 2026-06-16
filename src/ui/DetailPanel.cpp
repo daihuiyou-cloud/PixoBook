@@ -426,7 +426,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
         y += 28;
     }
 
-    for (const auto &tag : m_tags) {
+    for (const auto &tag : qAsConst(m_tags)) {
         int tw = p.fontMetrics().horizontalAdvance(tag.name) + 28;
         if (tagX + tw > width() - 16) {
             tagX = 16;
@@ -519,7 +519,7 @@ void DetailPanel::mousePressEvent(QMouseEvent *event)
         emit tagAddRequested(m_asset.id);
         return;
     }
-    for (const auto &pair : m_tagRects) {
+    for (const auto &pair : qAsConst(m_tagRects)) {
         QRect xRect(pair.second.right() - 16, pair.second.top() + 3, 12, 16);
         if (xRect.contains(event->pos())) {
             emit tagRemoved(m_asset.id, pair.first);

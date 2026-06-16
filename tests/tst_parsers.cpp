@@ -60,6 +60,65 @@ private slots:
         QString source = ParserRegistry::detectSource(path);
         QCOMPARE(source, "stable-diffusion");
     }
+
+    void testSDParserSourceName()
+    {
+        SDParser parser;
+        QCOMPARE(parser.sourceName(), "stable-diffusion");
+    }
+
+    void testMJParserSourceName()
+    {
+        MJParser parser;
+        QCOMPARE(parser.sourceName(), "midjourney");
+    }
+
+    void testDALLEParserSourceName()
+    {
+        DALLEParser parser;
+        QCOMPARE(parser.sourceName(), "dalle");
+    }
+
+    void testMJParserNoSeed()
+    {
+        MJParser parser;
+        Metadata m = parser.parse("C:/fake/my_image.png");
+        QCOMPARE(m.source, "midjourney");
+        QCOMPARE(m.seed, 0);
+    }
+
+    void testMJParserUpscaledFilename()
+    {
+        MJParser parser;
+        Metadata m = parser.parse("C:/fake/User_12345_6789_Upscaled.png");
+        QCOMPARE(m.source, "midjourney");
+        QCOMPARE(m.seed, 12345);
+    }
+
+    void testMJParserInvalidSeed()
+    {
+        MJParser parser;
+        Metadata m = parser.parse("C:/fake/User_abc_6789.png");
+        QCOMPARE(m.source, "midjourney");
+        QCOMPARE(m.seed, 0);
+    }
+
+    void testDALLEParserNoPrompt()
+    {
+        DALLEParser parser;
+        Metadata m = parser.parse("C:/fake/DALL\u00B7E 2024-01-15 12.30.00.png");
+        QCOMPARE(m.source, "dalle");
+        QVERIFY(m.prompt.isEmpty());
+    }
+
+
+    void testDALLEParserNonDalleFile()
+    {
+        DALLEParser parser;
+        Metadata m = parser.parse("C:/fake/random_image.png");
+        QCOMPARE(m.source, "dalle");
+        QVERIFY(m.prompt.isEmpty());
+    }
 };
 
 QTEST_MAIN(TestParsers)

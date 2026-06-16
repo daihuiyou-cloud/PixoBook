@@ -574,6 +574,56 @@ if ($cstyleIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 19: QDateTime::fromString without isValid() guard
+# ====================================================================
+$dtIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "QDateTime::fromString|QDate::fromString|QTime::fromString" | ForEach-Object {
+    $lineNum = $_.LineNumber
+    $fullPath = $_.Path
+    $content = Get-Content $fullPath
+    $start = [Math]::Max(0, $lineNum - 1)
+    $end = [Math]::Min($content.Count, $lineNum + 2)
+    $context = $content[$start..$end] -join "`n"
+    $hasValidGuard = $context -match "isValid"
+    $usedInAssignment = $context -match "=\s*\w+\.(fromString|fromString)" -or $_.Line -match "\.fromString"
+    if ($usedInAssignment -and -not $hasValidGuard) {
+        $dtIssues += "$($_.Filename):$lineNum — QDateTime::fromString result not validated with isValid()"
+    }
+}
+if ($dtIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "datetime-fromstring-validate"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "datetime-fromstring-validate"; Status = "FAIL"; Details = ($dtIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 20: Range-for over member container causes implicit detach
+# ====================================================================
+$detachIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "for\s+\(const\s+auto\s+&?\s*\w+\s+:\s+m_\w+\)" | ForEach-Object {
+    $lineNum = $_.LineNumber
+    $fullPath = $_.Path
+    $content = Get-Content $fullPath
+    $line = $_.Line
+    $funcLine = -1
+    for ($i = $lineNum - 2; $i -ge 0; $i--) {
+        if ($content[$i] -match '\w+::\w+\(') {
+            $funcLine = $i
+            break
+        }
+    }
+    $isConstMethod = $funcLine -ge 0 -and $content[$funcLine] -match '\bconst\s*$'
+    if (-not $isConstMethod) {
+        $detachIssues += "$($_.Filename):$lineNum — range-for over m_ member (use qAsConst() to avoid implicit detach)"
+    }
+}
+if ($detachIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "range-for-implicit-detach"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "range-for-implicit-detach"; Status = "FAIL"; Details = ($detachIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

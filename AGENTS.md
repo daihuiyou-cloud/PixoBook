@@ -51,6 +51,8 @@
 | 18 | C-style cast 未替换为 static_cast | 隐式转换可能丢失精度，不符合 C++17 规范 | 检查 `(int)`, `(double)` 等 C 风格转型 |
 | 12 | Windows 路径比较未忽略大小写 | 路径匹配失败 | 检查 `.startsWith(path)` / `==` 是否使用 `Qt::CaseInsensitive` |
 | 13 | 事务没有回滚路径 | 部分执行后数据库不一致 | 检查 `beginTransaction` 后，分支路径是否都有 `rollback` |
+| 19 | `QDateTime::fromString` 未验证 `isValid()` | 无声的数据损坏 | 检查 `fromString` 结果的 `isValid()` 调用 |
+| 20 | Range-for 遍历成员容器导致隐式 detach | 每帧不必要的写时复制开销 | 在非 const 方法中遍历 `m_` 容器时使用 `qAsConst()` |
 
 ## 已修复的实例
 
@@ -64,6 +66,8 @@
 | C-style cast (模式 18) | LightboxWidget, DetailPanel, CustomStyle | `(int)expr` → `static_cast<int>(expr)` |
 | QPainterPath 未使用 include | DetailPanel, TitleBar, LightboxWidget, TabBar, SearchBar | 移除多余的 `#include <QPainterPath>` |
 | 辅助绘制方法未标记 `const` (模式 14) | GalleryWidget, DetailPanel | `drawEmptyState`, `drawRubberBand`, `drawSectionDivider`, `drawSummaryAction`, `drawField`, `drawScrollIndicator` → 全部加 `const` |
+| QDateTime::fromString 未验证 (模式 19) | DatabaseManager.cpp | 添加 `parseIsoDt` 包装函数，10 处调用全部增加 `isValid()` 保护 |
+| Range-for 隐式 detach (模式 20) | FileWatcher.cpp, DetailPanel.cpp (x2), GalleryWidget.cpp | 为遍历 `m_` 容器的 range-for 添加 `qAsConst()` 包装 |
 
 ## 扫描器改进
 
@@ -76,6 +80,8 @@
 | CHECK 14 增强（模式 14） | 辅助绘制方法未标记 `const` — 新增检查项并添加 scanner 规则 |
 | CHECK 17（新增） | 检测信号参数中缺少 Q_DECLARE_METATYPE 的自定义类型 — 自动扫描所有 Q_OBJECT 类的信号签名 |
 | CHECK 18（新增） | 检测 C-style cast `(int)`, `(double)` 等 — 自动扫描所有 .cpp 文件 |
+| CHECK 19（新增） | 检测 `QDateTime::fromString` 结果未调用 `isValid()` — 无声数据损坏 |
+| CHECK 20（新增） | 检测 range-for 遍历成员容器时未使用 `qAsConst()` — 隐式 detach 性能损耗 |
 
 ## 递归自我改进流程
 

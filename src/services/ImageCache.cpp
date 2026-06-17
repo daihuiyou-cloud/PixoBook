@@ -16,8 +16,11 @@ QPixmap ImageCache::get(const QString &filePath, const QSize &size) const
     QMutexLocker lock(&m_mutex);
     CacheKey key{filePath, size};
     auto it = m_cache.find(key);
-    if (it != m_cache.end())
+    if (it != m_cache.end()) {
+        m_accessOrder.removeAll(key);
+        m_accessOrder.append(key);
         return it.value();
+    }
     return {};
 }
 
@@ -110,7 +113,9 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
         if (!self) return;
         QPixmap thumb = self->generateThumbnail(filePath, size);
         self->insert(filePath, size, thumb);
-        emit self->thumbnailReady(filePath, size, thumb);
+        QMetaObject::invokeMethod(self, [self, filePath, size, thumb]() {
+            emit self->thumbnailReady(filePath, size, thumb);
+        }, Qt::QueuedConnection);
     });
 }
 

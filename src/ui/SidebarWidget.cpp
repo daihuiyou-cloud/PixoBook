@@ -38,6 +38,10 @@ void SidebarWidget::setTags(const QVector<Tag> &tags)
 void SidebarWidget::setFolders(const QStringList &folders)
 {
     m_folders = folders;
+    m_folderDisplayNames.clear();
+    m_folderDisplayNames.reserve(folders.size());
+    for (const auto &f : qAsConst(folders))
+        m_folderDisplayNames.append(QFileInfo(f).fileName());
     updateLayout();
     update();
 }
@@ -117,7 +121,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             if (isFocused) drawFocusRect(p, itemRect.adjusted(4, 2, -4, -2));
 
             drawFolderIcon(p, itemRect, isHovered, isActive);
-            QString display = QFileInfo(m_folders[i]).fileName();
+            QString display = (i < m_folderDisplayNames.size()) ? m_folderDisplayNames[i] : m_folders[i];
             if (display.isEmpty()) display = m_folders[i];
             p.setPen(isActive ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
             p.setFont(m_itemFont);

@@ -172,7 +172,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     QRect topBar(0, 0, width(), 40);
     p.fillRect(topBar, Color::OVERLAY_BG);
     p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(topBar.adjusted(12, 0, -48, 0), Qt::AlignVCenter | Qt::AlignLeft, QFileInfo(asset.filePath).fileName());
+    p.drawText(topBar.adjusted(12, 0, -48, 0), Qt::AlignVCenter | Qt::AlignLeft, asset.fileName);
 
     m_closeBtnRect = QRect(width() - 36, 8, 24, 24);
     Codicon::draw(p, "close", m_closeBtnRect, Color::TEXT_PRIMARY, 18);

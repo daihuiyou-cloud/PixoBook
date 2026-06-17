@@ -53,6 +53,16 @@
 | 13 | 事务没有回滚路径 | 部分执行后数据库不一致 | 检查 `beginTransaction` 后，分支路径是否都有 `rollback` |
 | 19 | `QDateTime::fromString` 未验证 `isValid()` | 无声的数据损坏 | 检查 `fromString` 结果的 `isValid()` 调用 |
 | 20 | Range-for 遍历成员容器导致隐式 detach | 每帧不必要的写时复制开销 | 在非 const 方法中遍历 `m_` 容器时使用 `qAsConst()` |
+| 21 | paintEvent 辅助方法中的 blocking I/O 或堆分配 | 每帧文件系统访问 + 堆分配卡顿 | 检查 `draw*` 方法中是否有 `QFileInfo`、`QImageReader`、`.arg()`、`QString::number()` |
+| 22 | Range-for 显式类型遍历成员容器未用 `qAsConst` | 写时复制隐式 detach | 检查 `for (int x : m_container)` 模式是否在非 const 方法中 |
+| 23 | `QtConcurrent::run` lambda 内直接 `emit` 信号 | 跨线程信号发射，新增直接连接接收者时可能崩溃 | 应使用 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` 封装 |
+| 24 | `QFile` 打开后未显式 `close()` | 文件描述符未及时释放（长循环中尤为明显） | 检查 `QFile::open()` 后是否有匹配的 `close()` |
+| 25 | 大型容器（`QVector<Asset>`）通过值返回 | 不必要的深拷贝，大图库场景性能损耗 | 检查返回 `QVector<T>` 的方法是否仅包装成员，改为返回 `const &` |
+| 26 | paintEvent 中冗余 `QFileInfo(…).fileName()` | 每帧不必要的文件系统访问 | 检查 paintEvent 中是否直接用 `QFileInfo` 提取文件名，改用预先存储的值 |
+| 27 | 匿名命名空间中的堆分配函数被 paintEvent 调用链间接使用 | 每帧 QStringList + .arg() 堆分配 | 检查匿名命名空间中包含 `.arg()`/`QString::number()` 的函数是否会被 paintEvent 路径调用 |
+| 28 | 缓存 `get()` 未更新 `m_accessOrder` | 缓存实际行为为 FIFO 而非 LRU，导致高频访问项被错误驱逐 | 检查缓存类的 `get()`/`find()` 方法中是否在命中后更新了访问顺序 |
+| 29 | `pixmapBytes()` 无空 pixmap 守卫 | 空 QPixmap 的 depth() 返回 0，除 8 后为 0，导致缓存大小跟踪失真 | 检查 `depth() / N` 表达式附近是否有 `isNull()` 保护 |
+| 30 | return 前冗余的 `close()` 调用 | 背离 RAII 异常安全原则，若函数抛出异常则文件描述符泄漏 | 检查 `close()` 是否后接 `return`，此时应依赖 RAII |
 
 ## 已修复的实例
 
@@ -68,6 +78,16 @@
 | 辅助绘制方法未标记 `const` (模式 14) | GalleryWidget, DetailPanel | `drawEmptyState`, `drawRubberBand`, `drawSectionDivider`, `drawSummaryAction`, `drawField`, `drawScrollIndicator` → 全部加 `const` |
 | QDateTime::fromString 未验证 (模式 19) | DatabaseManager.cpp | 添加 `parseIsoDt` 包装函数，10 处调用全部增加 `isValid()` 保护 |
 | Range-for 隐式 detach (模式 20) | FileWatcher.cpp, DetailPanel.cpp (x2), GalleryWidget.cpp | 为遍历 `m_` 容器的 range-for 添加 `qAsConst()` 包装 |
+| paintEvent blocking I/O (模式 21) | DetailPanel.cpp | 将 `QFileInfo`、`QString::number()`、`.arg()` 移出 draw* 方法，在 `showAsset()` 中预计算为成员变量 |
+| Range-for 显式类型 (模式 22) | GalleryWidget.cpp | `for (int idx : m_selectedIndices)` → `qAsConst(m_selectedIndices)` |
+| QtConcurrent 跨线程 emit (模式 23) | ImageCache.cpp, FileScanner.cpp | 将 `QtConcurrent::run` lambda 中的直接 `emit` 改为 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` |
+| QFile 未显式 close (模式 24) | ParserRegistry.cpp | 移除冗余的显式 `close()`，统一使用 RAII 管理文件生命周期 |
+| 大型容器返回值 (模式 25) | GalleryWidget.h/.cpp, MainWindow.cpp | `allAssets()` 返回类型从 `QVector<Asset>` 改为 `const QVector<Asset>&` |
+| paintEvent QFileInfo (模式 26) | LightboxWidget.cpp, SidebarWidget.h/.cpp | `QFileInfo(asset.filePath).fileName()` → `asset.fileName`；新增 `m_folderDisplayNames` 预计算文件夹显示名 |
+| 匿名命名空间堆分配 (模式 27) | DetailPanel.cpp | 删除 `detailMetaLine()` 自由函数，在 `showAsset()` 中预计算 `m_metaLine` |
+| 缓存访问顺序 (模式 28) | ImageCache.cpp | `get()` 方法中添加 `m_accessOrder` 更新，使缓存行为由 FIFO 变为 LRU |
+| pixmapBytes 空守卫 (模式 29) | ImageCache.h | `pixmapBytes()` 添加 `isNull()` 守卫，防止空 pixmap 的 depth() 为 0 |
+| 冗余 close (模式 30) | FileScanner.cpp, ParserRegistry.cpp | 移除显式 `close()` 调用，重建 RAII 异常安全 |
 
 ## 扫描器改进
 
@@ -82,6 +102,16 @@
 | CHECK 18（新增） | 检测 C-style cast `(int)`, `(double)` 等 — 自动扫描所有 .cpp 文件 |
 | CHECK 19（新增） | 检测 `QDateTime::fromString` 结果未调用 `isValid()` — 无声数据损坏 |
 | CHECK 20（新增） | 检测 range-for 遍历成员容器时未使用 `qAsConst()` — 隐式 detach 性能损耗 |
+| CHECK 21（新增） | 检测 paintEvent 辅助方法中的 blocking I/O（`QFileInfo`、`QImageReader`）和堆分配（`.arg()`、`QString::number()`）— 通过 `Get-NearestFunctionName` 追踪调用链 |
+| CHECK 22（新增） | 检测 range-for 中使用显式类型（非 `auto`）遍历 `m_` 成员容器未加 `qAsConst()` — 补充 CHECK 20 的正则覆盖 |
+| CHECK 23（新增） | 检测 `QtConcurrent::run` lambda 内的直接 `emit` 信号 — 自动排除已包装在 `QMetaObject::invokeMethod` 中的安全 emit |
+| CHECK 24 增强 | 精细化：仅检测非局部 QFile（成员/静态/指针变量）缺少显式 close()；局部 RAII 变量不检测 |
+| CHECK 25（新增） | 检测非抽象类中大型容器（`QVector<Asset>` 等）通过值返回 — 仅标记实现仅为 `return m_member;` 的方法 |
+| CHECK 26（新增） | 检测 paintEvent 路径中的冗余 `QFileInfo(…).fileName()` — 每帧不必要的文件系统访问 |
+| CHECK 27（新增） | 检测匿名命名空间中包含 `.arg()`/`QString::number()` 堆分配的函数 — 排除预计算模式（存储到成员/容器） |
+| CHECK 28（新增） | 检测缓存类的 `get()`/`find()` 方法中未更新访问顺序 — 防止缓存退化为 FIFO |
+| CHECK 29（新增） | 检测 `depth() / N` 表达式附近缺少 `isNull()` 守卫 — 空 QPixmap 导致缓存大小跟踪失真 |
+| CHECK 30（新增） | 检测 `close()` 后紧跟 `return` 的反模式 — 背离 RAII 异常安全原则 |
 
 ## 递归自我改进流程
 

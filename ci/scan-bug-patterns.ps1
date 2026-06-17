@@ -624,6 +624,300 @@ if ($detachIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 21: Blocking I/O and string formatting in paintEvent helpers
+# ====================================================================
+$paintHelpers = @('drawImage', 'drawAssetSummary', 'drawFileInfo', 'drawMetadataSection',
+                  'drawTagsSection', 'drawSectionDivider', 'drawScrollIndicator',
+                  'drawField', 'drawSummaryAction', 'drawEmptyState', 'drawRubberBand')
+
+$paintHelperIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Where-Object {
+    $_ | Select-String -Pattern "::paintEvent" -Quiet
+} | ForEach-Object {
+    $fullPath = $_.FullName
+    $content = Get-Content $fullPath
+
+    # QFileInfo / QImageReader in paint helpers (blocking I/O)
+    Select-String -LiteralPath $fullPath -Pattern "QFileInfo\s+\w+\b|QImageReader\s+\w+\b" | ForEach-Object {
+        $lineNum = $_.LineNumber
+        $fnName = Get-NearestFunctionName -Content $content -LineNum $lineNum
+        if ($paintHelpers -contains $fnName) {
+            $typeName = if ($_.Line -match 'QFileInfo') { 'QFileInfo' } else { 'QImageReader' }
+            $paintHelperIssues += "$($_.Filename):$lineNum — blocking I/O ($typeName) inside $fnName (called from paintEvent)"
+        }
+    }
+
+    # .arg() and QString::number() in paint helpers (heap alloc)
+    Select-String -LiteralPath $fullPath -Pattern "\.arg\(|QString::number\(" | ForEach-Object {
+        $lineNum = $_.LineNumber
+        $line = $_.Line
+        if ($line -match "m_\w+\s*=") { return }
+        $fnName = Get-NearestFunctionName -Content $content -LineNum $lineNum
+        if ($paintHelpers -contains $fnName) {
+            $pattern = if ($line -match '\.arg\(') { '.arg()' } else { 'QString::number()' }
+            $paintHelperIssues += "$($_.Filename):$lineNum — string formatting ($pattern) inside $fnName (called from paintEvent, pre-compute it)"
+        }
+    }
+}
+if ($paintHelperIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "paintevent-blocking-io"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "paintevent-blocking-io"; Status = "FAIL"; Details = ($paintHelperIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 22: Range-for over m_ member with explicit type (no qAsConst)
+# ====================================================================
+$detachExplicitIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "for\s*\([^)]+:\s*m_\w+\)" | ForEach-Object {
+    $lineNum = $_.LineNumber
+    $fullPath = $_.Path
+    $content = Get-Content $fullPath
+    $line = $_.Line
+    # Exclude patterns already caught by CHECK 20 (const auto &)
+    if ($line -match 'const\s+auto') { return }
+    $funcLine = -1
+    for ($i = $lineNum - 2; $i -ge 0; $i--) {
+        if ($content[$i] -match '\w+::\w+\(') {
+            $funcLine = $i
+            break
+        }
+    }
+    $isConstMethod = $funcLine -ge 0 -and $content[$funcLine] -match '\bconst\s*$'
+    if (-not $isConstMethod) {
+        $detachExplicitIssues += "$($_.Filename):$lineNum — range-for over m_ member (use qAsConst() to avoid implicit detach)"
+    }
+}
+if ($detachExplicitIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "range-for-member-explicit-type"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "range-for-member-explicit-type"; Status = "FAIL"; Details = ($detachExplicitIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 23: Signal emission from QtConcurrent::run lambda
+# ====================================================================
+$qtconcurrentEmitIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "QtConcurrent::run" | ForEach-Object {
+    $lineNum = $_.LineNumber
+    $fullPath = $_.Path
+    $content = Get-Content $fullPath
+    # Scan forward from the QtConcurrent::run line to find emit inside the lambda
+    $startLine = $lineNum - 1
+    $endLine = [Math]::Min($content.Count - 1, $startLine + 30)
+    $lambdaBody = $content[$startLine..$endLine] -join "`n"
+    # Match emit statements inside the lambda (after the opening {)
+    if ($lambdaBody -match '\{\s*(?:[^}]*\bemit\s+\w+)' -or $lambdaBody -match 'QtConcurrent::run.*\{[^}]*\bemit\b') {
+        # Find exact emit lines (exclude emits inside QMetaObject::invokeMethod which are already thread-safe)
+        for ($i = $startLine; $i -le $endLine; $i++) {
+            if ($content[$i] -match '^\s+emit\s') {
+                # Check if this emit is inside a QMetaObject::invokeMethod wrapper (safe)
+                $isInInvokeMethod = $false
+                for ($j = $i - 1; $j -ge $startLine; $j--) {
+                    if ($content[$j] -match 'QMetaObject::invokeMethod') { $isInInvokeMethod = $true; break }
+                    if ($content[$j] -match '^\s*QtConcurrent::run' -or $content[$j] -match '^\s*\}\);') { break }
+                }
+                if (-not $isInInvokeMethod) {
+                    $qtconcurrentEmitIssues += "$($_.Filename):$($i+1) — emit inside QtConcurrent::run lambda (use QMetaObject::invokeMethod with Qt::QueuedConnection)"
+                }
+            }
+        }
+    }
+}
+if ($qtconcurrentEmitIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "qtconcurrent-emit-worker"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "qtconcurrent-emit-worker"; Status = "FAIL"; Details = ($qtconcurrentEmitIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 24: QFile member/static variable opened without explicit close
+# ====================================================================
+$qfileCloseIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | ForEach-Object {
+    $fullPath = $_.FullName
+    $content = Get-Content $fullPath
+    Select-String -LiteralPath $fullPath -Pattern "QFile\s+(\w+)\s*\(" | ForEach-Object {
+        $varName = $Matches[1]
+        $declLine = $_.LineNumber
+        $line = $_.Line
+        # Only flag non-local QFile: member (m_), static, or pointer (*)
+        if ($line -notmatch '\bm_\w+' -and $line -notmatch '\bstatic\b' -and $line -notmatch '\*') { return }
+        $hasOpen = $false
+        $endSearch = [Math]::Min($content.Count, $declLine + 5)
+        for ($i = $declLine - 1; $i -lt $endSearch; $i++) {
+            if ($content[$i] -match "\b$varName\.open\(") { $hasOpen = $true; break }
+        }
+        if (-not $hasOpen) { return }
+        $restOfFile = $content[($declLine)..($content.Count - 1)] -join "`n"
+        if ($restOfFile -notmatch "\b$varName\.close\(") {
+            $qfileCloseIssues += "$($_.Filename):$declLine — member/static $varName opened but close() not called"
+        }
+    }
+}
+if ($qfileCloseIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "qfile-explicit-close"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "qfile-explicit-close"; Status = "FAIL"; Details = ($qfileCloseIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 25: Large container returned by value
+# ====================================================================
+$largeContainerIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.h" | Where-Object {
+    # Skip interface/abstract classes (pure virtual methods)
+    (Get-Content $_.FullName -Raw) -notmatch '=\s*0\s*;'
+} | ForEach-Object {
+    $hFile = $_.FullName
+    $hContent = Get-Content $hFile
+    # Find methods returning large containers by value
+    Select-String -LiteralPath $hFile -Pattern "(QVector|QList|QHash|QMap|QSet)<\s*[A-Z]\w+\s*>\s+(\w+)\(\)\s*const" | ForEach-Object {
+        $returnType = [regex]::Match($_.Line, '(QVector|QList|QHash|QMap|QSet)<\s*[A-Z]\w+\s*>').Value
+        $methodName = $Matches[2]
+        if ($returnType -match 'QString|QByteArray|QVariant|QColor') { return }
+        # Check .cpp: if body is just 'return m_member;', it should return const ref
+        $cppFile = $hFile -replace '\.h$', '.cpp'
+        if (Test-Path $cppFile) {
+            $cppContent = Get-Content $cppFile -Raw
+            $className = [regex]::Match($hContent -join "`n", 'class\s+(\w+)\s*:').Groups[1].Value
+            if (-not $className) { return }
+            # Match: ClassName::methodName() const { return m_member; }
+            $implPattern = "$className\s*::\s*$methodName\s*\(\s*\)\s*const\s*\{[^}]*return\s+m_"
+            if ($cppContent -match $implPattern) {
+                $largeContainerIssues += "$($_.Filename):$($_.LineNumber) — $returnType $methodName() returns by value but just wraps a member (return const ref instead)"
+            }
+        }
+    }
+}
+if ($largeContainerIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "large-container-by-value"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "large-container-by-value"; Status = "FAIL"; Details = ($largeContainerIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 26: QFileInfo in paintEvent path (redundant filename extraction)
+# ====================================================================
+$qfileinfoPaintIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Where-Object {
+    $_ | Select-String -Pattern "::paintEvent" -Quiet
+} | ForEach-Object {
+    $content = Get-Content $_.FullName
+    Select-String -LiteralPath $_.FullName -Pattern "QFileInfo\s*\([^)]+\)\.fileName\(\)" | ForEach-Object {
+        $fnName = Get-NearestFunctionName -Content $content -LineNum $_.LineNumber
+        if ($fnName -eq 'paintEvent' -or $fnName -match '^draw') {
+            $qfileinfoPaintIssues += "$($_.Filename):$($_.LineNumber) — QFileInfo(…).fileName() in $fnName (use precomputed value)"
+        }
+    }
+}
+if ($qfileinfoPaintIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "qfileinfo-in-paintevent"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "qfileinfo-in-paintevent"; Status = "FAIL"; Details = ($qfileinfoPaintIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 27: Anonymous namespace heap allocs in paintEvent call chain
+# ====================================================================
+$anonNsPaintIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Where-Object {
+    $_ | Select-String -Pattern "::paintEvent" -Quiet
+} | ForEach-Object {
+    $fullPath = $_.FullName
+    $fileName = $_.Name
+    $content = Get-Content $fullPath
+    $inAnonNs = $false
+    for ($i = 0; $i -lt $content.Count; $i++) {
+        $line = $content[$i]
+        if ($line -match '^namespace\s*\{') { $inAnonNs = $true; continue }
+        if ($inAnonNs -and $line -match '^\}\s*$') { $inAnonNs = $false; continue }
+        if ($inAnonNs -and ($line -match '\.arg\(' -or $line -match 'QString::number\(')) {
+            # Skip if the result is stored into a member/container (precomputation pattern)
+            if ($line -match 'm_\w+|append|push_back|insert|<<') { return }
+            # Check if this function is called with a result stored into a container
+            $anonNsPaintIssues += "$($fileName):$($i+1) — heap alloc in anonymous namespace function (pre-compute instead of .arg()/QString::number())"
+        }
+    }
+}
+if ($anonNsPaintIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "anon-ns-paintevent-alloc"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "anon-ns-paintevent-alloc"; Status = "FAIL"; Details = ($anonNsPaintIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 28: Cache access order not promoted on get() hit
+# ====================================================================
+$cacheOrderIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.h" | Select-String -Pattern "m_accessOrder" | ForEach-Object {
+    $hFile = $_.Path
+    $cppFile = $hFile -replace '\.h$', '.cpp'
+    if (-not (Test-Path $cppFile)) { return }
+    $cppContent = Get-Content $cppFile -Raw
+    # Check if get() method exists and references m_accessOrder
+    if ($cppContent -match '\b(get|find|lookup)\s*\(' -and $cppContent -notmatch '\b(get|find|lookup)\b[^}]*m_accessOrder') {
+        $cacheOrderIssues += "$($_.Filename):$($_.LineNumber) — class has m_accessOrder but get()/find() doesn't promote on hit (FIFO instead of LRU)"
+    }
+}
+if ($cacheOrderIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "cache-access-order"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "cache-access-order"; Status = "FAIL"; Details = ($cacheOrderIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 29: pixmapBytes null pixmap safety
+# ====================================================================
+$pixmapBytesIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.h,*.cpp" | Select-String -Pattern "depth\(\s*\)\s*/\s*\d+" | ForEach-Object {
+    $line = $_.Line
+    $fullPath = $_.Path
+    $content = Get-Content $fullPath
+    # Check if there's an isNull guard nearby
+    $start = [Math]::Max(0, $_.LineNumber - 5)
+    $end = [Math]::Min($content.Count - 1, $_.LineNumber + 2)
+    $context = $content[$start..$end] -join "`n"
+    if ($context -notmatch 'isNull') {
+        $pixmapBytesIssues += "$($_.Filename):$($_.LineNumber) — p.depth()/N without null guard (null pixmap returns 0 depth)"
+    }
+}
+if ($pixmapBytesIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "pixmapbytes-null-guard"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "pixmapbytes-null-guard"; Status = "FAIL"; Details = ($pixmapBytesIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 30: Redundant close() immediately before return (use RAII)
+# ====================================================================
+$redundantCloseIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | ForEach-Object {
+    $fullPath = $_.FullName
+    $content = Get-Content $fullPath
+    Select-String -LiteralPath $fullPath -Pattern "\b(\w+)\.close\s*\(\s*\)" | ForEach-Object {
+        $closeLine = $_.LineNumber
+        $varName = $Matches[1]
+        # Check for QFile declaration matching this variable
+        $hasQFile = $false
+        for ($i = $closeLine - 3; $i -ge 0 -and $i -ge $closeLine - 20; $i--) {
+            if ($content[$i] -match "QFile\s+$varName\s*\(") { $hasQFile = $true; break }
+            if ($content[$i] -match '\w+::\w+\(' -or $content[$i] -match '^\s*(static\s+)?\w+\s+\w+\(|^\s*\{') { break }
+        }
+        if (-not $hasQFile) { return }
+        # Check if close() is followed by return on the very next line (redundant RAII)
+        if ($closeLine -lt $content.Count -and $content[$closeLine] -match '^\s+return\b') {
+            $redundantCloseIssues += "$($_.Filename):$closeLine — redundant $varName.close() before return (RAII handles it)"
+        }
+    }
+}
+if ($redundantCloseIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "redundant-raii-close"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "redundant-raii-close"; Status = "FAIL"; Details = ($redundantCloseIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

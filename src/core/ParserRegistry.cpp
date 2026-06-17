@@ -85,7 +85,7 @@ QString ParserRegistry::detectSource(const QString &filePath)
     QString name = fi.fileName().toLower();
     QString ext = fi.suffix().toLower();
 
-    if (ext == "png" && pngContainsSdMetadata(filePath))
+    if (ext == QLatin1String("png") && pngContainsSdMetadata(filePath))
         return "stable-diffusion";
 
     if (name.contains("dall") || name.contains(QRegularExpression("\\d{4}-\\d{2}-\\d{2}")))

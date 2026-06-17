@@ -36,26 +36,27 @@ QString metaLine(const Asset &asset)
 
 QString compactFileName(const QString &fileName)
 {
-    QFileInfo info(fileName);
-    QString base = info.completeBaseName();
-    return base.isEmpty() ? fileName : base;
+    int dot = fileName.lastIndexOf('.');
+    if (dot > 0)
+        return fileName.left(dot);
+    return fileName;
 }
 
 QString sourceBadge(const Asset &asset)
 {
-    const QString source = asset.metadataSource;
-    if (source == "stable-diffusion") return QStringLiteral("SD");
-    if (source == "midjourney") return QStringLiteral("Midjourney");
-    if (source == "dalle") return QStringLiteral("DALL-E");
+    const auto &source = asset.metadataSource;
+    if (source == QLatin1String("stable-diffusion")) return QStringLiteral("SD");
+    if (source == QLatin1String("midjourney")) return QStringLiteral("Midjourney");
+    if (source == QLatin1String("dalle")) return QStringLiteral("DALL-E");
     return source.left(8).toUpper();
 }
 
 QColor sourceBadgeColor(const Asset &asset)
 {
-    const QString source = asset.metadataSource;
-    if (source == "stable-diffusion") return QColor(0x3d, 0xa3, 0x5d);
-    if (source == "midjourney") return QColor(0xa9, 0x70, 0xff);
-    if (source == "dalle") return QColor(0x2f, 0x9d, 0xb7);
+    const auto &source = asset.metadataSource;
+    if (source == QLatin1String("stable-diffusion")) return QColor(0x3d, 0xa3, 0x5d);
+    if (source == QLatin1String("midjourney")) return QColor(0xa9, 0x70, 0xff);
+    if (source == QLatin1String("dalle")) return QColor(0x2f, 0x9d, 0xb7);
     return Color::ACCENT;
 }
 }
@@ -168,8 +169,10 @@ void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
 {
     m_totalAssetCount = totalCount;
     m_assets.append(assets);
-    for (const auto &a : assets)
+    for (const auto &a : assets) {
         m_metaLines.append(metaLine(a));
+        m_hasPrompt.append(!a.metadataPrompt.trimmed().isEmpty());
+    }
     prefetchFileExistence(assets);
     layoutItems();
     ensureThumbnailsForVisibleItems();
@@ -179,8 +182,10 @@ void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
 void GalleryWidget::appendAssets(const QVector<Asset> &assets)
 {
     m_assets.append(assets);
-    for (const auto &a : assets)
+    for (const auto &a : assets) {
         m_metaLines.append(metaLine(a));
+        m_hasPrompt.append(!a.metadataPrompt.trimmed().isEmpty());
+    }
     prefetchFileExistence(assets);
     layoutItems();
     ensureThumbnailsForVisibleItems();
@@ -191,6 +196,7 @@ void GalleryWidget::clearAssets()
 {
     m_assets.clear();
     m_metaLines.clear();
+    m_hasPrompt.clear();
     m_hoveredIndex = -1;
     m_lastClickedIndex = -1;
     m_selectedAsset = {};
@@ -213,7 +219,7 @@ int GalleryWidget::selectedAssetIndex() const
     return -1;
 }
 
-QVector<Asset> GalleryWidget::allAssets() const { return m_assets; }
+const QVector<Asset> &GalleryWidget::allAssets() const { return m_assets; }
 
 void GalleryWidget::prefetchFileExistence(const QVector<Asset> &assets)
 {
@@ -237,8 +243,12 @@ void GalleryWidget::rebuildMetaLines()
 {
     m_metaLines.clear();
     m_metaLines.reserve(m_assets.size());
-    for (const auto &asset : qAsConst(m_assets))
+    m_hasPrompt.clear();
+    m_hasPrompt.reserve(m_assets.size());
+    for (const auto &asset : qAsConst(m_assets)) {
         m_metaLines.append(metaLine(asset));
+        m_hasPrompt.append(!asset.metadataPrompt.trimmed().isEmpty());
+    }
 }
 
 void GalleryWidget::checkLoadMore()
@@ -525,7 +535,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 
         const bool hasSource = !asset.metadataSource.isEmpty();
-        const bool hasPrompt = !asset.metadataPrompt.trimmed().isEmpty();
+        const bool hasPrompt = qAsConst(m_hasPrompt)[i];
         if (hasSource) {
             QString badge = sourceBadge(asset);
             p.setFont(m_badgeFont);
@@ -677,7 +687,7 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
     if (m_selectedIndices.size() > 1) {
         if (m_batchTagRect.contains(event->pos())) {
             QVector<QString> ids;
-            for (int idx : m_selectedIndices) {
+            for (int idx : qAsConst(m_selectedIndices)) {
                 if (idx >= 0 && idx < m_assets.size())
                     ids.append(m_assets[idx].id);
             }

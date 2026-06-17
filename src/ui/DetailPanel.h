@@ -87,6 +87,17 @@ private:
 
     IImageCache *m_cache;
 
+    QString m_displayName;
+    QString m_metaLine;
+    QString m_fileSizeText;
+    QString m_dimensionText;
+    QString m_absolutePath;
+    QString m_lastModifiedText;
+    QString m_imageInfoPrefix;
+    QString m_seedText;
+    QString m_stepsText;
+    QString m_cfgText;
+
     QFont m_fontBody;
     QFont m_fontMeta;
     QFont m_fontTitle;

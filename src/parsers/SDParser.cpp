@@ -19,46 +19,52 @@ Metadata SDParser::parseFromPNGChunks(const QString &filePath) const
     if (data.size() < 8 || data.left(8) != QByteArray("\x89PNG\r\n\x1a\n", 8))
         return meta;
 
-    int pos = 8;
-    while (pos + 8 <= data.size()) {
-        quint32 chunkLen = (static_cast<unsigned char>(data[pos]) << 24) |
-                           (static_cast<unsigned char>(data[pos+1]) << 16) |
-                           (static_cast<unsigned char>(data[pos+2]) << 8) |
-                           static_cast<unsigned char>(data[pos+3]);
-        QByteArray chunkType = data.mid(pos + 4, 4);
+    const char *raw = data.constData();
+    int rawSize = data.size();
 
-        if (chunkType == "tEXt" || chunkType == "zTXt") {
+    int pos = 8;
+    while (pos + 8 <= rawSize) {
+        quint32 chunkLen = (static_cast<unsigned char>(raw[pos]) << 24) |
+                           (static_cast<unsigned char>(raw[pos+1]) << 16) |
+                           (static_cast<unsigned char>(raw[pos+2]) << 8) |
+                           static_cast<unsigned char>(raw[pos+3]);
+
+        const char *ct = raw + pos + 4;
+        bool isTExt = (ct[0] == 't' && ct[1] == 'E' && ct[2] == 'X' && ct[3] == 't');
+        bool isZTXt = (ct[0] == 'z' && ct[1] == 'T' && ct[2] == 'X' && ct[3] == 't');
+
+        if (isTExt || isZTXt) {
             int dataStart = pos + 8;
             int dataEnd = dataStart + chunkLen;
-            if (dataEnd > data.size()) break;
+            if (dataEnd > rawSize) break;
 
-            QByteArray chunkData = data.mid(dataStart, chunkLen);
+            QString key, value;
 
-            if (chunkType == "zTXt") {
+            if (isZTXt) {
+                QByteArray chunkData = data.mid(dataStart, chunkLen);
                 int nullPos = chunkData.indexOf('\0');
-                if (nullPos < 0) break;
-                QByteArray keyword = chunkData.left(nullPos);
-                if (nullPos + 2 > chunkData.size()) break;
+                if (nullPos < 0) { pos += 12 + chunkLen; continue; }
+                QByteArray kw = chunkData.left(nullPos);
+                if (nullPos + 2 > chunkData.size()) { pos += 12 + chunkLen; continue; }
                 QByteArray compressed = chunkData.mid(nullPos + 2);
-                chunkData = qUncompress(compressed);
-                if (chunkData.isEmpty()) break;
-                QByteArray fullData = keyword + '\0' + chunkData;
-                chunkData = fullData;
+                QByteArray decompressed = qUncompress(compressed);
+                if (decompressed.isEmpty()) { pos += 12 + chunkLen; continue; }
+                key = QString::fromUtf8(kw);
+                int vn = decompressed.indexOf('\0');
+                value = (vn < 0) ? QString::fromUtf8(decompressed) : QString::fromUtf8(decompressed.constData(), vn);
+            } else {
+                int nullPos = data.indexOf('\0', dataStart);
+                if (nullPos < 0 || nullPos >= dataEnd) { pos += 12 + chunkLen; continue; }
+                key = QString::fromUtf8(raw + dataStart, nullPos - dataStart);
+                value = QString::fromUtf8(raw + nullPos + 1, dataEnd - nullPos - 1);
             }
 
-            int nullPos = chunkData.indexOf('\0');
-            if (nullPos < 0) { pos += 12 + chunkLen; continue; }
-
-            QString key = QString::fromUtf8(chunkData.left(nullPos));
-            QString value = QString::fromUtf8(chunkData.mid(nullPos + 1));
-
-            if (key == "parameters" || key == "prompt") {
-                meta.rawJson += value + "\n";
+            if (key == QLatin1String("parameters") || key == QLatin1String("prompt")) {
+                meta.rawJson += value + '\n';
 
                 QStringList lines = value.split('\n');
-                if (!lines.isEmpty()) {
+                if (!lines.isEmpty())
                     meta.prompt = lines[0].trimmed();
-                }
                 for (int i = 1; i < lines.size(); i++) {
                     QString line = lines[i].trimmed();
                     if (line.startsWith("Negative prompt:", Qt::CaseInsensitive)) {
@@ -71,11 +77,11 @@ Metadata SDParser::parseFromPNGChunks(const QString &filePath) const
                             QString k = kv[0].trimmed().toLower();
                             QString v = kv[1].trimmed();
 
-                            if (k == "steps") meta.steps = v.toInt();
-                            else if (k == "seed") meta.seed = v.toLongLong();
-                            else if (k == "cfg scale") meta.cfgScale = v.toDouble();
-                            else if (k == "model") meta.modelName = v;
-                            else if (k == "sampler") meta.sampler = v;
+                            if (k == QLatin1String("steps")) meta.steps = v.toInt();
+                            else if (k == QLatin1String("seed")) meta.seed = v.toLongLong();
+                            else if (k == QLatin1String("cfg scale")) meta.cfgScale = v.toDouble();
+                            else if (k == QLatin1String("model")) meta.modelName = v;
+                            else if (k == QLatin1String("sampler")) meta.sampler = v;
                         }
                     }
                 }
@@ -83,7 +89,7 @@ Metadata SDParser::parseFromPNGChunks(const QString &filePath) const
         }
 
         pos += 12 + chunkLen;
-        if (chunkType == "IEND") break;
+        if (ct[0] == 'I' && ct[1] == 'E' && ct[2] == 'N' && ct[3] == 'D') break;
     }
 
     meta.source = "stable-diffusion";

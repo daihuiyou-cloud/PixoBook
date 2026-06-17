@@ -30,7 +30,7 @@ public:
     int assetCount() const { return m_assets.size(); }
     int totalAssetCount() const { return m_totalAssetCount; }
     int selectedAssetIndex() const;
-    QVector<Asset> allAssets() const;
+    const QVector<Asset> &allAssets() const;
 
     void setThumbnailSize(int size);
     int thumbnailSize() const { return m_thumbSize; }
@@ -107,6 +107,7 @@ private:
     bool m_isDragOver = false;
     int m_emptyHoveredButton = -1;
     QStringList m_metaLines;
+    QVector<bool> m_hasPrompt;
     QSet<QString> m_requestedThumbnails;
     QHash<QString, bool> m_fileExistsCache;
     QRect m_batchTagRect;

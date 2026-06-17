@@ -42,6 +42,8 @@ private:
     QLineEdit *m_searchInput;
     QComboBox *m_sourceCombo;
     QComboBox *m_sortCombo;
+    QString m_cachedSortField;
+    bool m_cachedSortAscending = true;
     QPushButton *m_sizeSmallBtn;
     QPushButton *m_sizeMediumBtn;
     QPushButton *m_sizeLargeBtn;

@@ -49,6 +49,7 @@ private:
 
     QVector<Tag> m_tags;
     QStringList m_folders;
+    QStringList m_folderDisplayNames;
     QString m_activeFolder;
     int m_activeTagId = -1;
     bool m_foldersExpanded = true;

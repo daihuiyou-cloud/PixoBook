@@ -101,6 +101,11 @@ SearchBar::SearchBar(QWidget *parent)
     m_sortCombo->addItem(tr("大小↑"), "file_size|ASC");
     m_sortCombo->addItem(tr("大小↓"), "file_size|DESC");
     topRow->addWidget(m_sortCombo);
+    {
+        QString data = m_sortCombo->currentData().toString();
+        m_cachedSortField = data.section('|', 0, 0);
+        m_cachedSortAscending = data.section('|', 1, 1) == QLatin1String("ASC");
+    }
 
     auto *sizeLabel = new QLabel(tr("视图"));
     sizeLabel->setFont(controlFont);
@@ -218,6 +223,9 @@ SearchBar::SearchBar(QWidget *parent)
         if (m_ready) emit filterChanged();
     });
     connect(m_sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        QString data = m_sortCombo->currentData().toString();
+        m_cachedSortField = data.section('|', 0, 0);
+        m_cachedSortAscending = data.section('|', 1, 1) == QLatin1String("ASC");
         updateFilterSummary();
         if (m_ready) emit filterChanged();
     });
@@ -265,8 +273,8 @@ void SearchBar::paintEvent(QPaintEvent *event)
 
 QString SearchBar::keyword() const { return m_searchInput->text().trimmed(); }
 QString SearchBar::sourceFilter() const { return m_sourceCombo->currentData().toString(); }
-QString SearchBar::sortField() const { return m_sortCombo->currentData().toString().section("|", 0, 0); }
-bool SearchBar::sortAscending() const { return m_sortCombo->currentData().toString().section("|", 1, 1) == "ASC"; }
+QString SearchBar::sortField() const { return m_cachedSortField; }
+bool SearchBar::sortAscending() const { return m_cachedSortAscending; }
 bool SearchBar::onlyFavorites() const { return m_onlyFavorites; }
 void SearchBar::focusSearch() { m_searchInput->setFocus(); m_searchInput->selectAll(); }
 void SearchBar::setFavFilter(bool on) { m_favButton->setChecked(on); }
@@ -303,7 +311,7 @@ void SearchBar::updateFilterSummary()
         filters << tr("仅收藏");
 
     const QString sortValue = m_sortCombo->currentData().toString();
-    if (sortValue != "created_at|DESC")
+    if (sortValue != QLatin1String("created_at|DESC"))
         filters << tr("排序: %1").arg(m_sortCombo->currentText());
 
     QString viewLabel = tr("中");
@@ -319,6 +327,6 @@ void SearchBar::updateFilterSummary()
     const bool hasActiveFilters = !m_searchInput->text().trimmed().isEmpty()
         || !m_sourceCombo->currentData().toString().isEmpty()
         || m_onlyFavorites
-        || sortValue != "created_at|DESC";
+        || sortValue != QLatin1String("created_at|DESC");
     m_clearFiltersButton->setVisible(hasActiveFilters);
 }

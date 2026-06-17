@@ -192,7 +192,7 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
             QPainterPath path;
             const qreal radius = 4.0;
             QRectF rf(frame);
-            if (position == "first") {
+            if (position == QLatin1String("first")) {
                 path.moveTo(rf.right(), rf.top());
                 path.lineTo(rf.right(), rf.bottom());
                 path.lineTo(rf.left() + radius, rf.bottom());
@@ -200,7 +200,7 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
                 path.lineTo(rf.left(), rf.top() + radius);
                 path.quadTo(rf.left(), rf.top(), rf.left() + radius, rf.top());
                 path.closeSubpath();
-            } else if (position == "last") {
+            } else if (position == QLatin1String("last")) {
                 path.moveTo(rf.left(), rf.top());
                 path.lineTo(rf.right() - radius, rf.top());
                 path.quadTo(rf.right(), rf.top(), rf.right(), rf.top() + radius);

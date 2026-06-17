@@ -437,7 +437,7 @@ void MainWindow::setupConnections()
     });
 
     connect(m_detailPanel, &DetailPanel::previewRequested, this, [this](const QString &assetId) {
-        const auto assets = m_gallery->allAssets();
+        const auto &assets = m_gallery->allAssets();
         for (int i = 0; i < assets.size(); i++) {
             if (assets[i].id == assetId) {
                 m_lightbox->show(assets, i);

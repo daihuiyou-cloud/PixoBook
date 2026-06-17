@@ -10,9 +10,9 @@ namespace UIUtils {
 
 inline QString displayNameForSource(const QString &source)
 {
-    if (source == "stable-diffusion") return QStringLiteral("Stable Diffusion");
-    if (source == "midjourney") return QStringLiteral("Midjourney");
-    if (source == "dalle") return QStringLiteral("DALL-E");
+    if (source == QLatin1String("stable-diffusion")) return QStringLiteral("Stable Diffusion");
+    if (source == QLatin1String("midjourney")) return QStringLiteral("Midjourney");
+    if (source == QLatin1String("dalle")) return QStringLiteral("DALL-E");
     return source;
 }
 

@@ -9,6 +9,7 @@
 #include <QCryptographicHash>
 #include <QtConcurrent>
 #include <QPointer>
+#include <memory>
 
 FileScanner::FileScanner(QObject *parent)
     : QObject(parent)
@@ -21,13 +22,17 @@ void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
     QtConcurrent::run([guard, dirPath, recursive]() {
         FileScanner *self = guard.data();
         if (!self) return;
-        auto assets = self->scanDirectorySync(dirPath, recursive);
-        int total = assets.size();
-        for (int i = 0; i < assets.size(); i++) {
-            emit self->assetFound(assets[i]);
-            emit self->scanProgress(i + 1, total);
+        auto assets = std::make_shared<QVector<Asset>>(self->scanDirectorySync(dirPath, recursive));
+        int total = assets->size();
+        for (int i = 0; i < total; i++) {
+            QMetaObject::invokeMethod(self, [self, assets, i, total]() {
+                emit self->assetFound(assets->at(i));
+                emit self->scanProgress(i + 1, total);
+            }, Qt::QueuedConnection);
         }
-        emit self->scanFinished();
+        QMetaObject::invokeMethod(self, [self]() {
+            emit self->scanFinished();
+        }, Qt::QueuedConnection);
     });
 }
 

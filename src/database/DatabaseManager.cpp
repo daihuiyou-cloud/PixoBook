@@ -278,8 +278,8 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
     }
     // Validate sort field to prevent SQL injection
     QString sortCol = "a.created_at";
-    if (sortField == "file_name") sortCol = "a.file_name";
-    else if (sortField == "file_size") sortCol = "a.file_size";
+    if (sortField == QLatin1String("file_name")) sortCol = "a.file_name";
+    else if (sortField == QLatin1String("file_size")) sortCol = "a.file_size";
     sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC");
 
     if (limit > 0) {

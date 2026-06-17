@@ -18,20 +18,6 @@
 #include "ui/UIUtils.h"
 #include "ui/VisualConstants.h"
 
-namespace {
-QString detailMetaLine(const Asset &asset)
-{
-    QStringList parts;
-    if (asset.width > 0 && asset.height > 0)
-        parts << QStringLiteral("%1 x %2").arg(asset.width).arg(asset.height);
-    if (!asset.format.isEmpty())
-        parts << asset.format.toUpper();
-    if (asset.fileSize > 0)
-        parts << QStringLiteral("%1 KB").arg(qMax<qint64>(1, asset.fileSize / 1024));
-    return parts.join("  |  ");
-}
-}
-
 DetailPanel::DetailPanel(IImageCache *cache, QWidget *parent)
     : QWidget(parent), m_cache(cache)
 {
@@ -76,6 +62,28 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
     m_panOffset = {};
     m_scrollOffset = 0;
 
+    QFileInfo fi(asset.filePath);
+    m_displayName = fi.completeBaseName().isEmpty() ? asset.fileName : fi.completeBaseName();
+    m_fileSizeText = QString::number(qMax<qint64>(1, asset.fileSize / 1024)) + " KB";
+    m_dimensionText = QStringLiteral("%1 x %2").arg(asset.width).arg(asset.height);
+    m_absolutePath = fi.absolutePath();
+    m_lastModifiedText = fi.lastModified().toString("yyyy-MM-dd hh:mm");
+    m_imageInfoPrefix = QStringLiteral("%1 x %2  |  ").arg(asset.width).arg(asset.height);
+    m_seedText = metadata.seed > 0 ? QString::number(metadata.seed) : QString();
+    m_stepsText = metadata.steps > 0 ? QString::number(metadata.steps) : QString();
+    m_cfgText = metadata.cfgScale > 0.0 ? QString::number(metadata.cfgScale, 'f', 1) : QString();
+
+    {
+        QStringList metaParts;
+        if (asset.width > 0 && asset.height > 0)
+            metaParts << m_dimensionText;
+        if (!asset.format.isEmpty())
+            metaParts << asset.format.toUpper();
+        if (asset.fileSize > 0)
+            metaParts << m_fileSizeText;
+        m_metaLine = metaParts.join("  |  ");
+    }
+
     QImageReader reader(asset.filePath);
     QSize imgSize = reader.size();
     if (imgSize.isValid()) {
@@ -98,6 +106,16 @@ void DetailPanel::clear()
     m_metadata = {};
     m_tags.clear();
     m_fullImage = QPixmap();
+    m_displayName.clear();
+    m_metaLine.clear();
+    m_fileSizeText.clear();
+    m_dimensionText.clear();
+    m_absolutePath.clear();
+    m_lastModifiedText.clear();
+    m_imageInfoPrefix.clear();
+    m_seedText.clear();
+    m_stepsText.clear();
+    m_cfgText.clear();
     m_closeBtnRect = QRect();
     m_copyPromptRect = QRect();
     m_promptContentRect = QRect();
@@ -196,7 +214,7 @@ int DetailPanel::drawImage(QPainter &p)
     p.setFont(m_fontMeta);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(infoBg.adjusted(10, 0, -34, 0), Qt::AlignVCenter,
-               QStringLiteral("%1 x %2  |  %3%").arg(m_asset.width).arg(m_asset.height).arg(static_cast<int>(m_zoom * 100)));
+               m_imageInfoPrefix + QString::number(static_cast<int>(m_zoom * 100)) + "%");
 
     m_favStarRect = QRect(infoBg.right() - 28, infoBg.top() + 4, 22, 22);
     Codicon::draw(p, m_asset.isFavorite ? "star" : "star-empty", m_favStarRect,
@@ -210,20 +228,17 @@ int DetailPanel::drawAssetSummary(QPainter &p, int y)
     QRect summaryRect(0, y, width(), rowH);
     p.fillRect(summaryRect, Color::BG_DARK);
 
-    QFileInfo fi(m_asset.filePath);
-    QString displayName = fi.completeBaseName().isEmpty() ? m_asset.fileName : fi.completeBaseName();
-
     p.setFont(m_fontTitle);
     p.setPen(Color::TEXT_PRIMARY);
     QRect titleRect(16, y + 10, width() - 32, 20);
     p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter,
-               p.fontMetrics().elidedText(displayName, Qt::ElideRight, titleRect.width()));
+               p.fontMetrics().elidedText(m_displayName, Qt::ElideRight, titleRect.width()));
 
     p.setFont(m_fontMeta);
     p.setPen(Color::TEXT_SECONDARY);
     QRect metaRect(16, y + 31, width() - 32, 18);
     p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
-               p.fontMetrics().elidedText(detailMetaLine(m_asset), Qt::ElideRight, metaRect.width()));
+               p.fontMetrics().elidedText(m_metaLine, Qt::ElideRight, metaRect.width()));
 
     int chipX = 16;
     const int chipY = y + 48;
@@ -292,13 +307,12 @@ int DetailPanel::drawFileInfo(QPainter &p, int y)
     if (!m_fileInfoExpanded) return y + 8;
     y += 24;
 
-    QFileInfo fi(m_asset.filePath);
     drawField(p, 16, y, tr("名称"), m_asset.fileName, Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, tr("大小"), QString::number(m_asset.fileSize / 1024) + " KB", Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, tr("尺寸"), QStringLiteral("%1 x %2").arg(m_asset.width).arg(m_asset.height), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("大小"), m_fileSizeText, Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("尺寸"), m_dimensionText, Visual::DetailFieldLabelWidth);
     drawField(p, 16, y, tr("格式"), m_asset.format.toUpper(), Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, tr("路径"), fi.absolutePath(), Visual::DetailFieldLabelWidth);
-    drawField(p, 16, y, tr("修改时间"), fi.lastModified().toString("yyyy-MM-dd hh:mm"), Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("路径"), m_absolutePath, Visual::DetailFieldLabelWidth);
+    drawField(p, 16, y, tr("修改时间"), m_lastModifiedText, Visual::DetailFieldLabelWidth);
     return y + 8;
 }
 
@@ -337,8 +351,8 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     drawField(p, 16, y, tr("来源"), UIUtils::displayNameForSource(m_metadata.source), Visual::DetailFieldLabelWidth);
     if (!m_metadata.modelName.isEmpty())
         drawField(p, 16, y, "Model", m_metadata.modelName, Visual::DetailFieldLabelWidth);
-    if (m_metadata.seed > 0)
-        drawField(p, 16, y, "Seed", QString::number(m_metadata.seed), Visual::DetailFieldLabelWidth);
+    if (!m_seedText.isEmpty())
+        drawField(p, 16, y, "Seed", m_seedText, Visual::DetailFieldLabelWidth);
 
     m_promptHeaderRect = QRect(0, y - 18, width(), 24);
     if (m_promptHeaderHovered)
@@ -392,10 +406,10 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
 
     if (!m_metadata.negativePrompt.isEmpty())
         drawField(p, 16, y, "Negative", m_metadata.negativePrompt, Visual::DetailFieldLabelWidth);
-    if (m_metadata.steps > 0)
-        drawField(p, 16, y, "Steps", QString::number(m_metadata.steps), Visual::DetailFieldLabelWidth);
-    if (m_metadata.cfgScale > 0.0)
-        drawField(p, 16, y, "CFG", QString::number(m_metadata.cfgScale, 'f', 1), Visual::DetailFieldLabelWidth);
+    if (!m_stepsText.isEmpty())
+        drawField(p, 16, y, "Steps", m_stepsText, Visual::DetailFieldLabelWidth);
+    if (!m_cfgText.isEmpty())
+        drawField(p, 16, y, "CFG", m_cfgText, Visual::DetailFieldLabelWidth);
     if (!m_metadata.sampler.isEmpty())
         drawField(p, 16, y, "Sampler", m_metadata.sampler, Visual::DetailFieldLabelWidth);
     return y + 8;

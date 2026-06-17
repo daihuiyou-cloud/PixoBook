@@ -26,7 +26,7 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
 
     connect(m_scanner, &FileScanner::scanProgress, this, &LibraryController::scanProgress);
     connect(m_scanner, &FileScanner::scanFinished, this, [this]() {
-        emit assetCountChanged(m_db->getAllAssets().size());
+        emit assetCountChanged(m_db->countAssets());
         emit scanFinished();
         emit dataChanged();
     });

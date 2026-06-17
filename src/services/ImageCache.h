@@ -46,7 +46,9 @@ private:
     mutable QHash<QString, QSize> m_dimCache;
 
     static qint64 pixmapBytes(const QPixmap &p) {
-        return static_cast<qint64>(p.width()) * static_cast<qint64>(p.height()) * (p.depth() / 8);
+        if (p.isNull()) return 0;
+        int d = p.depth();
+        return static_cast<qint64>(p.width()) * static_cast<qint64>(p.height()) * (d > 0 ? d / 8 : 4);
     }
 };
 

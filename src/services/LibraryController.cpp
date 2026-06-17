@@ -95,14 +95,10 @@ int LibraryController::createTag(const QString &name, const QColor &color)
 
 bool LibraryController::renameTag(int tagId, const QString &newName)
 {
-    auto allTags = m_db->getAllTags();
-    for (auto &t : allTags) {
-        if (t.id == tagId) {
-            t.name = newName;
-            return m_db->updateTag(t);
-        }
-    }
-    return false;
+    Tag t = m_db->getTag(tagId);
+    if (!t.isValid()) return false;
+    t.name = newName;
+    return m_db->updateTag(t);
 }
 
 bool LibraryController::deleteTag(int tagId)

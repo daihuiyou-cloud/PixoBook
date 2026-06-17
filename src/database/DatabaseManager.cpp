@@ -42,9 +42,9 @@ void DatabaseManager::createSchema()
 {
     QSqlQuery q(m_db);
     if (!q.exec("PRAGMA journal_mode=WAL"))
-        qWarning("Failed to enable WAL mode: %s", q.lastError().text().toUtf8().constData());
+        qWarning("Failed to enable WAL mode: %s", qPrintable(q.lastError().text()));
     if (!q.exec("PRAGMA foreign_keys=ON"))
-        qWarning("Failed to enable foreign keys: %s", q.lastError().text().toUtf8().constData());
+        qWarning("Failed to enable foreign keys: %s", qPrintable(q.lastError().text()));
 
     q.exec(
         "CREATE TABLE IF NOT EXISTS assets ("
@@ -478,6 +478,20 @@ bool DatabaseManager::deleteTag(int tagId)
     q.prepare("DELETE FROM tags WHERE id=?");
     q.addBindValue(tagId);
     return q.exec();
+}
+
+Tag DatabaseManager::getTag(int tagId) const
+{
+    Tag t;
+    QSqlQuery q(m_db);
+    q.prepare("SELECT * FROM tags WHERE id=?");
+    q.addBindValue(tagId);
+    if (q.exec() && q.next()) {
+        t.id = q.value("id").toInt();
+        t.name = q.value("name").toString();
+        t.color = QColor(q.value("color").toString());
+    }
+    return t;
 }
 
 QVector<Tag> DatabaseManager::getAllTags() const

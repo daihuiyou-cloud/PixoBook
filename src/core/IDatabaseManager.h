@@ -37,6 +37,7 @@ public:
     [[nodiscard]] virtual int insertTag(const Tag &tag) = 0;
     [[nodiscard]] virtual bool updateTag(const Tag &tag) = 0;
     [[nodiscard]] virtual bool deleteTag(int tagId) = 0;
+    virtual Tag getTag(int tagId) const = 0;
     virtual QVector<Tag> getAllTags() const = 0;
 
     // Asset-Tag relations

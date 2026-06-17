@@ -28,7 +28,7 @@ public:
         QString filePath;
         QSize size;
         bool operator==(const CacheKey &other) const {
-            return filePath == other.filePath && size == other.size;
+            return size == other.size && filePath == other.filePath;
         }
     };
     struct CacheKeyHash {

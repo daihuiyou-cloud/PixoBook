@@ -63,6 +63,9 @@
 | 28 | 缓存 `get()` 未更新 `m_accessOrder` | 缓存实际行为为 FIFO 而非 LRU，导致高频访问项被错误驱逐 | 检查缓存类的 `get()`/`find()` 方法中是否在命中后更新了访问顺序 |
 | 29 | `pixmapBytes()` 无空 pixmap 守卫 | 空 QPixmap 的 depth() 返回 0，除 8 后为 0，导致缓存大小跟踪失真 | 检查 `depth() / N` 表达式附近是否有 `isNull()` 保护 |
 | 30 | return 前冗余的 `close()` 调用 | 背离 RAII 异常安全原则，若函数抛出异常则文件描述符泄漏 | 检查 `close()` 是否后接 `return`，此时应依赖 RAII |
+| 31 | paintEvent 中的 `.trimmed()` 调用 | 每帧堆分配 | 检查 paintEvent 或 `draw*` 辅助方法中是否直接调用 `.trimmed()` |
+| 32 | `QString` 值传递参数 | 不必要的 COW 原子操作 | 检查 `.h` 中函数参数是否为 `QString` (非 `const &`) |
+| 33 | `QFileInfo` 仅用于字符串操作 | 不必要的文件系统 stat 调用 | 检查 `QFileInfo(…).fileName()` / `.suffix()` 等纯字符串操作 |
 
 ## 已修复的实例
 
@@ -88,6 +91,9 @@
 | 缓存访问顺序 (模式 28) | ImageCache.cpp | `get()` 方法中添加 `m_accessOrder` 更新，使缓存行为由 FIFO 变为 LRU |
 | pixmapBytes 空守卫 (模式 29) | ImageCache.h | `pixmapBytes()` 添加 `isNull()` 守卫，防止空 pixmap 的 depth() 为 0 |
 | 冗余 close (模式 30) | FileScanner.cpp, ParserRegistry.cpp | 移除显式 `close()` 调用，重建 RAII 异常安全 |
+| CacheKey 短路比较 | ImageCache.h | `operator==` 中 `size` 先于 `filePath` 比较（int 短路 QString） |
+| renameTag SQL 化 | IDatabaseManager.h, DatabaseManager.h/.cpp, LibraryController.cpp | 新增 `getTag(id)` 替代 `getAllTags()` 全表扫描 |
+| qPrintable 替换 | DatabaseManager.cpp | `.toUtf8().constData()` → `qPrintable()` |
 
 ## 扫描器改进
 
@@ -112,6 +118,9 @@
 | CHECK 28（新增） | 检测缓存类的 `get()`/`find()` 方法中未更新访问顺序 — 防止缓存退化为 FIFO |
 | CHECK 29（新增） | 检测 `depth() / N` 表达式附近缺少 `isNull()` 守卫 — 空 QPixmap 导致缓存大小跟踪失真 |
 | CHECK 30（新增） | 检测 `close()` 后紧跟 `return` 的反模式 — 背离 RAII 异常安全原则 |
+| CHECK 31（新增） | 检测 paintEvent 路径中的 `.trimmed()` 调用 — 每帧堆分配 |
+| CHECK 32（新增） | 检测 `QString` 按值传递参数 — 应使用 `const QString&` |
+| CHECK 33（新增） | 检测 `QFileInfo` 仅用于字符串操作（`fileName()` / `suffix()` 等纯字符串方法）— 使用字符串操作替代 |
 
 ## 递归自我改进流程
 

@@ -36,6 +36,7 @@ public:
     [[nodiscard]] int insertTag(const Tag &tag) override;
     [[nodiscard]] bool updateTag(const Tag &tag) override;
     [[nodiscard]] bool deleteTag(int tagId) override;
+    Tag getTag(int tagId) const override;
     QVector<Tag> getAllTags() const override;
 
     [[nodiscard]] bool addTagToAsset(const QString &assetId, int tagId) override;

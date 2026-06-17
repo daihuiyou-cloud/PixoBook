@@ -889,6 +889,65 @@ if ($pixmapBytesIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 31: paintEvent path — QString::trimmed() call (heap alloc per frame)
+# ====================================================================
+$trimmedPaintIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Where-Object {
+    $_ | Select-String -Pattern "::paintEvent" -Quiet
+} | ForEach-Object {
+    $content = Get-Content $_.FullName
+    Select-String -LiteralPath $_.FullName -Pattern "\.trimmed\(\)" | ForEach-Object {
+        $fnName = Get-NearestFunctionName -Content $content -LineNum $_.LineNumber
+        if ($fnName -eq 'paintEvent' -or $fnName -match '^draw') {
+            $trimmedPaintIssues += "$($_.Filename):$($_.LineNumber) — .trimmed() in $fnName (heap alloc per frame, pre-compute)"
+        }
+    }
+}
+if ($trimmedPaintIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "paintevent-trimmed-call"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "paintevent-trimmed-call"; Status = "FAIL"; Details = ($trimmedPaintIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 32: QString passed by value (should be const ref)
+# ====================================================================
+$qstringByValue = Search-Files -Pattern "QString\s+\w+\s*\(" -Path $SrcDir -Include "*.h"
+$byValueIssues = @()
+foreach ($m in $qstringByValue) {
+    $file = ($m -split ':')[0]
+    $line = ($m -split ':')[1]
+    $fullPath = Get-ChildItem $SrcDir -Recurse -Filter $file | Select-Object -First 1 -ExpandProperty FullName
+    $content = Get-Content $fullPath | Select-Object -Index ($line - 1)
+    if ($content -and -not ($content -match 'const\s+QString&') -and -not ($content -match 'QString\s+&&')) {
+        $byValueIssues += "$($m) — QString passed by value (use const QString&)"
+    }
+}
+if ($byValueIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "qstring-byvalue-param"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "qstring-byvalue-param"; Status = "FAIL"; Details = ($byValueIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 33: QFileInfo used only for string operations (unnecessary stat)
+# ====================================================================
+$qfileinfoStringIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "QFileInfo\s*\([^)]+\)\.\w+\(\)" | ForEach-Object {
+    $line = $_.Line
+    # Only flag fileName(), suffix(), completeSuffix(), baseName(), path() calls on QFileInfo
+    $stringOnlyOps = $line -match '\.fileName\(\)|\.suffix\(\)|\.completeSuffix\(\)|\.baseName\(\)|\.path\(\)'
+    if ($stringOnlyOps) {
+        $qfileinfoStringIssues += "$($_.Filename):$($_.LineNumber) — QFileInfo(...).xxx() used for string-only op (use string manipulation instead)"
+    }
+}
+if ($qfileinfoStringIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "qfileinfo-string-only"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "qfileinfo-string-only"; Status = "FAIL"; Details = ($qfileinfoStringIssues -join "; ") }
+}
+
+# ====================================================================
 # CHECK 30: Redundant close() immediately before return (use RAII)
 # ====================================================================
 $redundantCloseIssues = @()

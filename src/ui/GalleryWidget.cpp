@@ -313,7 +313,7 @@ void GalleryWidget::drawEmptyState(QPainter &p) const
     if (searching)
         return;
 
-    static const QVector<QPair<QRect, QString>> buttons = {
+    const QVector<QPair<QRect, QString>> buttons = {
         { emptyFolderButtonRect(), tr("导入文件夹") },
         { emptyFilesButtonRect(), tr("导入图片") }
     };

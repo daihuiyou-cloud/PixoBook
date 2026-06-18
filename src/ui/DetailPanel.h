@@ -108,7 +108,6 @@ private:
     QFontMetrics m_fontBodyFm{m_fontBody};
     QFontMetrics m_fontMetaFm{m_fontMeta};
     QFontMetrics m_fontTitleFm{m_fontTitle};
-    QFontMetrics m_fontCaptionFm{m_fontCaption};
     QFontMetrics m_fontControlFm{m_fontControl};
 
     QRect imageArea() const;

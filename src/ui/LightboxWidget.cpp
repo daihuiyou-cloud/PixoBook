@@ -90,8 +90,6 @@ void LightboxWidget::loadCurrentImage()
     int gen = ++m_loadGeneration;
     QPointer<LightboxWidget> guard(this);
     QtConcurrent::run([guard, gen, filePath = asset.filePath]() {
-        LightboxWidget *self = guard.data();
-        if (!self) return;
         QImageReader reader(filePath);
         QSize imgSize = reader.size();
         if (imgSize.isValid()) {
@@ -100,12 +98,14 @@ void LightboxWidget::loadCurrentImage()
                 reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
         }
         QPixmap px = QPixmap::fromImage(reader.read());
+        LightboxWidget *self = guard.data();
+        if (!self) return;
         QMetaObject::invokeMethod(self, [guard, gen, px]() {
             LightboxWidget *self = guard.data();
-            if (self && gen == self->m_loadGeneration) {
-                self->m_currentPixmap = px;
-                self->update();
-            }
+            if (!self) return;
+            if (gen != self->m_loadGeneration) return;
+            self->m_currentPixmap = px;
+            self->update();
         }, Qt::QueuedConnection);
     });
 }

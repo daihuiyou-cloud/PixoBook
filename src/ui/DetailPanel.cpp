@@ -91,8 +91,6 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
     int gen = ++m_loadGeneration;
     QPointer<DetailPanel> guard(this);
     QtConcurrent::run([guard, gen, filePath = asset.filePath]() {
-        DetailPanel *self = guard.data();
-        if (!self) return;
         QImageReader reader(filePath);
         QSize imgSize = reader.size();
         if (imgSize.isValid()) {
@@ -101,12 +99,14 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
                 reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
         }
         QPixmap px = QPixmap::fromImage(reader.read());
+        DetailPanel *self = guard.data();
+        if (!self) return;
         QMetaObject::invokeMethod(self, [guard, gen, px]() {
             DetailPanel *self = guard.data();
-            if (self && gen == self->m_loadGeneration) {
-                self->m_fullImage = px;
-                self->update();
-            }
+            if (!self) return;
+            if (gen != self->m_loadGeneration) return;
+            self->m_fullImage = px;
+            self->update();
         }, Qt::QueuedConnection);
     });
     update();

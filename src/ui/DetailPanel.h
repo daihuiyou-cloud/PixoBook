@@ -86,6 +86,7 @@ private:
     bool m_tagsHeaderHovered = false;
 
     IImageCache *m_cache;
+    int m_loadGeneration = 0;
 
     QString m_displayName;
     QString m_metaLine;

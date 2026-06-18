@@ -59,6 +59,7 @@ private:
     };
     QVector<MenuDef> m_menus;
     QFont m_titleFont;
+    QFontMetrics m_titleFontMetrics{m_titleFont};
     static constexpr int kHeight = 32;
 };
 

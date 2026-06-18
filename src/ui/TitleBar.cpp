@@ -32,14 +32,11 @@ void TitleBar::setMaximized(bool maximized)
 
 QRect TitleBar::menuItemRect(int idx) const
 {
-    QFont f = font();
-    f.setPixelSize(Visual::FontControl);
-    QFontMetrics fm(f);
     int x = 118;
     for (int i = 0; i < idx && i < m_menus.size(); i++)
-        x += fm.horizontalAdvance(m_menus[i].text) + 34;
+        x += m_titleFontMetrics.horizontalAdvance(m_menus[i].text) + 34;
 
-    int labelWidth = fm.horizontalAdvance(m_menus[idx].text);
+    int labelWidth = m_titleFontMetrics.horizontalAdvance(m_menus[idx].text);
     return QRect(x, 0, labelWidth + 34, kHeight);
 }
 

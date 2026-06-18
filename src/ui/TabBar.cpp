@@ -42,28 +42,22 @@ void TabBar::setTabs(const QVector<Tab> &tabs)
 
 QRect TabBar::tabRect(int index) const
 {
-    QFont f = font();
-    f.setPixelSize(Visual::FontControl);
-    QFontMetrics fm(f);
     int x = 0;
     for (int i = 0; i < index && i < m_tabs.size(); i++) {
-        int labelWidth = fm.horizontalAdvance(m_tabs[i].label);
+        int labelWidth = m_tabFontMetrics.horizontalAdvance(m_tabs[i].label);
         int tabWidth = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 28);
         x += tabWidth;
     }
-    int labelWidth = fm.horizontalAdvance(m_tabs[index].label);
+    int labelWidth = m_tabFontMetrics.horizontalAdvance(m_tabs[index].label);
     int width = qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 28);
     return QRect(x, 0, width, kTabHeight);
 }
 
 QRect TabBar::addButtonRect() const
 {
-    QFont f = font();
-    f.setPixelSize(Visual::FontControl);
-    QFontMetrics fm(f);
     int x = 6;
     for (int i = 0; i < m_tabs.size(); i++) {
-        int labelWidth = fm.horizontalAdvance(m_tabs[i].label);
+        int labelWidth = m_tabFontMetrics.horizontalAdvance(m_tabs[i].label);
         x += qMax(kTabMinWidth, labelWidth + kTabPadding * 2 + 28);
     }
     int y = (kTabHeight - 24) / 2;

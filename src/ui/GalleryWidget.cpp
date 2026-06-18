@@ -141,7 +141,6 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_selectedIndices.clear();
     m_scrollOffset = 0;
     pruneRequestedThumbnails(assets);
-    prefetchFileExistence(assets);
     rebuildMetaLines();
     layoutItems();
     ensureThumbnailsForVisibleItems();
@@ -158,7 +157,6 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     m_selectedIndices.clear();
     m_scrollOffset = 0;
     pruneRequestedThumbnails(assets);
-    prefetchFileExistence(assets);
     rebuildMetaLines();
     layoutItems();
     ensureThumbnailsForVisibleItems();
@@ -173,7 +171,6 @@ void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
         m_metaLines.append(metaLine(a));
         m_hasPrompt.append(!a.metadataPrompt.trimmed().isEmpty());
     }
-    prefetchFileExistence(assets);
     layoutItems();
     ensureThumbnailsForVisibleItems();
     update();
@@ -186,7 +183,6 @@ void GalleryWidget::appendAssets(const QVector<Asset> &assets)
         m_metaLines.append(metaLine(a));
         m_hasPrompt.append(!a.metadataPrompt.trimmed().isEmpty());
     }
-    prefetchFileExistence(assets);
     layoutItems();
     ensureThumbnailsForVisibleItems();
     update();
@@ -220,14 +216,6 @@ int GalleryWidget::selectedAssetIndex() const
 }
 
 const QVector<Asset> &GalleryWidget::allAssets() const { return m_assets; }
-
-void GalleryWidget::prefetchFileExistence(const QVector<Asset> &assets)
-{
-    for (const auto &a : assets) {
-        if (!m_fileExistsCache.contains(a.filePath))
-            m_fileExistsCache.insert(a.filePath, QFileInfo::exists(a.filePath));
-    }
-}
 
 void GalleryWidget::pruneRequestedThumbnails(const QVector<Asset> &assets)
 {
@@ -510,7 +498,14 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         p.drawRoundedRect(thumbArea, Visual::RadiusSmall, Visual::RadiusSmall);
 
         QSize thumbSize(m_thumbSize, m_thumbSize);
-        bool fileExists = m_fileExistsCache.value(asset.filePath, true);
+        auto feIt = m_fileExistsCache.constFind(asset.filePath);
+        bool fileExists;
+        if (feIt != m_fileExistsCache.constEnd()) {
+            fileExists = feIt.value();
+        } else {
+            fileExists = QFileInfo::exists(asset.filePath);
+            m_fileExistsCache.insert(asset.filePath, fileExists);
+        }
         if (!fileExists) {
             p.setPen(Color::ERROR_TEXT);
             p.drawText(thumbArea, Qt::AlignCenter, tr("文件不存在"));

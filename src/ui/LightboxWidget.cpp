@@ -6,6 +6,8 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QWheelEvent>
+#include <QtConcurrent>
+#include <QPointer>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
@@ -84,14 +86,28 @@ void LightboxWidget::loadCurrentImage()
         m_currentPixmap = QPixmap();
         return;
     }
-    QImageReader reader(asset.filePath);
-    QSize imgSize = reader.size();
-    if (imgSize.isValid()) {
-        QSize maxSize(1920, 1080);
-        if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
-            reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
-    }
-    m_currentPixmap = QPixmap::fromImage(reader.read());
+    m_currentPixmap = QPixmap();
+    int gen = ++m_loadGeneration;
+    QPointer<LightboxWidget> guard(this);
+    QtConcurrent::run([guard, gen, filePath = asset.filePath]() {
+        LightboxWidget *self = guard.data();
+        if (!self) return;
+        QImageReader reader(filePath);
+        QSize imgSize = reader.size();
+        if (imgSize.isValid()) {
+            QSize maxSize(1920, 1080);
+            if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
+                reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
+        }
+        QPixmap px = QPixmap::fromImage(reader.read());
+        QMetaObject::invokeMethod(self, [guard, gen, px]() {
+            LightboxWidget *self = guard.data();
+            if (self && gen == self->m_loadGeneration) {
+                self->m_currentPixmap = px;
+                self->update();
+            }
+        }, Qt::QueuedConnection);
+    });
 }
 
 void LightboxWidget::resetView()

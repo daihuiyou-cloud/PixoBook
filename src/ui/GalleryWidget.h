@@ -79,7 +79,7 @@ private:
     void ensureThumbnailsForVisibleItems();
     void clearSelection();
     void checkLoadMore();
-    void prefetchFileExistence(const QVector<Asset> &assets);
+
     void pruneRequestedThumbnails(const QVector<Asset> &assets);
     void drawRubberBand(QPainter &p) const;
     void updateRubberBandSelection(const QRect &oldBand);

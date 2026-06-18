@@ -8,6 +8,8 @@
 #include <QLinearGradient>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QtConcurrent>
+#include <QPointer>
 #include <QTextOption>
 #include <QTimer>
 #include <QUrl>
@@ -84,15 +86,28 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
         m_metaLine = metaParts.join("  |  ");
     }
 
-    QImageReader reader(asset.filePath);
-    QSize imgSize = reader.size();
-    if (imgSize.isValid()) {
-        QSize maxSize(1920, 1080);
-        if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
-            reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
-    }
-    QImage img = reader.read();
-    m_fullImage = img.isNull() ? QPixmap() : QPixmap::fromImage(img);
+    m_fullImage = QPixmap();
+    int gen = ++m_loadGeneration;
+    QPointer<DetailPanel> guard(this);
+    QtConcurrent::run([guard, gen, filePath = asset.filePath]() {
+        DetailPanel *self = guard.data();
+        if (!self) return;
+        QImageReader reader(filePath);
+        QSize imgSize = reader.size();
+        if (imgSize.isValid()) {
+            QSize maxSize(1920, 1080);
+            if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
+                reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
+        }
+        QPixmap px = QPixmap::fromImage(reader.read());
+        QMetaObject::invokeMethod(self, [guard, gen, px]() {
+            DetailPanel *self = guard.data();
+            if (self && gen == self->m_loadGeneration) {
+                self->m_fullImage = px;
+                self->update();
+            }
+        }, Qt::QueuedConnection);
+    });
     update();
 }
 
@@ -175,9 +190,7 @@ void DetailPanel::paintEvent(QPaintEvent *)
 
     p.restore();
 
-    int totalContent = y - scrollTop + 16;
-    m_maxScrollOffset = qMax(0, totalContent - scrollHeight);
-    clampScrollOffset();
+    m_maxScrollOffset = qMax(0, (y - scrollTop + 16) - scrollHeight);
     drawScrollIndicator(p);
 }
 

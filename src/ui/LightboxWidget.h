@@ -45,6 +45,7 @@ private:
     QPoint m_lastPanPos;
     bool m_overlayVisible = true;
     QTimer *m_overlayTimer;
+    int m_loadGeneration = 0;
 
     QRect m_closeBtnRect;
     QRect m_prevBtnRect;

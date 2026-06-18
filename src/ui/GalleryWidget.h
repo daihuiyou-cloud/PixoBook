@@ -129,6 +129,7 @@ private:
     QFont m_metaFont;
     QFontMetrics m_metaFm{m_metaFont};
     QFont m_badgeFont;
+    QFontMetrics m_badgeFontFm{m_badgeFont};
     QFont m_emptyTitleFont;
     QFont m_emptyBodyFont;
     QFont m_controlFont;

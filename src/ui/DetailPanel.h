@@ -98,12 +98,18 @@ private:
     QString m_seedText;
     QString m_stepsText;
     QString m_cfgText;
+    QString m_zoomText;
 
     QFont m_fontBody;
     QFont m_fontMeta;
     QFont m_fontTitle;
     QFont m_fontCaption;
     QFont m_fontControl;
+    QFontMetrics m_fontBodyFm{m_fontBody};
+    QFontMetrics m_fontMetaFm{m_fontMeta};
+    QFontMetrics m_fontTitleFm{m_fontTitle};
+    QFontMetrics m_fontCaptionFm{m_fontCaption};
+    QFontMetrics m_fontControlFm{m_fontControl};
 
     QRect imageArea() const;
     int drawImage(QPainter &p);

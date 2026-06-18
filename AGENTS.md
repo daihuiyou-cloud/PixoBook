@@ -28,6 +28,50 @@
   - DetailPanel `clampScrollOffset()` 从 paintEvent 移到 resizeEvent（已在 wheelEvent 内联）
   - GalleryWidget 惰性 `QFileInfo::exists()`：删除 `prefetchFileExistence`，paintEvent 中对可见项按需 stat + 缓存
 - **71009ed** — 第 4 轮汇总：TabBar/TitleBar QFontMetrics 缓存、DetailPanel/LightboxWidget 异步图片加载、DetailPanel clampScrollOffset 移出 paintEvent、GalleryWidget 惰性 fileExists
+- **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
+- 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
+
+#### In Progress
+- 无
+
+#### Blocked
+- tst_filestorage 静默崩溃（预存问题，HEAD~1 已存在），与本次变更无关
+
+### Key Decisions
+- 双 SQL 查询（countAssets + searchAssets）用 `COUNT(*) OVER()` 窗口函数合并为单次，减少数据库往返
+- `getAllTags()` 缓存到 `MainWindow::m_cachedTags`，仅标签变更时通过 `tagsChanged` 信号刷新
+- SDParser 去重读：`detectSource` 和 `parse` 共享同一份 `QByteArray`，消除二次 PNG `readAll()`
+- `final` 关键字统一加到所有无子类的具体类，帮助 MSVC devirtualization
+- TabBar/TitleBar 的 QFontMetrics 改为成员变量，在构造函数中用字体初始化（fontChanged 信号频率低，无需动态刷新）
+- 异步图片加载用 generation 计数器处理竞争（旧 generation 结果丢弃），通过 `QMetaObject::invokeMethod(this, ...)` 回到主线程设置 pixmap + update()
+- 惰性 fileExists：删除全部 4 处 `prefetchFileExistence` 调用，改为 paintEvent 中按需 stat + 缓存结果
+
+### Next Steps
+- GalleryWidget paintEvent 使用 `event->rect()` 缩小脏区域（低优先级，密集布局下收益有限）
+- 考虑 TiMidity 子进程的 stdio 读取超时（已有 `QTimer::singleShot(5000, ...)`，可在更复杂场景增加）
+
+### Critical Context
+- `QFontMetrics` 构造在 Qt5 中涉及字体引擎初始化，在 paintEvent 循环中被多次调用时产生可测量的每帧分配
+- 异步图片加载需要 `#include <QtConcurrent>` + `#include <QPointer>` 在 .cpp 中，`m_loadGeneration` 在 .h 中声明为 `int`，以 0 初始化
+- `QImageReader::read()` 对高分辨率图片（>4K）可阻塞主线程 200-500ms，离线解码后 `invokeMethod` 回主线程设置 QPixmap + update()
+- `prefetchFileExistence` 对所有 asset（含不可见项）执行 stat，大规模图库（>10000 项）场景产生大量不必要的文件系统调用
+- tst_filestorage 静默崩溃是预存问题，与本次变更无关
+
+### Progress
+
+#### Done
+- **ddd08ee** — paintEvent 热路径零分配 + 10 处性能优化（GalleryWidget/DetailPanel/SidebarWidget 预计算）
+- **7d322af** — CacheKey::operator== 短路（size 先于 filePath）、renameTag SQL 化（`getTag()` 替代 `getAllTags()` 全表扫描）、qPrintable 替换、扫描器新增 CHECK 31-33（paintevent-trimmed / qstring-byvalue / qfileinfo-string-only）
+- **bda1aeb** — `searchAssets` 窗口函数合并 count+search（`COUNT(*) OVER()` 子查询）、`MainWindow` tags 缓存 + `LibraryController::tagsChanged` 信号、`SDParser::tryParseFromData` 消除二次 PNG 文件读取、20 个类加 `final` 关键字、`Asset.h` 字段重排（QString 连续）
+- 全部构建 0 错 0 警告，33/33 扫描器 PASS（2 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
+- **本轮（第 4 轮）**：
+  - TabBar/TitleBar QFontMetrics 成员缓存，消除每帧临时 QFontMetrics（~6-8 次分配/帧）
+  - DetailPanel + LightboxWidget 异步图片加载（`m_loadGeneration` 计数器 + `QtConcurrent::run` 后台解码 + `QPointer` guard）
+  - DetailPanel `clampScrollOffset()` 从 paintEvent 移到 resizeEvent（已在 wheelEvent 内联）
+  - GalleryWidget 惰性 `QFileInfo::exists()`：删除 `prefetchFileExistence`，paintEvent 中对可见项按需 stat + 缓存
+- **71009ed** — 第 4 轮汇总：TabBar/TitleBar QFontMetrics 缓存、DetailPanel/LightboxWidget 异步图片加载、DetailPanel clampScrollOffset 移出 paintEvent、GalleryWidget 惰性 fileExists
+- **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
+- 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
 
 #### In Progress
 - 无
@@ -58,9 +102,11 @@
 ### Relevant Files
 - `src/ui/TabBar.h/.cpp`：新增 `QFontMetrics m_tabFontMetrics{m_tabFont}` 成员，`tabRect`/`addButtonRect` 移除临时 QFontMetrics
 - `src/ui/TitleBar.h/.cpp`：新增 `QFontMetrics m_titleFontMetrics{m_titleFont}` 成员，`menuItemRect` 移除临时 QFontMetrics
-- `src/ui/DetailPanel.h/.cpp`：新增 `int m_loadGeneration`、`<QtConcurrent>` + `<QPointer>`、`showAsset` 异步图片加载、`clampScrollOffset` 移出 paintEvent
+- `src/ui/DetailPanel.h/.cpp`：新增 `int m_loadGeneration`、`<QtConcurrent>` + `<QPointer>`、`showAsset` 异步图片加载、`clampScrollOffset` 移出 paintEvent、5 个 QFontMetrics 成员 + `m_zoomText` 预计算
 - `src/ui/LightboxWidget.h/.cpp`：新增 `int m_loadGeneration`、`<QtConcurrent>` + `<QPointer>`、`loadCurrentImage` 异步图片加载
-- `src/ui/GalleryWidget.h/.cpp`：删除 `prefetchFileExistence` 声明/实现/全部 4 处调用、paintEvent 中按需 stat + 缓存
+- `src/ui/GalleryWidget.h/.cpp`：删除 `prefetchFileExistence` 声明/实现/全部 4 处调用、paintEvent 中按需 stat + 缓存、新增 `m_badgeFontFm`、`drawEmptyState` 静态 QVector
+- `src/ui/SidebarWidget.h/.cpp`：新增 `QFontMetrics m_sectionFontFm` / `m_itemFontFm`、`QFileInfo` → 纯字符串操作
+- `src/services/FileScanner.cpp`：`QFileInfo` → 纯字符串操作（suffix 提取）
 - `ci/scan-bug-patterns.ps1`：33 个检查块，自动扫描
 
 ---

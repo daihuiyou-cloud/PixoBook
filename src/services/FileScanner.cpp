@@ -118,10 +118,12 @@ Asset FileScanner::scanSingleFile(const QString &filePath)
 
 bool FileScanner::isSupportedFormat(const QString &filePath)
 {
-    return isSupportedImageFormat(QFileInfo(filePath).suffix());
+    int dot = filePath.lastIndexOf('.');
+    return isSupportedImageFormat(dot >= 0 ? filePath.mid(dot + 1) : QString());
 }
 
 QString FileScanner::detectFormat(const QString &filePath)
 {
-    return QFileInfo(filePath).suffix().toLower();
+    int dot = filePath.lastIndexOf('.');
+    return (dot >= 0 ? filePath.mid(dot + 1) : QString()).toLower();
 }

@@ -71,6 +71,7 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
     m_absolutePath = fi.absolutePath();
     m_lastModifiedText = fi.lastModified().toString("yyyy-MM-dd hh:mm");
     m_imageInfoPrefix = QStringLiteral("%1 x %2  |  ").arg(asset.width).arg(asset.height);
+    m_zoomText = m_imageInfoPrefix + "100%";
     m_seedText = metadata.seed > 0 ? QString::number(metadata.seed) : QString();
     m_stepsText = metadata.steps > 0 ? QString::number(metadata.steps) : QString();
     m_cfgText = metadata.cfgScale > 0.0 ? QString::number(metadata.cfgScale, 'f', 1) : QString();
@@ -226,8 +227,7 @@ int DetailPanel::drawImage(QPainter &p)
     p.fillRect(infoBg, grad);
     p.setFont(m_fontMeta);
     p.setPen(Color::TEXT_PRIMARY);
-    p.drawText(infoBg.adjusted(10, 0, -34, 0), Qt::AlignVCenter,
-               m_imageInfoPrefix + QString::number(static_cast<int>(m_zoom * 100)) + "%");
+    p.drawText(infoBg.adjusted(10, 0, -34, 0), Qt::AlignVCenter, m_zoomText);
 
     m_favStarRect = QRect(infoBg.right() - 28, infoBg.top() + 4, 22, 22);
     Codicon::draw(p, m_asset.isFavorite ? "star" : "star-empty", m_favStarRect,
@@ -245,18 +245,18 @@ int DetailPanel::drawAssetSummary(QPainter &p, int y)
     p.setPen(Color::TEXT_PRIMARY);
     QRect titleRect(16, y + 10, width() - 32, 20);
     p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter,
-               p.fontMetrics().elidedText(m_displayName, Qt::ElideRight, titleRect.width()));
+               m_fontTitleFm.elidedText(m_displayName, Qt::ElideRight, titleRect.width()));
 
     p.setFont(m_fontMeta);
     p.setPen(Color::TEXT_SECONDARY);
     QRect metaRect(16, y + 31, width() - 32, 18);
     p.drawText(metaRect, Qt::AlignLeft | Qt::AlignVCenter,
-               p.fontMetrics().elidedText(m_metaLine, Qt::ElideRight, metaRect.width()));
+               m_fontMetaFm.elidedText(m_metaLine, Qt::ElideRight, metaRect.width()));
 
     int chipX = 16;
     const int chipY = y + 48;
     auto drawChip = [&](const QString &text, const QColor &color) {
-        int chipW = qMin(width() - chipX - 16, p.fontMetrics().horizontalAdvance(text) + 18);
+        int chipW = qMin(width() - chipX - 16, m_fontMetaFm.horizontalAdvance(text) + 18);
         if (chipW <= 24) return;
         QRect chipRect(chipX, chipY, chipW, 20);
         QColor bg = color;
@@ -384,7 +384,7 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
     if (m_promptExpanded) {
         if (hasPrompt) {
             const int textWidth = width() - 52;
-            const int promptH = p.fontMetrics().boundingRect(QRect(0, 0, textWidth, 600),
+            const int promptH = m_fontBodyFm.boundingRect(QRect(0, 0, textWidth, 600),
                                                              Qt::TextWordWrap, promptText).height();
             promptBoxHeight = qBound(72, promptH + 20, Visual::DetailPromptHeight);
         } else {
@@ -454,7 +454,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     }
 
     for (const auto &tag : qAsConst(m_tags)) {
-        int tw = p.fontMetrics().horizontalAdvance(tag.name) + 28;
+        int tw = m_fontMetaFm.horizontalAdvance(tag.name) + 28;
         if (tagX + tw > width() - 16) {
             tagX = 16;
             y += 26;
@@ -474,7 +474,7 @@ int DetailPanel::drawTagsSection(QPainter &p, int y)
     }
 
     QString addText = tr("添加标签");
-    int addW = p.fontMetrics().horizontalAdvance(addText) + 34;
+    int addW = m_fontMetaFm.horizontalAdvance(addText) + 34;
     if (tagX + addW > width() - 16) {
         tagX = 16;
         y += 26;
@@ -500,7 +500,7 @@ void DetailPanel::drawField(QPainter &p, int x, int &y, const QString &label, co
     QRect valueRect(x + labelW, y - 14, width() - x - labelW - 16, 20);
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(valueRect, Qt::AlignLeft | Qt::AlignVCenter,
-               p.fontMetrics().elidedText(display, Qt::ElideRight, valueRect.width()));
+               m_fontControlFm.elidedText(display, Qt::ElideRight, valueRect.width()));
     y += 24;
 }
 
@@ -629,6 +629,7 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
     if (imageArea().contains(event->pos())) {
         double factor = angleDelta.y() > 0 ? 1.1 : 0.9;
         m_zoom = qBound(0.1, m_zoom * factor, 10.0);
+        m_zoomText = m_imageInfoPrefix + QString::number(static_cast<int>(m_zoom * 100)) + "%";
         update();
     } else if (m_maxScrollOffset > 0) {
         int delta = pixelDelta.isNull() ? angleDelta.y() / 8 : pixelDelta.y();

@@ -313,11 +313,11 @@ void GalleryWidget::drawEmptyState(QPainter &p) const
     if (searching)
         return;
 
-    const QVector<QPair<QRect, QString>> buttons = {
+    static const QVector<QPair<QRect, QString>> buttons = {
         { emptyFolderButtonRect(), tr("导入文件夹") },
         { emptyFilesButtonRect(), tr("导入图片") }
     };
-    const QVector<QString> icons = { "folder-opened", "file-media" };
+    static const QVector<QString> icons = { "folder-opened", "file-media" };
 
     p.setFont(m_controlFont);
 
@@ -534,7 +534,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
         if (hasSource) {
             QString badge = sourceBadge(asset);
             p.setFont(m_badgeFont);
-            const int badgeW = qMin(96, p.fontMetrics().horizontalAdvance(badge) + 16);
+            const int badgeW = qMin(96, m_badgeFontFm.horizontalAdvance(badge) + 16);
             QRect badgeRect(thumbArea.left() + 8, thumbArea.top() + 8, badgeW, 20);
             QColor badgeBg = sourceBadgeColor(asset);
             badgeBg.setAlpha(210);

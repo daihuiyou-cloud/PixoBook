@@ -71,6 +71,8 @@ private:
     int m_focusIndex = -1;
     QFont m_sectionFont;
     QFont m_itemFont;
+    QFontMetrics m_sectionFontFm{m_sectionFont};
+    QFontMetrics m_itemFontFm{m_itemFont};
 
     void updateLayout();
 };

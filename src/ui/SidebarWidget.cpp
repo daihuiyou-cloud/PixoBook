@@ -41,7 +41,7 @@ void SidebarWidget::setFolders(const QStringList &folders)
     m_folderDisplayNames.clear();
     m_folderDisplayNames.reserve(folders.size());
     for (const auto &f : qAsConst(folders))
-        m_folderDisplayNames.append(QFileInfo(f).fileName());
+        m_folderDisplayNames.append(f.section('/', -1));
     updateLayout();
     update();
 }
@@ -126,7 +126,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             p.setPen(isActive ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
             p.setFont(m_itemFont);
             p.drawText(itemRect.adjusted(36, 0, -10, 0), Qt::AlignVCenter,
-                       p.fontMetrics().elidedText(display, Qt::ElideRight, width() - 50));
+                       m_itemFontFm.elidedText(display, Qt::ElideRight, width() - 50));
         }
     }
 
@@ -179,7 +179,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             p.setPen(isActive ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
             p.setFont(m_itemFont);
             p.drawText(itemRect.adjusted(38, 0, -10, 0), Qt::AlignVCenter,
-                       p.fontMetrics().elidedText(m_tags[i].name, Qt::ElideRight, width() - 52));
+                       m_itemFontFm.elidedText(m_tags[i].name, Qt::ElideRight, width() - 52));
         }
     }
 }

@@ -103,6 +103,7 @@ void DatabaseManager::createSchema()
     q.exec("CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at)");
     q.exec("CREATE INDEX IF NOT EXISTS idx_metadata_source ON metadata(source)");
     q.exec("CREATE INDEX IF NOT EXISTS idx_asset_tags_tag ON asset_tags(tag_id)");
+    q.exec("CREATE INDEX IF NOT EXISTS idx_metadata_asset_id ON metadata(asset_id)");
 
     q.exec(
         "CREATE TABLE IF NOT EXISTS schema_version ("
@@ -246,7 +247,8 @@ QVector<Asset> DatabaseManager::getAllAssets() const
 QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QString &source,
                                               const QVector<int> &tagIds, bool onlyFavorites,
                                               const QString &sortField, bool sortAscending,
-                                              int offset, int limit) const
+                                              int offset, int limit,
+                                              int *outTotalCount) const
 {
     QVector<Asset> assets;
     QString sql = "SELECT DISTINCT a.*, m.source AS metadata_source, m.prompt AS metadata_prompt FROM assets a "
@@ -280,7 +282,15 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
     QString sortCol = "a.created_at";
     if (sortField == QLatin1String("file_name")) sortCol = "a.file_name";
     else if (sortField == QLatin1String("file_size")) sortCol = "a.file_size";
-    sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC");
+
+    if (outTotalCount) {
+        int dot = sortCol.indexOf('.');
+        QString sortColOuter = dot >= 0 ? sortCol.mid(dot + 1) : sortCol;
+        sql = "SELECT *, COUNT(*) OVER() AS _total_count FROM (" + sql + ") AS _inner "
+              "ORDER BY " + sortColOuter + " " + (sortAscending ? "ASC" : "DESC");
+    } else {
+        sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC");
+    }
 
     if (limit > 0) {
         sql += " LIMIT ? OFFSET ?";
@@ -294,6 +304,7 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
         q.addBindValue(b);
 
     if (q.exec()) {
+        bool gotCount = false;
         while (q.next()) {
             Asset a;
             a.id = q.value("id").toString();
@@ -311,7 +322,13 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
             a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
             a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
             assets.append(a);
+            if (outTotalCount && !gotCount) {
+                *outTotalCount = q.value("_total_count").toInt();
+                gotCount = true;
+            }
         }
+        if (outTotalCount && !gotCount)
+            *outTotalCount = 0;
     }
     return assets;
 }

@@ -267,7 +267,7 @@ int DetailPanel::drawAssetSummary(QPainter &p, int y)
         p.setBrush(Qt::NoBrush);
         p.setPen(color);
         p.drawText(chipRect.adjusted(8, 0, -8, 0), Qt::AlignVCenter | Qt::AlignLeft,
-                   p.fontMetrics().elidedText(text, Qt::ElideRight, chipRect.width() - 16));
+                   m_fontMetaFm.elidedText(text, Qt::ElideRight, chipRect.width() - 16));
         chipX += chipW + 6;
     };
 
@@ -413,7 +413,7 @@ int DetailPanel::drawMetadataSection(QPainter &p, int y)
         m_promptContentRect = promptRect;
         p.setPen(hasPrompt ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY);
         p.drawText(promptRect, Qt::AlignLeft | Qt::AlignVCenter,
-                   p.fontMetrics().elidedText(promptText, Qt::ElideRight, promptRect.width()));
+                   m_fontBodyFm.elidedText(promptText, Qt::ElideRight, promptRect.width()));
         y += 24;
     }
 

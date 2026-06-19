@@ -52,9 +52,11 @@ LibraryController::~LibraryController() = default;
 QVector<Asset> LibraryController::loadAssets(const QString &keyword, const QString &source,
                                               const QVector<int> &tagIds, bool onlyFavorites,
                                               const QString &sortField, bool sortAscending,
-                                              int offset, int limit) const
+                                              int offset, int limit,
+                                              int *outTotalCount) const
 {
-    return m_db->searchAssets(keyword, source, tagIds, onlyFavorites, sortField, sortAscending, offset, limit);
+    return m_db->searchAssets(keyword, source, tagIds, onlyFavorites, sortField, sortAscending,
+                              offset, limit, outTotalCount);
 }
 
 Asset LibraryController::getAsset(const QString &id) const
@@ -85,12 +87,20 @@ QVector<Tag> LibraryController::getAllTags() const
     return m_db->getAllTags();
 }
 
+Tag LibraryController::getTag(int tagId) const
+{
+    return m_db->getTag(tagId);
+}
+
 int LibraryController::createTag(const QString &name, const QColor &color)
 {
     Tag tag;
     tag.name = name;
     tag.color = color;
-    return m_db->insertTag(tag);
+    int id = m_db->insertTag(tag);
+    if (id >= 0)
+        emit tagsChanged();
+    return id;
 }
 
 bool LibraryController::renameTag(int tagId, const QString &newName)
@@ -98,12 +108,18 @@ bool LibraryController::renameTag(int tagId, const QString &newName)
     Tag t = m_db->getTag(tagId);
     if (!t.isValid()) return false;
     t.name = newName;
-    return m_db->updateTag(t);
+    bool ok = m_db->updateTag(t);
+    if (ok)
+        emit tagsChanged();
+    return ok;
 }
 
 bool LibraryController::deleteTag(int tagId)
 {
-    return m_db->deleteTag(tagId);
+    bool ok = m_db->deleteTag(tagId);
+    if (ok)
+        emit tagsChanged();
+    return ok;
 }
 
 void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tagId)

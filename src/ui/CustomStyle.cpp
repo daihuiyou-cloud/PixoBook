@@ -253,7 +253,7 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         painter->setPen(Color::TEXT_PRIMARY);
         QRect textRect = cbOpt->rect.adjusted(10, 0, -22, 0);
         painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
-                          painter->fontMetrics().elidedText(cbOpt->currentText, Qt::ElideRight, textRect.width()));
+                          cbOpt->fontMetrics.elidedText(cbOpt->currentText, Qt::ElideRight, textRect.width()));
         return;
     }
     case CE_MenuBarItem: {

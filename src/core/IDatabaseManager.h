@@ -25,7 +25,8 @@ public:
                                         const QVector<int> &tagIds, bool onlyFavorites,
                                         const QString &sortField = "created_at",
                                         bool sortAscending = false,
-                                        int offset = 0, int limit = -1) const = 0;
+                                        int offset = 0, int limit = -1,
+                                        int *outTotalCount = nullptr) const = 0;
     virtual Asset findByPath(const QString &filePath) const = 0;
     virtual Asset findByHash(const QString &hash) const = 0;
 

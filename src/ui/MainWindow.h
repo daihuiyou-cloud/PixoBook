@@ -68,6 +68,7 @@ private:
     // State
     QStringList m_folders;
     int m_activeTagId = -1;
+    QVector<Tag> m_cachedTags;
 };
 
 #endif

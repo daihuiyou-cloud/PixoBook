@@ -28,7 +28,8 @@ public:
     QVector<Asset> loadAssets(const QString &keyword = {}, const QString &source = {},
                               const QVector<int> &tagIds = {}, bool onlyFavorites = false,
                               const QString &sortField = "created_at", bool sortAscending = false,
-                              int offset = 0, int limit = -1) const;
+                              int offset = 0, int limit = -1,
+                              int *outTotalCount = nullptr) const;
     Asset getAsset(const QString &id) const;
     Metadata getMetadata(const QString &assetId) const;
     QVector<Tag> getTagsForAsset(const QString &assetId) const;
@@ -36,6 +37,7 @@ public:
 
     // Tag operations
     QVector<Tag> getAllTags() const;
+    Tag getTag(int tagId) const;
     [[nodiscard]] int createTag(const QString &name, const QColor &color = QColor(0x60, 0xa0, 0xff));
     [[nodiscard]] bool renameTag(int tagId, const QString &newName);
     [[nodiscard]] bool deleteTag(int tagId);
@@ -64,6 +66,7 @@ signals:
     void scanProgress(int current, int total);
     void scanFinished();
     void dataChanged();
+    void tagsChanged();
 
 private:
     IDatabaseManager *m_db;

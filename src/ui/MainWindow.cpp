@@ -244,6 +244,10 @@ void MainWindow::setupConnections()
             tr("%1 张图片").arg(m_gallery->assetCount()));
     });
 
+    connect(m_library, &LibraryController::tagsChanged, this, [this]() {
+        m_cachedTags.clear();
+    });
+
     // Cache thumbnail ready -> gallery update
     connect(m_concreteCache, &ImageCache::thumbnailReady, m_gallery, &GalleryWidget::onThumbnailReady, Qt::QueuedConnection);
 
@@ -583,12 +587,14 @@ void MainWindow::loadAssets()
     if (m_activeTagId >= 0)
         tagIds.append(m_activeTagId);
 
-    int totalCount = m_library->countAssets(keyword, source, tagIds, onlyFavs);
+    int totalCount = 0;
     auto assets = m_library->loadAssets(keyword, source, tagIds, onlyFavs,
-                                        sortField, sortAsc, 0, 200);
+                                        sortField, sortAsc, 0, 200, &totalCount);
     m_gallery->setAssets(assets, totalCount);
     m_gallery->setSearchKeyword(keyword);
-    m_sidebar->setTags(m_library->getAllTags());
+    if (m_cachedTags.isEmpty())
+        m_cachedTags = m_library->getAllTags();
+    m_sidebar->setTags(m_cachedTags);
 
     m_statusCount->setText(
         tr("%1 张图片").arg(totalCount));
@@ -614,9 +620,10 @@ void MainWindow::loadAssets()
 int MainWindow::pickTagId(const QVector<QString> &assetIds)
 {
     Q_UNUSED(assetIds)
-    auto allTags = m_library->getAllTags();
+    if (m_cachedTags.isEmpty())
+        m_cachedTags = m_library->getAllTags();
     QString newName;
-    int tagId = TagPickerDialog::pickTag(this, allTags, &newName);
+    int tagId = TagPickerDialog::pickTag(this, m_cachedTags, &newName);
     if (tagId == -1 && !newName.isEmpty()) {
         tagId = m_library->createTag(newName);
     }
@@ -625,12 +632,8 @@ int MainWindow::pickTagId(const QVector<QString> &assetIds)
 
 void MainWindow::onTagEditRequested(int tagId)
 {
-    auto allTags = m_library->getAllTags();
-    Tag tag;
-    for (const auto &t : allTags) {
-        if (t.id == tagId) { tag = t; break; }
-    }
-    if (tag.id < 0) return;
+    Tag tag = m_library->getTag(tagId);
+    if (!tag.isValid()) return;
 
     bool ok;
     QString newName = QInputDialog::getText(this,

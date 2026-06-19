@@ -26,7 +26,8 @@ public:
                                 const QVector<int> &tagIds, bool onlyFavorites,
                                 const QString &sortField = "created_at",
                                 bool sortAscending = false,
-                                int offset = 0, int limit = -1) const override;
+                                int offset = 0, int limit = -1,
+                                int *outTotalCount = nullptr) const override;
     Asset findByPath(const QString &filePath) const override;
     Asset findByHash(const QString &hash) const override;
 

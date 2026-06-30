@@ -715,8 +715,10 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
         int deltaY = event->pos().y() - m_scrollbarDragStartY;
         int maxOff = maxScrollOffset();
         int h = height();
-        if (maxOff > 0 && h > 0) {
-            int newOffset = m_scrollbarDragStartOffset + deltaY * maxOff / h;
+        int thumbH = m_scrollbarThumbRect.height();
+        int trackH = h - thumbH;
+        if (maxOff > 0 && trackH > 0) {
+            int newOffset = m_scrollbarDragStartOffset + deltaY * maxOff / trackH;
             m_scrollOffset = qBound(0, newOffset, maxOff);
         }
         update();

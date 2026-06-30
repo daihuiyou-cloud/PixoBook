@@ -256,6 +256,51 @@ void GalleryWidget::layoutItems()
     m_totalHeight = rows * (m_itemHeight() + kGap) + Visual::GalleryTopPadding;
 }
 
+int GalleryWidget::maxScrollOffset() const
+{
+    return qMax(0, m_totalHeight - height());
+}
+
+void GalleryWidget::scrollToPos(int y)
+{
+    int maxOff = maxScrollOffset();
+    if (maxOff <= 0) return;
+    m_scrollOffset = qBound(0, y, maxOff);
+    int rowH = m_itemHeight() + kGap;
+    if (rowH > 0) {
+        int snapRow = (m_scrollOffset + rowH / 2) / rowH;
+        m_scrollOffset = qBound(0, snapRow * rowH, maxOff);
+    }
+    ensureThumbnailsForVisibleItems();
+    update();
+    checkLoadMore();
+}
+
+void GalleryWidget::drawScrollIndicator(QPainter &p) const
+{
+    int maxOff = maxScrollOffset();
+    if (maxOff <= 0) {
+        m_scrollbarTrackRect = QRect();
+        m_scrollbarThumbRect = QRect();
+        return;
+    }
+    int trackX = width() - kScrollbarWidth;
+    m_scrollbarTrackRect = QRect(trackX, 0, kScrollbarWidth, height());
+
+    int thumbH = qMax(30, height() * height() / (height() + maxOff));
+    int thumbY = (height() - thumbH) * m_scrollOffset / maxOff;
+    m_scrollbarThumbRect = QRect(trackX + 1, thumbY, kScrollbarWidth - 2, thumbH);
+
+    p.fillRect(m_scrollbarTrackRect, QColor(0, 0, 0, 0));
+
+    QColor thumbColor = m_scrollbarDragging
+        ? Color::SCROLLBAR_ACTIVE
+        : (m_scrollbarHovered ? Color::SCROLLBAR_HOVER : Color::SCROLLBAR);
+    p.setBrush(thumbColor);
+    p.setPen(Qt::NoPen);
+    p.drawRoundedRect(m_scrollbarThumbRect, 3, 3);
+}
+
 QRect GalleryWidget::itemRect(int index) const
 {
     if (index < 0 || index >= m_assets.size()) return {};
@@ -598,6 +643,7 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
     drawBatchToolbar(p);
     drawRubberBand(p);
+    drawScrollIndicator(p);
 }
 
 void GalleryWidget::keyPressEvent(QKeyEvent *event)
@@ -665,6 +711,25 @@ void GalleryWidget::keyPressEvent(QKeyEvent *event)
 
 void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_scrollbarDragging) {
+        int deltaY = event->pos().y() - m_scrollbarDragStartY;
+        int maxOff = maxScrollOffset();
+        int h = height();
+        if (maxOff > 0 && h > 0) {
+            int newOffset = m_scrollbarDragStartOffset + deltaY * maxOff / h;
+            m_scrollOffset = qBound(0, newOffset, maxOff);
+        }
+        int rowH = m_itemHeight() + kGap;
+        if (rowH > 0) {
+            int snapRow = (m_scrollOffset + rowH / 2) / rowH;
+            m_scrollOffset = qBound(0, snapRow * rowH, maxScrollOffset());
+        }
+        ensureThumbnailsForVisibleItems();
+        update();
+        checkLoadMore();
+        return;
+    }
+
     if (m_isRubberBanding && (event->buttons() & Qt::LeftButton)) {
         QRect oldBand = QRect(m_rubberBandStart, m_rubberBandEnd).normalized();
         m_rubberBandEnd = event->pos();
@@ -685,6 +750,11 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
         else if (emptyFilesButtonRect().contains(event->pos())) m_emptyHoveredButton = 1;
     }
     if (oldEmpty != m_emptyHoveredButton)
+        update();
+
+    bool oldScrollHover = m_scrollbarHovered;
+    m_scrollbarHovered = m_scrollbarThumbRect.contains(event->pos());
+    if (oldScrollHover != m_scrollbarHovered)
         update();
 }
 
@@ -711,6 +781,24 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
             clearSelection();
             return;
         }
+    }
+
+    if (m_scrollbarThumbRect.contains(event->pos())) {
+        m_scrollbarDragging = true;
+        m_scrollbarDragStartY = event->pos().y();
+        m_scrollbarDragStartOffset = m_scrollOffset;
+        update();
+        return;
+    }
+    if (m_scrollbarTrackRect.contains(event->pos()) && !m_scrollbarThumbRect.contains(event->pos())) {
+        int maxOff = maxScrollOffset();
+        int h = height();
+        if (maxOff > 0 && h > 0) {
+            int clickRatio = event->pos().y();
+            int targetOff = clickRatio * maxOff / h;
+            scrollToPos(targetOff);
+        }
+        return;
     }
 
     if (m_assets.isEmpty() && m_searchKeyword.isEmpty()) {
@@ -800,6 +888,11 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
 
 void GalleryWidget::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (event->button() == Qt::LeftButton && m_scrollbarDragging) {
+        m_scrollbarDragging = false;
+        update();
+        return;
+    }
     if (event->button() == Qt::LeftButton && m_isRubberBanding) {
         m_isRubberBanding = false;
         QPoint delta = event->pos() - m_rubberBandStart;

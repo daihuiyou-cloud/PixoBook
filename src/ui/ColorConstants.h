@@ -52,8 +52,9 @@ inline const QColor ERROR_TEXT      = QColor(0xc0, 0x60, 0x60);
 inline const QColor ERROR_BG        = QColor(0x3c, 0x20, 0x20);
 
 // Scrollbar
-inline const QColor SCROLLBAR       = QColor(0x42, 0x42, 0x42);
-inline const QColor SCROLLBAR_HOVER = QColor(0x4f, 0x4f, 0x4f);
+inline const QColor SCROLLBAR        = QColor(0x42, 0x42, 0x42);
+inline const QColor SCROLLBAR_HOVER  = QColor(0x4f, 0x4f, 0x4f);
+inline const QColor SCROLLBAR_ACTIVE = QColor(0x5c, 0x5c, 0x5c);
 
 // Overlay
 inline const QColor OVERLAY_BG      = QColor(0, 0, 0, 180);

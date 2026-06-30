@@ -85,6 +85,9 @@ private:
     void updateRubberBandSelection(const QRect &oldBand);
     void rebuildMetaLines();
     void rebuildThumbClipPath();
+    void drawScrollIndicator(QPainter &p) const;
+    void scrollToPos(int y);
+    int maxScrollOffset() const;
 
     int m_thumbSize = 180;
     static constexpr int kPadding = Visual::GalleryCardPadding;
@@ -135,6 +138,14 @@ private:
     QFont m_controlFont;
     QFont m_actionFont;
     QPainterPath m_thumbClipPath;
+
+    static constexpr int kScrollbarWidth = 8;
+    mutable QRect m_scrollbarTrackRect;
+    mutable QRect m_scrollbarThumbRect;
+    bool m_scrollbarHovered = false;
+    bool m_scrollbarDragging = false;
+    int m_scrollbarDragStartY = 0;
+    int m_scrollbarDragStartOffset = 0;
 };
 
 #endif

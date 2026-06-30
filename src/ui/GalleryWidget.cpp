@@ -572,15 +572,27 @@ void GalleryWidget::paintEvent(QPaintEvent *)
                    m_metaFm.elidedText(m_metaLines[i], Qt::ElideRight, metaRect.width()));
 
         QRect starRect(r.right() - 40, r.bottom() - 40, 32, 32);
-        if (asset.isFavorite || isHovered || isSelected) {
-            QColor starColor = asset.isFavorite ? Color::FAVORITE_ON : Color::FAVORITE_OFF;
-            if (isHovered || isSelected) {
+        {
+            QColor starColor;
+            QString starIcon;
+            if (asset.isFavorite) {
+                starColor = Color::FAVORITE_ON;
+                starIcon = QStringLiteral("star");
+            } else if (isHovered || isSelected) {
+                starColor = Color::FAVORITE_OFF;
+                starIcon = QStringLiteral("star-empty");
+            } else {
+                starColor = Color::TEXT_DISABLED;
+                starColor.setAlpha(60);
+                starIcon = QStringLiteral("star-empty");
+            }
+            if (asset.isFavorite || isHovered || isSelected) {
                 p.setBrush(QColor(0, 0, 0, 110));
                 p.setPen(Qt::NoPen);
                 p.drawRoundedRect(starRect.adjusted(4, 4, -4, -4), Visual::RadiusSmall, Visual::RadiusSmall);
                 p.setBrush(Qt::NoBrush);
             }
-            Codicon::draw(p, asset.isFavorite ? "star" : "star-empty", starRect, starColor, 15);
+            Codicon::draw(p, starIcon, starRect, starColor, 15);
         }
     }
 

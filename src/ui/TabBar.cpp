@@ -153,6 +153,12 @@ void TabBar::keyPressEvent(QKeyEvent *event)
         setCurrentIndex(0);
     } else if (event->key() == Qt::Key_End && !m_tabs.isEmpty()) {
         setCurrentIndex(m_tabs.size() - 1);
+    } else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space) {
+        if (m_hoveredAdd) {
+            emit addTabRequested();
+        } else if (m_hoveredIndex >= 0) {
+            setCurrentIndex(m_hoveredIndex);
+        }
     } else {
         QWidget::keyPressEvent(event);
     }

@@ -61,6 +61,12 @@ private:
     QString m_counterText;
     QString m_infoText;
     QString m_zoomText;
+
+    bool m_slideshowActive = false;
+    QTimer *m_slideshowTimer;
+    QRect m_slideshowBtnRect;
+    QRect m_navLeftRect;
+    QRect m_navRightRect;
 };
 
 #endif

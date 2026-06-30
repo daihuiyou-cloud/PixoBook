@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLineEdit>
 #include <QVector>
+#include <QTimer>
 #include <functional>
 
 class CommandPalette : public QWidget
@@ -32,8 +33,14 @@ private:
     QLineEdit *m_input;
     QVector<Command> m_commands;
     QVector<int> m_filtered;
+    QVector<QVector<int>> m_matchPositions;
     int m_selectedIdx = 0;
     int m_scrollOffset = 0;
+    QTimer *m_debounceTimer;
+    QString m_pendingText;
+    void rebuildFilter();
+    void drawHighlightedText(QPainter &p, const QRect &rect, const QString &text,
+                             const QVector<int> &positions) const;
 };
 
 #endif

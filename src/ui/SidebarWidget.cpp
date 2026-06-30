@@ -106,6 +106,7 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             p.drawText(QRect(16, kSectionHeight + 4, width() - 32, kItemHeight),
                        Qt::AlignVCenter | Qt::AlignLeft, tr("添加素材文件夹"));
         }
+        m_folderTooltips.clear();
         for (int i = 0; i < m_folders.size(); i++) {
             QRect itemRect(0, kSectionHeight + i * kItemHeight, width(), kItemHeight);
             bool isHovered = i == m_hoveredFolder;
@@ -125,8 +126,11 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             if (display.isEmpty()) display = m_folders[i];
             p.setPen(isActive ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
             p.setFont(m_itemFont);
-            p.drawText(itemRect.adjusted(36, 0, -10, 0), Qt::AlignVCenter,
-                       m_itemFontFm.elidedText(display, Qt::ElideRight, width() - 50));
+            QRect folderTextRect = itemRect.adjusted(36, 0, -10, 0);
+            p.drawText(folderTextRect, Qt::AlignVCenter,
+                       m_itemFontFm.elidedText(display, Qt::ElideRight, folderTextRect.width()));
+            if (m_itemFontFm.horizontalAdvance(display) > folderTextRect.width())
+                m_folderTooltips[i] = m_folders[i];
         }
     }
 
@@ -144,25 +148,15 @@ void SidebarWidget::paintEvent(QPaintEvent *)
 
     if (m_tagsExpanded) {
         p.setFont(m_itemFont);
+        int tagBase = m_sectionTagY + kSectionHeight;
+        m_tagTooltips.clear();
         if (m_tags.isEmpty()) {
             p.setPen(Color::TEXT_SECONDARY);
-            p.drawText(QRect(16, m_sectionTagY + kSectionHeight + 4, width() - 32, kItemHeight),
+            p.drawText(QRect(16, tagBase + 4, width() - 32, kItemHeight),
                        Qt::AlignVCenter | Qt::AlignLeft, tr("暂无标签"));
-            m_addTagRect = QRect(16, m_sectionTagY + kSectionHeight + kItemHeight + 4, width() - 32, 26);
-            p.setBrush(m_hoveredAddTagButton ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON);
-            p.setPen(QPen(m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
-            p.drawRoundedRect(m_addTagRect, Visual::RadiusSmall, Visual::RadiusSmall);
-            QColor addColor = m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
-            Codicon::draw(p, "add", QRect(m_addTagRect.left() + 8, m_addTagRect.top(), 14, m_addTagRect.height()),
-                          addColor, 12);
-            p.setPen(addColor);
-            p.drawText(m_addTagRect.adjusted(28, 0, -8, 0),
-                       Qt::AlignVCenter | Qt::AlignLeft, tr("添加标签"));
-        } else {
-            m_addTagRect = {};
         }
         for (int i = 0; i < m_tags.size(); i++) {
-            QRect itemRect(0, m_sectionTagY + kSectionHeight + i * kItemHeight, width(), kItemHeight);
+            QRect itemRect(0, tagBase + i * kItemHeight, width(), kItemHeight);
             bool isHovered = i == m_hoveredTag;
             bool isActive = m_tags[i].id == m_activeTagId;
             bool isFocused = m_focusSection == FocusTags && m_focusIndex == i;
@@ -178,9 +172,24 @@ void SidebarWidget::paintEvent(QPaintEvent *)
             drawTagDot(p, QPoint(22, itemRect.center().y()), m_tags[i].color);
             p.setPen(isActive ? Color::TEXT_BRIGHT : Color::TEXT_PRIMARY);
             p.setFont(m_itemFont);
-            p.drawText(itemRect.adjusted(38, 0, -10, 0), Qt::AlignVCenter,
-                       m_itemFontFm.elidedText(m_tags[i].name, Qt::ElideRight, width() - 52));
+            QString tagName = m_tags[i].name;
+            QRect tagTextRect = itemRect.adjusted(38, 0, -10, 0);
+            p.drawText(tagTextRect, Qt::AlignVCenter,
+                       m_itemFontFm.elidedText(tagName, Qt::ElideRight, tagTextRect.width()));
+            if (m_itemFontFm.horizontalAdvance(tagName) > tagTextRect.width())
+                m_tagTooltips[i] = tagName;
         }
+        int addBtnY = tagBase + m_tags.size() * kItemHeight + 4;
+        m_addTagRect = QRect(16, addBtnY, width() - 32, 26);
+        p.setBrush(m_hoveredAddTagButton ? Color::BG_BUTTON_HOVER : Color::BG_BUTTON);
+        p.setPen(QPen(m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::BORDER_SUBTLE, 1));
+        p.drawRoundedRect(m_addTagRect, Visual::RadiusSmall, Visual::RadiusSmall);
+        QColor addColor = m_hoveredAddTagButton ? Color::TEXT_PRIMARY : Color::TEXT_SECONDARY;
+        Codicon::draw(p, "add", QRect(m_addTagRect.left() + 8, m_addTagRect.top(), 14, m_addTagRect.height()),
+                      addColor, 12);
+        p.setPen(addColor);
+        p.drawText(m_addTagRect.adjusted(28, 0, -8, 0),
+                   Qt::AlignVCenter | Qt::AlignLeft, tr("添加标签"));
     }
 }
 
@@ -228,8 +237,14 @@ void SidebarWidget::mouseMoveEvent(QMouseEvent *event)
     }
 
     if (oldHoverFolder != m_hoveredFolder) {
-        if (m_hoveredFolder >= 0)
-            QToolTip::showText(event->globalPos(), m_folders[m_hoveredFolder], this);
+        if (m_hoveredFolder >= 0 && m_folderTooltips.contains(m_hoveredFolder))
+            QToolTip::showText(event->globalPos(), m_folderTooltips[m_hoveredFolder], this);
+        else
+            QToolTip::hideText();
+    }
+    if (oldHoverTag != m_hoveredTag) {
+        if (m_hoveredTag >= 0 && m_tagTooltips.contains(m_hoveredTag))
+            QToolTip::showText(event->globalPos(), m_tagTooltips[m_hoveredTag], this);
         else
             QToolTip::hideText();
     }

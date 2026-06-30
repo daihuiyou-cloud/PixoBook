@@ -38,6 +38,16 @@ LightboxWidget::LightboxWidget(QWidget *parent)
         update();
     });
 
+    m_slideshowTimer = new QTimer(this);
+    m_slideshowTimer->setInterval(3000);
+    connect(m_slideshowTimer, &QTimer::timeout, this, [this]() {
+        int next = m_currentIndex + 1;
+        if (next >= m_assets.size())
+            next = 0;
+        navigateTo(next);
+        m_overlayTimer->start();
+    });
+
     QFont base = font();
     m_fontControl = base; m_fontControl.setPixelSize(Visual::FontControl);
     m_fontMeta = base; m_fontMeta.setPixelSize(Visual::FontMeta);
@@ -72,6 +82,8 @@ void LightboxWidget::show(const QVector<Asset> &assets, int startIndex)
 void LightboxWidget::close()
 {
     m_isPanning = false;
+    m_slideshowActive = false;
+    m_slideshowTimer->stop();
     setCursor(Qt::ArrowCursor);
     hide();
     emit closed();
@@ -126,6 +138,8 @@ void LightboxWidget::navigateTo(int index)
 {
     if (index < 0 || index >= m_assets.size()) return;
     m_currentIndex = index;
+    m_slideshowActive = false;
+    m_slideshowTimer->stop();
     resetView();
     loadCurrentImage();
     update();
@@ -171,6 +185,30 @@ void LightboxWidget::paintEvent(QPaintEvent *)
 
     p.drawPixmap(drawX, drawY, drawW, drawH, m_currentPixmap);
 
+    if (m_overlayVisible) {
+        int navSize = 48;
+        int navMargin = 8;
+        int navTop = imgRect.center().y() - navSize / 2;
+
+        m_navLeftRect = QRect(imgRect.left() + navMargin, navTop, navSize, navSize);
+        m_navRightRect = QRect(imgRect.right() - navMargin - navSize, navTop, navSize, navSize);
+
+        if (m_currentIndex > 0) {
+            p.setBrush(Color::OVERLAY_BG);
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(m_navLeftRect, Visual::RadiusMedium, Visual::RadiusMedium);
+            p.setPen(Color::TEXT_PRIMARY);
+            Codicon::draw(p, "chevron-left", m_navLeftRect, Color::TEXT_PRIMARY, 22);
+        }
+        if (m_currentIndex < m_assets.size() - 1) {
+            p.setBrush(Color::OVERLAY_BG);
+            p.setPen(Qt::NoPen);
+            p.drawRoundedRect(m_navRightRect, Visual::RadiusMedium, Visual::RadiusMedium);
+            p.setPen(Color::TEXT_PRIMARY);
+            Codicon::draw(p, "chevron-right", m_navRightRect, Color::TEXT_PRIMARY, 22);
+        }
+    }
+
     if (!m_overlayVisible) {
         m_closeBtnRect = QRect();
         m_prevBtnRect = QRect();
@@ -179,6 +217,9 @@ void LightboxWidget::paintEvent(QPaintEvent *)
         m_zoomOutBtnRect = QRect();
         m_resetZoomBtnRect = QRect();
         m_zoomInBtnRect = QRect();
+        m_slideshowBtnRect = QRect();
+        m_navLeftRect = QRect();
+        m_navRightRect = QRect();
         return;
     }
 
@@ -222,15 +263,20 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(m_resetZoomBtnRect, Qt::AlignCenter, m_zoomText);
 
-    m_prevBtnRect = QRect(cx + 96, height() - 43, 34, 34);
+    m_slideshowBtnRect = QRect(cx + 116, height() - 43, 34, 34);
+    QString ssIcon = m_slideshowActive ? QStringLiteral("debug-pause") : QStringLiteral("play");
+    QColor ssClr = m_slideshowActive ? Color::ACCENT : Color::TEXT_PRIMARY;
+    drawToolbarButton(p, m_slideshowBtnRect, ssIcon, ssClr, m_slideshowBtnRect.contains(localCursor) || m_slideshowActive);
+
+    m_prevBtnRect = QRect(cx + 156, height() - 43, 34, 34);
     QColor prevClr = (m_currentIndex > 0) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
     drawToolbarButton(p, m_prevBtnRect, "chevron-left", prevClr, m_prevBtnRect.contains(localCursor));
 
-    m_favBtnRect = QRect(cx + 144, height() - 43, 34, 34);
+    m_favBtnRect = QRect(cx + 204, height() - 43, 34, 34);
     QColor favClr = asset.isFavorite ? Color::FAVORITE_ON : Color::TEXT_SECONDARY;
     drawToolbarButton(p, m_favBtnRect, "star", favClr, m_favBtnRect.contains(localCursor));
 
-    m_nextBtnRect = QRect(cx + 192, height() - 43, 34, 34);
+    m_nextBtnRect = QRect(cx + 252, height() - 43, 34, 34);
     QColor nextClr = (m_currentIndex < m_assets.size() - 1) ? Color::TEXT_PRIMARY : Color::TEXT_DISABLED;
     drawToolbarButton(p, m_nextBtnRect, "chevron-right", nextClr, m_nextBtnRect.contains(localCursor));
 
@@ -269,6 +315,17 @@ void LightboxWidget::keyPressEvent(QKeyEvent *event)
         break;
     case Qt::Key_R:
         resetView();
+        update();
+        break;
+    case Qt::Key_S:
+    case Qt::Key_Space:
+        m_slideshowActive = !m_slideshowActive;
+        if (m_slideshowActive) {
+            m_slideshowTimer->start();
+            m_overlayTimer->start();
+        } else {
+            m_slideshowTimer->stop();
+        }
         update();
         break;
     default:
@@ -321,9 +378,27 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
         update();
         return;
     }
+    if (m_overlayVisible && m_slideshowBtnRect.contains(event->pos())) {
+        m_slideshowActive = !m_slideshowActive;
+        if (m_slideshowActive)
+            m_slideshowTimer->start();
+        else
+            m_slideshowTimer->stop();
+        update();
+        return;
+    }
     if (m_overlayVisible && m_resetZoomBtnRect.contains(event->pos())) {
         resetView();
         update();
+        return;
+    }
+
+    if (m_overlayVisible && m_navLeftRect.contains(event->pos())) {
+        navigateTo(m_currentIndex - 1);
+        return;
+    }
+    if (m_overlayVisible && m_navRightRect.contains(event->pos())) {
+        navigateTo(m_currentIndex + 1);
         return;
     }
 

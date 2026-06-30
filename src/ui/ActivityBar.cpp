@@ -113,6 +113,8 @@ void ActivityBar::keyPressEvent(QKeyEvent *event)
         m_active = static_cast<Activity>(m_icons.size() - 1);
         update();
         emit activitySelected(m_active);
+    } else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space) {
+        emit activitySelected(m_active);
     } else {
         QWidget::keyPressEvent(event);
     }

@@ -66,6 +66,8 @@ private:
     bool m_hoveredFolderHeader = false;
     bool m_hoveredTagHeader = false;
     QRect m_addTagRect;
+    QHash<int, QString> m_tagTooltips;
+    QHash<int, QString> m_folderTooltips;
 
     FocusSection m_focusSection = FocusNone;
     int m_focusIndex = -1;

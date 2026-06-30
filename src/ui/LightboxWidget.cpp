@@ -45,7 +45,6 @@ LightboxWidget::LightboxWidget(QWidget *parent)
         if (next >= m_assets.size())
             next = 0;
         navigateTo(next);
-        m_overlayTimer->start();
     });
 
     QFont base = font();
@@ -82,8 +81,7 @@ void LightboxWidget::show(const QVector<Asset> &assets, int startIndex)
 void LightboxWidget::close()
 {
     m_isPanning = false;
-    m_slideshowActive = false;
-    m_slideshowTimer->stop();
+    stopSlideshow();
     setCursor(Qt::ArrowCursor);
     hide();
     emit closed();
@@ -134,12 +132,16 @@ void LightboxWidget::resetView()
     rebuildInfoStrings();
 }
 
+void LightboxWidget::stopSlideshow()
+{
+    m_slideshowActive = false;
+    m_slideshowTimer->stop();
+}
+
 void LightboxWidget::navigateTo(int index)
 {
     if (index < 0 || index >= m_assets.size()) return;
     m_currentIndex = index;
-    m_slideshowActive = false;
-    m_slideshowTimer->stop();
     resetView();
     loadCurrentImage();
     update();
@@ -293,16 +295,20 @@ void LightboxWidget::keyPressEvent(QKeyEvent *event)
         break;
     case Qt::Key_Left:
     case Qt::Key_Up:
+        stopSlideshow();
         navigateTo(m_currentIndex - 1);
         break;
     case Qt::Key_Right:
     case Qt::Key_Down:
+        stopSlideshow();
         navigateTo(m_currentIndex + 1);
         break;
     case Qt::Key_Home:
+        stopSlideshow();
         navigateTo(0);
         break;
     case Qt::Key_End:
+        stopSlideshow();
         navigateTo(m_assets.size() - 1);
         break;
     case Qt::Key_F:
@@ -350,10 +356,12 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
         return;
     }
     if (m_overlayVisible && m_prevBtnRect.contains(event->pos())) {
+        stopSlideshow();
         navigateTo(m_currentIndex - 1);
         return;
     }
     if (m_overlayVisible && m_nextBtnRect.contains(event->pos())) {
+        stopSlideshow();
         navigateTo(m_currentIndex + 1);
         return;
     }
@@ -394,10 +402,12 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
     }
 
     if (m_overlayVisible && m_navLeftRect.contains(event->pos())) {
+        stopSlideshow();
         navigateTo(m_currentIndex - 1);
         return;
     }
     if (m_overlayVisible && m_navRightRect.contains(event->pos())) {
+        stopSlideshow();
         navigateTo(m_currentIndex + 1);
         return;
     }
@@ -411,10 +421,13 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
             overlayHit = true;
         } else {
             int margin = imgArea.width() / 5;
-            if (event->pos().x() < imgArea.left() + margin)
+            if (event->pos().x() < imgArea.left() + margin) {
+                stopSlideshow();
                 navigateTo(m_currentIndex - 1);
-            else if (event->pos().x() > imgArea.right() - margin)
+            } else if (event->pos().x() > imgArea.right() - margin) {
+                stopSlideshow();
                 navigateTo(m_currentIndex + 1);
+            }
             else
                 overlayHit = true;
             return;

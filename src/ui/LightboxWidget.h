@@ -33,6 +33,7 @@ private:
     void loadCurrentImage();
     void resetView();
     void navigateTo(int index);
+    void stopSlideshow();
     QRect imageRect() const;
 
     QVector<Asset> m_assets;

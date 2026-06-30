@@ -17,6 +17,7 @@
 #include "services/LibraryController.h"
 #include "services/ImageCache.h"
 #include "core/IDatabaseManager.h"
+#include <QUndoStack>
 
 class MainWindow : public QMainWindow
 {
@@ -64,6 +65,7 @@ private:
     IDatabaseManager *m_db;
     LibraryController *m_library;
     ImageCache *m_concreteCache;
+    QUndoStack *m_undoStack;
 
     // State
     QStringList m_folders;

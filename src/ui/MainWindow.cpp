@@ -29,6 +29,7 @@
 #include "services/ImageCache.h"
 #include "services/FileScanner.h"
 #include "services/FileWatcher.h"
+#include "ui/UndoCommands.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -50,6 +51,7 @@ MainWindow::MainWindow(QWidget *parent)
     auto *watcher = new FileWatcher(this);
 
     m_library = new LibraryController(m_db, m_concreteCache, scanner, watcher, this);
+    m_undoStack = new QUndoStack(this);
     m_initFailed = false;
 
     // Frameless window
@@ -294,6 +296,10 @@ void MainWindow::setupConnections()
             m_sidebar->setFolders(m_library->folders());
         }
     });
+    connect(m_sidebar, &SidebarWidget::folderDropped, this, [this](const QString &dir) {
+        m_library->scanFolder(dir);
+        m_sidebar->setFolders(m_library->folders());
+    });
     connect(m_sidebar, &SidebarWidget::tagSelected, this, [this](int tagId) {
         m_activeTagId = tagId;
         loadAssets();
@@ -340,27 +346,35 @@ void MainWindow::setupConnections()
         auto reply = QMessageBox::question(this, tr("删除"), msg,
                                             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::Yes) {
-            if (m_library->deleteAssets(assets)) {
-                if (m_detailPanel->isVisible() && !assets.isEmpty()
-                    && m_detailPanel->currentAssetId() == assets[0].id) {
-                    m_detailPanel->clear();
-                    m_detailPanel->setVisible(false);
-                }
-                loadAssets();
+            QVector<Metadata> metaList;
+            QVector<QVector<int>> tagIdList;
+            metaList.reserve(assets.size());
+            tagIdList.reserve(assets.size());
+            for (const auto &a : assets) {
+                metaList.append(m_library->getMetadata(a.id));
+                tagIdList.append(m_library->db()->getTagIdsForAsset(a.id));
             }
+            m_undoStack->push(new DeleteAssetsCommand(m_library, assets, metaList, tagIdList));
+            if (m_detailPanel->isVisible() && !assets.isEmpty()
+                && m_detailPanel->currentAssetId() == assets[0].id) {
+                m_detailPanel->clear();
+                m_detailPanel->setVisible(false);
+            }
+            loadAssets();
         }
     });
 
     connect(m_gallery, &GalleryWidget::tagAddRequested, this, [this](const QVector<QString> &assetIds) {
         int tagId = pickTagId(assetIds);
         if (tagId >= 0) {
-            m_library->addTagToAssets(assetIds, tagId);
+            m_undoStack->push(new AddTagToAssetsCommand(m_library, assetIds, tagId));
             loadAssets();
         }
     });
 
     connect(m_gallery, &GalleryWidget::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {
-        m_library->toggleFavorite(assetId, isFavorite);
+        bool oldState = !isFavorite;
+        m_undoStack->push(new ToggleFavoriteCommand(m_library, assetId, oldState, isFavorite));
         loadAssets();
     });
 
@@ -417,7 +431,7 @@ void MainWindow::setupConnections()
     connect(m_detailPanel, &DetailPanel::tagAddRequested, this, [this](const QString &assetId) {
         int tagId = pickTagId({assetId});
         if (tagId >= 0) {
-            m_library->addTagToAssets({assetId}, tagId);
+            m_undoStack->push(new AddTagToAssetsCommand(m_library, {assetId}, tagId));
             Asset a = m_library->getAsset(assetId);
             if (!a.id.isEmpty()) {
                 Metadata meta = m_library->getMetadata(assetId);
@@ -429,12 +443,13 @@ void MainWindow::setupConnections()
     });
 
     connect(m_detailPanel, &DetailPanel::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {
-        m_library->toggleFavorite(assetId, isFavorite);
+        bool oldState = !isFavorite;
+        m_undoStack->push(new ToggleFavoriteCommand(m_library, assetId, oldState, isFavorite));
         loadAssets();
     });
 
     connect(m_detailPanel, &DetailPanel::tagRemoved, this, [this](const QString &assetId, int tagId) {
-        m_library->removeTagFromAsset(assetId, tagId);
+        m_undoStack->push(new RemoveTagFromAssetCommand(m_library, assetId, tagId));
         Asset a = m_library->getAsset(assetId);
         if (!a.id.isEmpty()) {
             Metadata meta = m_library->getMetadata(assetId);
@@ -474,7 +489,8 @@ void MainWindow::setupConnections()
     // Lightbox
     connect(m_lightbox, &LightboxWidget::closed, this, [this]() { m_gallery->setFocus(); });
     connect(m_lightbox, &LightboxWidget::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {
-        m_library->toggleFavorite(assetId, isFavorite);
+        bool oldState = !isFavorite;
+        m_undoStack->push(new ToggleFavoriteCommand(m_library, assetId, oldState, isFavorite));
         loadAssets();
     });
 
@@ -517,6 +533,12 @@ void MainWindow::setupShortcuts()
     auto *searchShortcut = new QShortcut(QKeySequence("Ctrl+F"), this);
     connect(searchShortcut, &QShortcut::activated, m_searchBar, &SearchBar::focusSearch);
 
+    auto *undoShortcut = new QShortcut(QKeySequence::Undo, this);
+    connect(undoShortcut, &QShortcut::activated, m_undoStack, &QUndoStack::undo);
+
+    auto *redoShortcut = new QShortcut(QKeySequence::Redo, this);
+    connect(redoShortcut, &QShortcut::activated, m_undoStack, &QUndoStack::redo);
+
     m_commandPalette = new CommandPalette(this);
     auto *cpShortcut = new QShortcut(QKeySequence("Ctrl+Shift+P"), this);
     connect(cpShortcut, &QShortcut::activated, this, [this]() {
@@ -538,6 +560,10 @@ void MainWindow::setupShortcuts()
                      }});
         cmds.append({tr("仅显示收藏"), "",
                      [this]() { m_searchBar->setFavFilter(!m_searchBar->onlyFavorites()); }});
+        cmds.append({tr("撤销"), "Ctrl+Z",
+                     [this]() { m_undoStack->undo(); }});
+        cmds.append({tr("重做"), "Ctrl+Y",
+                     [this]() { m_undoStack->redo(); }});
         m_commandPalette->show(cmds);
     });
 

@@ -10,6 +10,9 @@
 #include <QPainter>
 #include <QToolTip>
 #include <QUrl>
+#include <QMimeData>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
@@ -473,6 +476,44 @@ void SidebarWidget::contextMenuEvent(QContextMenuEvent *event)
             }
         }
     }
+}
+
+void SidebarWidget::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        for (const QUrl &url : event->mimeData()->urls()) {
+            if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    event->ignore();
+}
+
+void SidebarWidget::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        for (const QUrl &url : event->mimeData()->urls()) {
+            if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    event->ignore();
+}
+
+void SidebarWidget::dropEvent(QDropEvent *event)
+{
+    for (const QUrl &url : event->mimeData()->urls()) {
+        if (url.isLocalFile()) {
+            QString path = url.toLocalFile();
+            if (QFileInfo(path).isDir())
+                emit folderDropped(path);
+        }
+    }
+    event->acceptProposedAction();
 }
 
 void SidebarWidget::resizeEvent(QResizeEvent *)

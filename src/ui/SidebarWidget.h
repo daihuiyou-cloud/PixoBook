@@ -21,6 +21,7 @@ public:
 
 signals:
     void folderSelected(const QString &path);
+    void folderDropped(const QString &path);
     void tagSelected(int tagId);
     void addFolderClicked();
     void folderRefreshRequested(const QString &path);
@@ -37,6 +38,9 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 private:
     void drawFolderIcon(QPainter &p, const QRect &r, bool hovered, bool active) const;

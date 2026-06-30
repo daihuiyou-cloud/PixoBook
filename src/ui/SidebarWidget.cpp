@@ -22,6 +22,7 @@ SidebarWidget::SidebarWidget(QWidget *parent)
     : QWidget(parent)
 {
     setMouseTracking(true);
+    setAcceptDrops(true);
     setFixedWidth(Visual::SidebarWidth);
     setMinimumHeight(200);
     setFocusPolicy(Qt::StrongFocus);
@@ -506,14 +507,20 @@ void SidebarWidget::dragMoveEvent(QDragMoveEvent *event)
 
 void SidebarWidget::dropEvent(QDropEvent *event)
 {
+    bool accepted = false;
     for (const QUrl &url : event->mimeData()->urls()) {
         if (url.isLocalFile()) {
             QString path = url.toLocalFile();
-            if (QFileInfo(path).isDir())
+            if (QFileInfo(path).isDir()) {
                 emit folderDropped(path);
+                accepted = true;
+            }
         }
     }
-    event->acceptProposedAction();
+    if (accepted)
+        event->acceptProposedAction();
+    else
+        event->ignore();
 }
 
 void SidebarWidget::resizeEvent(QResizeEvent *)

@@ -719,14 +719,7 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
             int newOffset = m_scrollbarDragStartOffset + deltaY * maxOff / h;
             m_scrollOffset = qBound(0, newOffset, maxOff);
         }
-        int rowH = m_itemHeight() + kGap;
-        if (rowH > 0) {
-            int snapRow = (m_scrollOffset + rowH / 2) / rowH;
-            m_scrollOffset = qBound(0, snapRow * rowH, maxScrollOffset());
-        }
-        ensureThumbnailsForVisibleItems();
         update();
-        checkLoadMore();
         return;
     }
 

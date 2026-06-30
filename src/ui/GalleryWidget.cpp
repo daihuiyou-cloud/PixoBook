@@ -795,7 +795,10 @@ void GalleryWidget::mouseReleaseEvent(QMouseEvent *event)
             clearSelection();
         } else {
             if (!m_selectedIndices.isEmpty()) {
-                m_lastClickedIndex = *m_selectedIndices.constBegin();
+                int first = *m_selectedIndices.constBegin();
+                m_lastClickedIndex = first;
+                if (first >= 0 && first < m_assets.size())
+                    emit assetSelected(m_assets[first]);
             }
         }
         update();

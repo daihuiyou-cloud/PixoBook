@@ -715,6 +715,7 @@ void MainWindow::loadSettings()
 #if defined(Q_OS_WIN)
 bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, long *result)
 {
+    if (m_initFailed) return QMainWindow::nativeEvent(eventType, message, result);
     Q_UNUSED(eventType)
     MSG *msg = static_cast<MSG *>(message);
 

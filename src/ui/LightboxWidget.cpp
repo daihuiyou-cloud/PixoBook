@@ -71,6 +71,8 @@ void LightboxWidget::show(const QVector<Asset> &assets, int startIndex)
 
 void LightboxWidget::close()
 {
+    m_isPanning = false;
+    setCursor(Qt::ArrowCursor);
     hide();
     emit closed();
 }

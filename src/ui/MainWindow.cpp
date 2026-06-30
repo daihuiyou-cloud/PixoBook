@@ -41,6 +41,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_db = new DatabaseManager(dbPath);
     if (!m_db->initialize()) {
         QMessageBox::critical(this, tr("错误"), tr("数据库初始化失败"));
+        m_initFailed = true;
         return;
     }
 
@@ -49,6 +50,7 @@ MainWindow::MainWindow(QWidget *parent)
     auto *watcher = new FileWatcher(this);
 
     m_library = new LibraryController(m_db, m_concreteCache, scanner, watcher, this);
+    m_initFailed = false;
 
     // Frameless window
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint);
@@ -68,12 +70,14 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    saveSettings();
+    if (!m_initFailed)
+        saveSettings();
     QMainWindow::closeEvent(event);
 }
 
 void MainWindow::changeEvent(QEvent *event)
 {
+    if (m_initFailed) { QMainWindow::changeEvent(event); return; }
     if (event->type() == QEvent::WindowStateChange) {
         if (m_titleBar)
             m_titleBar->setMaximized(isMaximized());

@@ -109,13 +109,21 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
 
     QPointer<ImageCache> guard(this);
     QtConcurrent::run([guard, filePath, size]() {
+        {
+            ImageCache *self = guard.data();
+            if (!self) return;
+            QPixmap thumb = self->generateThumbnail(filePath, size);
+            self = guard.data();
+            if (!self) return;
+            self->insert(filePath, size, thumb);
+        }
         ImageCache *self = guard.data();
-        if (!self) return;
-        QPixmap thumb = self->generateThumbnail(filePath, size);
-        self->insert(filePath, size, thumb);
-        QMetaObject::invokeMethod(self, [self, filePath, size, thumb]() {
-            emit self->thumbnailReady(filePath, size, thumb);
-        }, Qt::QueuedConnection);
+        if (self)
+            QMetaObject::invokeMethod(self, [guard, filePath, size]() {
+                ImageCache *self = guard.data();
+                if (!self) return;
+                emit self->thumbnailReady(filePath, size, self->get(filePath, size));
+            }, Qt::QueuedConnection);
     });
 }
 

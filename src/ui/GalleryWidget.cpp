@@ -80,6 +80,7 @@ GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     m_metaFm = QFontMetrics(m_metaFont);
     m_badgeFont = m_metaFont;
     m_badgeFont.setBold(true);
+    m_badgeFontFm = QFontMetrics(m_badgeFont);
     m_emptyTitleFont = m_labelFont;
     m_emptyTitleFont.setPixelSize(Visual::FontHeading);
     m_emptyTitleFont.setBold(true);
@@ -796,7 +797,6 @@ void GalleryWidget::mouseReleaseEvent(QMouseEvent *event)
             if (!m_selectedIndices.isEmpty()) {
                 m_lastClickedIndex = *m_selectedIndices.constBegin();
             }
-            emit assetSelected({});
         }
         update();
         return;

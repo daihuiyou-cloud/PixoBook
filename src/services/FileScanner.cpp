@@ -23,16 +23,26 @@ void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
         FileScanner *self = guard.data();
         if (!self) return;
         auto assets = std::make_shared<QVector<Asset>>(self->scanDirectorySync(dirPath, recursive));
+        self = guard.data();
+        if (!self) return;
         int total = assets->size();
         for (int i = 0; i < total; i++) {
-            QMetaObject::invokeMethod(self, [self, assets, i, total]() {
+            self = guard.data();
+            if (!self) return;
+            QMetaObject::invokeMethod(self, [guard, assets, i, total]() {
+                FileScanner *self = guard.data();
+                if (!self) return;
                 emit self->assetFound(assets->at(i));
                 emit self->scanProgress(i + 1, total);
             }, Qt::QueuedConnection);
         }
-        QMetaObject::invokeMethod(self, [self]() {
-            emit self->scanFinished();
-        }, Qt::QueuedConnection);
+        self = guard.data();
+        if (self)
+            QMetaObject::invokeMethod(self, [guard]() {
+                FileScanner *self = guard.data();
+                if (!self) return;
+                emit self->scanFinished();
+            }, Qt::QueuedConnection);
     });
 }
 

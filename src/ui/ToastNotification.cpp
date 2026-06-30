@@ -47,6 +47,8 @@ void ToastNotification::show(QWidget *parent, const QString &message, int durati
     if (!parent) return;
     if (s_currentToast) {
         s_currentToast->m_timer->stop();
+        if (s_currentToast->parentWidget())
+            s_currentToast->parentWidget()->removeEventFilter(s_currentToast);
         s_currentToast->hide();
         s_currentToast->deleteLater();
     }

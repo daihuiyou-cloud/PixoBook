@@ -21,15 +21,20 @@ bool SDParser::containsSdMetadata(const QByteArray &data)
                            (static_cast<unsigned char>(raw[pos+2]) << 8) |
                            static_cast<unsigned char>(raw[pos+3]);
 
+        if (chunkLen > static_cast<quint32>(rawSize - pos - 12))
+            break;
+
         const char *ct = raw + pos + 4;
         bool isTExt = (ct[0] == 't' && ct[1] == 'E' && ct[2] == 'X' && ct[3] == 't');
         bool isZTXt = (ct[0] == 'z' && ct[1] == 'T' && ct[2] == 'X' && ct[3] == 't');
 
         if (isTExt || isZTXt) {
             int dataStart = pos + 8;
+            int dataEnd = dataStart + chunkLen;
+            if (dataEnd > rawSize) break;
             int nullPos = data.indexOf('\0', dataStart);
-            if (nullPos < 0 || nullPos >= dataStart + static_cast<int>(chunkLen)) {
-                pos += 12 + chunkLen;
+            if (nullPos < 0 || nullPos >= dataEnd) {
+                pos += 12 + static_cast<int>(chunkLen);
                 continue;
             }
             QString key = QString::fromUtf8(raw + dataStart, nullPos - dataStart);
@@ -37,7 +42,8 @@ bool SDParser::containsSdMetadata(const QByteArray &data)
                 return true;
         }
 
-        pos += 12 + chunkLen;
+        pos += 12 + static_cast<int>(chunkLen);
+        if (pos > rawSize) break;
         if (ct[0] == 'I' && ct[1] == 'E' && ct[2] == 'N' && ct[3] == 'D') break;
     }
     return false;
@@ -59,13 +65,16 @@ bool SDParser::tryParseFromData(const QByteArray &data, Metadata &outMeta)
                            (static_cast<unsigned char>(raw[pos+2]) << 8) |
                            static_cast<unsigned char>(raw[pos+3]);
 
+        if (chunkLen > static_cast<quint32>(rawSize - pos - 12))
+            break;
+
         const char *ct = raw + pos + 4;
         bool isTExt = (ct[0] == 't' && ct[1] == 'E' && ct[2] == 'X' && ct[3] == 't');
         bool isZTXt = (ct[0] == 'z' && ct[1] == 'T' && ct[2] == 'X' && ct[3] == 't');
 
         if (isTExt || isZTXt) {
             int dataStart = pos + 8;
-            int dataEnd = dataStart + chunkLen;
+            int dataEnd = dataStart + static_cast<int>(chunkLen);
             if (dataEnd > rawSize) break;
 
             QString key, value;
@@ -73,18 +82,18 @@ bool SDParser::tryParseFromData(const QByteArray &data, Metadata &outMeta)
             if (isZTXt) {
                 QByteArray chunkData = data.mid(dataStart, chunkLen);
                 int nullPos = chunkData.indexOf('\0');
-                if (nullPos < 0) { pos += 12 + chunkLen; continue; }
+                if (nullPos < 0) { pos += 12 + static_cast<int>(chunkLen); continue; }
                 QByteArray kw = chunkData.left(nullPos);
-                if (nullPos + 2 > chunkData.size()) { pos += 12 + chunkLen; continue; }
+                if (nullPos + 2 > chunkData.size()) { pos += 12 + static_cast<int>(chunkLen); continue; }
                 QByteArray compressed = chunkData.mid(nullPos + 2);
                 QByteArray decompressed = qUncompress(compressed);
-                if (decompressed.isEmpty()) { pos += 12 + chunkLen; continue; }
+                if (decompressed.isEmpty()) { pos += 12 + static_cast<int>(chunkLen); continue; }
                 key = QString::fromUtf8(kw);
                 int vn = decompressed.indexOf('\0');
                 value = (vn < 0) ? QString::fromUtf8(decompressed) : QString::fromUtf8(decompressed.constData(), vn);
             } else {
                 int nullPos = data.indexOf('\0', dataStart);
-                if (nullPos < 0 || nullPos >= dataEnd) { pos += 12 + chunkLen; continue; }
+                if (nullPos < 0 || nullPos >= dataEnd) { pos += 12 + static_cast<int>(chunkLen); continue; }
                 key = QString::fromUtf8(raw + dataStart, nullPos - dataStart);
                 value = QString::fromUtf8(raw + nullPos + 1, dataEnd - nullPos - 1);
             }
@@ -119,7 +128,7 @@ bool SDParser::tryParseFromData(const QByteArray &data, Metadata &outMeta)
             }
         }
 
-        pos += 12 + chunkLen;
+        pos += 12 + static_cast<int>(chunkLen);
         if (ct[0] == 'I' && ct[1] == 'E' && ct[2] == 'N' && ct[3] == 'D') break;
     }
 

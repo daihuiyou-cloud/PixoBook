@@ -131,17 +131,20 @@ void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tag
     for (const auto &aid : assetIds) {
         if (!m_db->addTagToAsset(aid, tagId)) {
             (void)m_db->rollbackTransaction();
-            emit dataChanged();
             return;
         }
     }
-    if (!m_db->commitTransaction())
+    if (!m_db->commitTransaction()) {
         qWarning("addTagToAssets: commitTransaction failed");
+        return;
+    }
+    emit dataChanged();
 }
 
 void LibraryController::removeTagFromAsset(const QString &assetId, int tagId)
 {
-    (void)m_db->removeTagFromAsset(assetId, tagId);
+    if (m_db->removeTagFromAsset(assetId, tagId))
+        emit dataChanged();
 }
 
 void LibraryController::addFolder(const QString &dir)

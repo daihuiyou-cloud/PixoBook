@@ -50,12 +50,14 @@ Metadata ParserRegistry::parse(const QString &filePath) const
         }
         // Non-SD PNG: fall through to filename-based detection
         QString name = fi.fileName().toLower();
-        if (name.contains("dall") || name.contains(QRegularExpression("\\d{4}-\\d{2}-\\d{2}"))) {
+        static const QRegularExpression kDateRe("\\d{4}-\\d{2}-\\d{2}");
+        if (name.contains("dall") || name.contains(kDateRe)) {
             IParser *parser = parserForSource("dalle");
             if (parser)
                 return parser->parse(filePath);
         }
-        if (name.contains("midjourney") || name.contains(QRegularExpression("^[A-Za-z0-9]+_\\d+_"))) {
+        static const QRegularExpression kJourneyRe("^[A-Za-z0-9]+_\\d+_");
+        if (name.contains("midjourney") || name.contains(kJourneyRe)) {
             IParser *parser = parserForSource("midjourney");
             if (parser)
                 return parser->parse(filePath);
@@ -86,11 +88,16 @@ QString ParserRegistry::detectSource(const QString &filePath)
         }
     }
 
-    if (name.contains("dall") || name.contains(QRegularExpression("\\d{4}-\\d{2}-\\d{2}")))
-        return "dalle";
-
-    if (name.contains("midjourney") || name.contains(QRegularExpression("^[A-Za-z0-9]+_\\d+_")))
-        return "midjourney";
+    {
+        static const QRegularExpression kDateRe("\\d{4}-\\d{2}-\\d{2}");
+        if (name.contains("dall") || name.contains(kDateRe))
+            return "dalle";
+    }
+    {
+        static const QRegularExpression kJourneyRe("^[A-Za-z0-9]+_\\d+_");
+        if (name.contains("midjourney") || name.contains(kJourneyRe))
+            return "midjourney";
+    }
 
     return "stable-diffusion";
 }

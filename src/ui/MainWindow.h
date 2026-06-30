@@ -69,6 +69,7 @@ private:
     QStringList m_folders;
     int m_activeTagId = -1;
     QVector<Tag> m_cachedTags;
+    bool m_initFailed = true;
 };
 
 #endif

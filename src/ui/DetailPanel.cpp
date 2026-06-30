@@ -709,6 +709,10 @@ bool DetailPanel::eventFilter(QObject *obj, QEvent *event)
 void DetailPanel::hideEvent(QHideEvent *event)
 {
     finishPromptEdit(false);
+    if (m_isPanning) {
+        m_isPanning = false;
+        setCursor(Qt::ArrowCursor);
+    }
     QWidget::hideEvent(event);
 }
 

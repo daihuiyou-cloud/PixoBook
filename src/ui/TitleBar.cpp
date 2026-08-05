@@ -15,6 +15,7 @@ TitleBar::TitleBar(QWidget *parent)
 
     QFont base = font();
     m_titleFont = base; m_titleFont.setPixelSize(Visual::FontControl);
+    m_titleFontMetrics = QFontMetrics(m_titleFont);
 
     m_menus = {
         { tr("文件"), "file" },

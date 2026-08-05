@@ -16,6 +16,7 @@ TabBar::TabBar(QWidget *parent)
 
     QFont base = font();
     m_tabFont = base; m_tabFont.setPixelSize(Visual::FontControl);
+    m_tabFontMetrics = QFontMetrics(m_tabFont);
 
     m_tabs = {
         { tr("所有素材"), QStringLiteral("layout") },
@@ -26,6 +27,7 @@ TabBar::TabBar(QWidget *parent)
 
 void TabBar::setCurrentIndex(int idx)
 {
+    idx = qBound(0, idx, qMax(0, m_tabs.size() - 1));
     if (idx != m_currentIndex) {
         m_currentIndex = idx;
         emit currentChanged(idx);

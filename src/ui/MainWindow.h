@@ -41,6 +41,7 @@ private:
     void onImportFolder();
     void onImportFile();
     void loadAssets();
+    void reloadAfterUndo();
     void saveSettings();
     void loadSettings();
     void onTagEditRequested(int tagId);

@@ -27,6 +27,37 @@ FileWatcher::FileWatcher(QObject *parent)
     });
 }
 
+FileDiff FileWatcher::computeDiff(const QStringList &known, const QStringList &current)
+{
+    FileDiff diff;
+    QSet<QString> knownSet;
+    knownSet.reserve(known.size());
+    for (const auto &k : known)
+        knownSet.insert(k);
+    QSet<QString> currentSet;
+    currentSet.reserve(current.size());
+    for (const auto &c : current)
+        currentSet.insert(c);
+
+    QSet<QString> addedSet;
+    addedSet.reserve(qMax(known.size(), current.size()));
+    for (const auto &c : current) {
+        if (!knownSet.contains(c) && !addedSet.contains(c)) {
+            addedSet.insert(c);
+            diff.added.append(c);
+        }
+    }
+    QSet<QString> removedSet;
+    removedSet.reserve(qMax(known.size(), current.size()));
+    for (const auto &k : known) {
+        if (!currentSet.contains(k) && !removedSet.contains(k)) {
+            removedSet.insert(k);
+            diff.removed.append(k);
+        }
+    }
+    return diff;
+}
+
 void FileWatcher::addWatchPath(const QString &path)
 {
     if (!QFileInfo::exists(path)) return;
@@ -58,10 +89,14 @@ void FileWatcher::unwatchDirectoryTree(const QString &rootPath)
     for (const auto &dir : toRemove)
         m_watcher->removePath(dir);
 
-    m_knownFiles.erase(
-        std::remove_if(m_knownFiles.begin(), m_knownFiles.end(),
-                       [&](const QString &f) { return f.startsWith(rootPath, Qt::CaseInsensitive); }),
-        m_knownFiles.end());
+    const QString normalized = QDir::fromNativeSeparators(rootPath);
+    auto it = m_knownByDir.begin();
+    while (it != m_knownByDir.end()) {
+        if (it.key().startsWith(normalized, Qt::CaseInsensitive))
+            it = m_knownByDir.erase(it);
+        else
+            ++it;
+    }
 }
 
 void FileWatcher::removeWatchPath(const QString &path)
@@ -95,19 +130,19 @@ void FileWatcher::checkForNewFiles(const QString &dirPath)
 {
     QDir dir(dirPath);
     auto entries = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
-    QSet<QString> current;
-
+    QStringList current;
     for (const auto &fi : entries) {
         if (!isSupportedImageFormat(fi.suffix())) continue;
-        current.insert(fi.absoluteFilePath());
-        if (!m_knownFiles.contains(fi.absoluteFilePath()))
-            emit fileAdded(fi.absoluteFilePath());
+        current.append(fi.absoluteFilePath());
     }
 
-    for (const auto &known : qAsConst(m_knownFiles)) {
-        if (!current.contains(known))
-            emit fileRemoved(known);
-    }
+    const QStringList known = m_knownByDir.value(dirPath);
+    FileDiff diff = computeDiff(known, current);
 
-    m_knownFiles = current.values();
+    for (const auto &path : diff.added)
+        emit fileAdded(path);
+    for (const auto &path : diff.removed)
+        emit fileRemoved(path);
+
+    m_knownByDir[dirPath] = current;
 }

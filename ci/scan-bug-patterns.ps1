@@ -911,16 +911,23 @@ if ($trimmedPaintIssues.Count -eq 0) {
 
 # ====================================================================
 # CHECK 32: QString passed by value (should be const ref)
+#   Only flags genuine parameter positions, NOT function return types.
+#   Recognizes both "const QString &" and "const QString&" spellings.
 # ====================================================================
-$qstringByValue = Search-Files -Pattern "QString\s+\w+\s*\(" -Path $SrcDir -Include "*.h"
 $byValueIssues = @()
-foreach ($m in $qstringByValue) {
-    $file = ($m -split ':')[0]
-    $line = ($m -split ':')[1]
-    $fullPath = Get-ChildItem $SrcDir -Recurse -Filter $file | Select-Object -First 1 -ExpandProperty FullName
-    $content = Get-Content $fullPath | Select-Object -Index ($line - 1)
-    if ($content -and -not ($content -match 'const\s+QString&') -and -not ($content -match 'QString\s+&&')) {
-        $byValueIssues += "$($m) — QString passed by value (use const QString&)"
+Get-ChildItem $SrcDir -Recurse -Filter "*.h" | ForEach-Object {
+    $file = $_.FullName
+    $name = $_.Name
+    $lineNum = 0
+    Get-Content $file | ForEach-Object {
+        $lineNum++
+        $line = $_
+        # match "(QString name" / ", QString name" / "(const QString name" / ", const QString name"
+        if ($line -match '(?:\(\s*|,\s*)(?:const\s+)?QString\s+\w+\s*[,)=]') {
+            if ($line -notmatch 'const\s+QString\s*&' -and $line -notmatch 'QString\s*&&') {
+                $byValueIssues += "${name}:${lineNum} — QString parameter passed by value (use const QString&)"
+            }
+        }
     }
 }
 if ($byValueIssues.Count -eq 0) {
@@ -974,6 +981,41 @@ if ($redundantCloseIssues.Count -eq 0) {
     $results += [PSCustomObject]@{ Check = "redundant-raii-close"; Status = "PASS"; Details = "" }
 } else {
     $results += [PSCustomObject]@{ Check = "redundant-raii-close"; Status = "FAIL"; Details = ($redundantCloseIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 34: Stale QFontMetrics — member initialized from QFont in header,
+#   but that QFont is mutated (setPixelSize / reassigned) in the .cpp
+#   without rebuilding the QFontMetrics (COW detach makes metrics stale).
+# ====================================================================
+$staleFontMetricsIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.h" | ForEach-Object {
+    $headerName = $_.Name
+    $headerContent = Get-Content $_.FullName
+    for ($i = 0; $i -lt $headerContent.Count; $i++) {
+        if ($headerContent[$i] -match 'QFontMetrics\s+(m_\w+)\s*\{\s*(m_\w+)\s*\}') {
+            $fmMember = $Matches[1]
+            $fontMember = $Matches[2]
+            $hasFontDecl = $headerContent | Select-String -Pattern "QFont\s+$fontMember\b" -Quiet
+            if (-not $hasFontDecl) { continue }
+            $cppName = [System.IO.Path]::GetFileNameWithoutExtension($headerName) + '.cpp'
+            $cppPath = Get-ChildItem $SrcDir -Recurse -Filter $cppName | Select-Object -First 1 -ExpandProperty FullName
+            if (-not $cppPath) { continue }
+            $cppContent = Get-Content $cppPath
+            if (-not $cppContent) { continue }
+            $fontMutated = ($cppContent | Select-String -Pattern "$fontMember\s*\.\s*set(Pixel|Point)Size\(" -Quiet) -or
+                           ($cppContent | Select-String -Pattern "$fontMember\s*=\s*\w+" -Quiet)
+            $metricsRebuilt = ($cppContent | Select-String -Pattern "$fmMember\s*=\s*QFontMetrics" -Quiet)
+            if ($fontMutated -and -not $metricsRebuilt) {
+                $staleFontMetricsIssues += "${headerName}:$($i + 1) — $fmMember initialized from $fontMember in header, but $fontMember is mutated in .cpp without rebuilding metrics"
+            }
+        }
+    }
+}
+if ($staleFontMetricsIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "qfontmetrics-stale-member"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "qfontmetrics-stale-member"; Status = "FAIL"; Details = ($staleFontMetricsIssues -join "; ") }
 }
 
 # ====================================================================

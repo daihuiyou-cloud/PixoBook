@@ -4,8 +4,10 @@
 #include <QFile>
 #include <QImage>
 #include <QDir>
+#include <QSignalSpy>
 #include "services/ImageCache.h"
 #include "services/FileScanner.h"
+#include "services/FileWatcher.h"
 #include "models/Asset.h"
 
 class TestFileStorage : public QObject
@@ -99,7 +101,7 @@ private slots:
         QCOMPARE(a.height, 128);
         QCOMPARE(a.format, "png");
         QVERIFY(!a.hash.isEmpty());
-        QCOMPARE(a.filePath, QDir::toNativeSeparators(path));
+        QCOMPARE(a.filePath, QDir::fromNativeSeparators(path));
     }
 
     void testScanSingleFileMissing()
@@ -134,6 +136,98 @@ private slots:
         QVERIFY(!a2.id.isEmpty());
         QCOMPARE(a2.width, 100);
         QCOMPARE(a2.height, 200);
+    }
+
+    void testFileWatcherComputeDiffAdded()
+    {
+        QStringList known;
+        QStringList current;
+        current << "a.png" << "b.png";
+
+        FileDiff diff = FileWatcher::computeDiff(known, current);
+        QCOMPARE(diff.added.size(), 2);
+        QCOMPARE(diff.removed.size(), 0);
+        QVERIFY(diff.added.contains("a.png"));
+        QVERIFY(diff.added.contains("b.png"));
+    }
+
+    void testFileWatcherComputeDiffRemoved()
+    {
+        QStringList known;
+        known << "a.png" << "b.png";
+        QStringList current;
+
+        FileDiff diff = FileWatcher::computeDiff(known, current);
+        QCOMPARE(diff.added.size(), 0);
+        QCOMPARE(diff.removed.size(), 2);
+        QVERIFY(diff.removed.contains("a.png"));
+        QVERIFY(diff.removed.contains("b.png"));
+    }
+
+    void testFileWatcherComputeDiffMixedAndDuplicates()
+    {
+        QStringList known;
+        known << "keep.png" << "gone.png" << "gone.png";
+        QStringList current;
+        current << "keep.png" << "new.png" << "new.png";
+
+        FileDiff diff = FileWatcher::computeDiff(known, current);
+        QCOMPARE(diff.added.size(), 1);
+        QCOMPARE(diff.removed.size(), 1);
+        QCOMPARE(diff.added.first(), "new.png");
+        QCOMPARE(diff.removed.first(), "gone.png");
+    }
+
+    void testFileWatcherPerDirIsolation()
+    {
+        QTemporaryDir dirA;
+        QTemporaryDir dirB;
+        QVERIFY(dirA.isValid());
+        QVERIFY(dirB.isValid());
+
+        QString aPath = dirA.filePath("a.png");
+        QString bPath = dirB.filePath("b.png");
+        QImage aImg(10, 10, QImage::Format_RGB32);
+        aImg.fill(Qt::red);
+        QVERIFY(aImg.save(aPath));
+        QImage bImg(10, 10, QImage::Format_RGB32);
+        bImg.fill(Qt::green);
+        QVERIFY(bImg.save(bPath));
+
+        FileWatcher watcher;
+        watcher.addWatchPath(dirA.path());
+        watcher.addWatchPath(dirB.path());
+
+        QSignalSpy addedSpy(&watcher, &FileWatcher::fileAdded);
+        QSignalSpy removedSpy(&watcher, &FileWatcher::fileRemoved);
+
+        // Add a file only to dirB: dirA must not produce any event.
+        QString cPath = dirB.filePath("c.png");
+        QImage cImg(10, 10, QImage::Format_RGB32);
+        cImg.fill(Qt::blue);
+        QVERIFY(cImg.save(cPath));
+
+        QTRY_VERIFY_WITH_TIMEOUT(addedSpy.count() == 1, 3000);
+        QCOMPARE(QDir::fromNativeSeparators(addedSpy.first().first().toString()),
+                 QDir::fromNativeSeparators(cPath));
+        QCOMPARE(addedSpy.count(), 1);
+
+        // Remove a file only from dirA: dirB must not produce any event.
+        QVERIFY(QFile::remove(aPath));
+        QTRY_VERIFY_WITH_TIMEOUT(removedSpy.count() == 1, 3000);
+        QCOMPARE(QDir::fromNativeSeparators(removedSpy.first().first().toString()),
+                 QDir::fromNativeSeparators(aPath));
+        QCOMPARE(removedSpy.count(), 1);
+
+        // Allow any delayed events to arrive, then confirm none leaked across dirs.
+        QTest::qWait(400);
+        QCOMPARE(addedSpy.count(), 1);
+        QCOMPARE(removedSpy.count(), 1);
+        QVERIFY(!removedSpy.first().first().toString().contains(QDir::fromNativeSeparators(dirB.path())));
+        QVERIFY(!addedSpy.first().first().toString().contains(QDir::fromNativeSeparators(dirA.path())));
+
+        watcher.removeWatchPath(dirA.path());
+        watcher.removeWatchPath(dirB.path());
     }
 
     void testImageCacheGenerate()

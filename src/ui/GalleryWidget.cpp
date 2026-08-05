@@ -313,10 +313,19 @@ QRect GalleryWidget::itemRect(int index) const
 
 int GalleryWidget::indexAt(const QPoint &pos) const
 {
-    for (int i = 0; i < m_assets.size(); i++) {
-        if (itemRect(i).contains(pos))
-            return i;
-    }
+    if (m_assets.isEmpty() || m_columns <= 0)
+        return -1;
+    const int left = pos.x() - Visual::GalleryTopPadding;
+    if (left < 0)
+        return -1;
+    const int top = pos.y() + m_scrollOffset - Visual::GalleryTopPadding;
+    if (top < 0)
+        return -1;
+    const int col = left / (m_itemWidth() + kGap);
+    const int row = top / (m_itemHeight() + kGap);
+    const int idx = row * m_columns + col;
+    if (idx >= 0 && idx < m_assets.size() && itemRect(idx).contains(pos))
+        return idx;
     return -1;
 }
 

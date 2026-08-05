@@ -534,10 +534,16 @@ void MainWindow::setupShortcuts()
     connect(searchShortcut, &QShortcut::activated, m_searchBar, &SearchBar::focusSearch);
 
     auto *undoShortcut = new QShortcut(QKeySequence::Undo, this);
-    connect(undoShortcut, &QShortcut::activated, m_undoStack, &QUndoStack::undo);
+    connect(undoShortcut, &QShortcut::activated, this, [this]() {
+        m_undoStack->undo();
+        reloadAfterUndo();
+    });
 
     auto *redoShortcut = new QShortcut(QKeySequence::Redo, this);
-    connect(redoShortcut, &QShortcut::activated, m_undoStack, &QUndoStack::redo);
+    connect(redoShortcut, &QShortcut::activated, this, [this]() {
+        m_undoStack->redo();
+        reloadAfterUndo();
+    });
 
     m_commandPalette = new CommandPalette(this);
     auto *cpShortcut = new QShortcut(QKeySequence("Ctrl+Shift+P"), this);
@@ -645,6 +651,25 @@ void MainWindow::loadAssets()
     if (m_activeTagId >= 0)
         summary << tr("标签筛选");
     m_searchBar->setResultSummary(summary.join(QStringLiteral(" / ")));
+}
+
+void MainWindow::reloadAfterUndo()
+{
+    loadAssets();
+    if (!m_detailPanel->isVisible())
+        return;
+    const QString id = m_detailPanel->currentAssetId();
+    if (id.isEmpty())
+        return;
+    Asset a = m_library->getAsset(id);
+    if (a.id.isEmpty()) {
+        m_detailPanel->clear();
+        m_detailPanel->setVisible(false);
+        return;
+    }
+    Metadata meta = m_library->getMetadata(id);
+    QVector<Tag> tags = m_library->getTagsForAsset(id);
+    m_detailPanel->showAsset(a, meta, tags);
 }
 
 int MainWindow::pickTagId(const QVector<QString> &assetIds)

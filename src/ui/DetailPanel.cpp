@@ -51,6 +51,10 @@ DetailPanel::DetailPanel(IImageCache *cache, QWidget *parent)
     m_fontTitle = base; m_fontTitle.setPixelSize(Visual::FontTitle); m_fontTitle.setBold(true);
     m_fontCaption = base; m_fontCaption.setPixelSize(Visual::FontCaption);
     m_fontControl = base; m_fontControl.setPixelSize(Visual::FontControl); m_fontControl.setBold(true);
+    m_fontBodyFm = QFontMetrics(m_fontBody);
+    m_fontMetaFm = QFontMetrics(m_fontMeta);
+    m_fontTitleFm = QFontMetrics(m_fontTitle);
+    m_fontControlFm = QFontMetrics(m_fontControl);
 }
 
 void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const QVector<Tag> &tags)

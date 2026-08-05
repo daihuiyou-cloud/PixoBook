@@ -30,6 +30,7 @@ SidebarWidget::SidebarWidget(QWidget *parent)
     QFont base = font();
     m_sectionFont = base; m_sectionFont.setPixelSize(Visual::FontMeta); m_sectionFont.setBold(true);
     m_itemFont = base; m_itemFont.setPixelSize(Visual::FontControl);
+    m_itemFontFm = QFontMetrics(m_itemFont);
 }
 
 void SidebarWidget::setTags(const QVector<Tag> &tags)

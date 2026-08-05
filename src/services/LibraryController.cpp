@@ -136,6 +136,7 @@ void LibraryController::addTagToAssets(const QVector<QString> &assetIds, int tag
     }
     if (!m_db->commitTransaction()) {
         qWarning("addTagToAssets: commitTransaction failed");
+        (void)m_db->rollbackTransaction();
         return;
     }
     emit dataChanged();
@@ -197,8 +198,10 @@ bool LibraryController::deleteAssets(const QVector<Asset> &assets)
             return false;
         }
     }
-    if (!m_db->commitTransaction())
+    if (!m_db->commitTransaction()) {
         qWarning("deleteAssets: commitTransaction failed");
+        (void)m_db->rollbackTransaction();
+    }
     emit dataChanged();
     return true;
 }

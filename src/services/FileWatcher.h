@@ -6,6 +6,12 @@
 #include <QStringList>
 #include <QSet>
 #include <QTimer>
+#include <QHash>
+
+struct FileDiff {
+    QStringList added;
+    QStringList removed;
+};
 
 class FileWatcher : public QObject
 {
@@ -16,6 +22,8 @@ public:
     void addWatchPath(const QString &path);
     void removeWatchPath(const QString &path);
     QStringList watchedPaths() const;
+
+    static FileDiff computeDiff(const QStringList &known, const QStringList &current);
 
 signals:
     void fileAdded(const QString &filePath);
@@ -29,7 +37,7 @@ private:
     void unwatchDirectoryTree(const QString &rootPath);
     void checkForNewFiles(const QString &dirPath);
     QFileSystemWatcher *m_watcher;
-    QStringList m_knownFiles;
+    QHash<QString, QStringList> m_knownByDir;
     QSet<QString> m_watchedDirs;
     QTimer m_debounceTimer;
     QStringList m_pendingDirs;

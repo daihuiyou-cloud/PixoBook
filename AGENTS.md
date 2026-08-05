@@ -11,9 +11,9 @@
 
 ### Constraints & Preferences
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
-- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 33 个检查块在其中可用
+- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 34 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
-- 当前处于实施模式，已提交 3 个 perf commit (ddd08ee, 7d322af, bda1aeb)，本轮修复中
+- 当前处于实施模式，已提交 6 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5)，第 6 轮已完成
 
 ### Progress
 
@@ -30,12 +30,14 @@
 - **71009ed** — 第 4 轮汇总：TabBar/TitleBar QFontMetrics 缓存、DetailPanel/LightboxWidget 异步图片加载、DetailPanel clampScrollOffset 移出 paintEvent、GalleryWidget 惰性 fileExists
 - **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
 - 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
+- **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
+- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
 
 #### In Progress
 - 无
 
 #### Blocked
-- tst_filestorage 静默崩溃（预存问题，HEAD~1 已存在），与本次变更无关
+- 无（tst_filestorage 已在第 6 轮解决：原"静默崩溃"实为 `testScanSingleFile` 的路径分隔符断言错误——`QFileInfo::absoluteFilePath()` 返回正斜杠，测试却用 `QDir::toNativeSeparators()` 比较，已改为 `fromNativeSeparators()`；另新增 computeDiff 3 项 + per-dir 隔离集成测试，4/4 全绿）
 
 ### Key Decisions
 - 双 SQL 查询（countAssets + searchAssets）用 `COUNT(*) OVER()` 窗口函数合并为单次，减少数据库往返
@@ -45,6 +47,10 @@
 - TabBar/TitleBar 的 QFontMetrics 改为成员变量，在构造函数中用字体初始化（fontChanged 信号频率低，无需动态刷新）
 - 异步图片加载用 generation 计数器处理竞争（旧 generation 结果丢弃），通过 `QMetaObject::invokeMethod(this, ...)` 回到主线程设置 pixmap + update()
 - 惰性 fileExists：删除全部 4 处 `prefetchFileExistence` 调用，改为 paintEvent 中按需 stat + 缓存结果
+- FileWatcher 用 `QHash<QString, QStringList> m_knownByDir` 按目录维护已知文件集合，目录间事件隔离（原先全局共享 known 列表导致跨目录误报 fileRemoved → 用户数据被删）
+- QFontMetrics 是字体快照（COW）：头文件 `QFontMetrics m_x{m_font}` 初始化后，若构造函数再改 `m_font`，度量不会更新 → 字体改动后必须重新赋值 `m_x = QFontMetrics(m_font)`
+- undo/redo 快捷键不再直接连 QUndoStack，改为 lambda 内调用 `m_undoStack->undo()/redo()` 后执行 `reloadAfterUndo()`（loadAssets + 详情面板按 currentAssetId 重拉 getAsset/getMetadata/getTagsForAsset 刷新）
+- GalleryWidget::indexAt 由 O(n) 线性扫描改为 O(1) 行列公式计算（`(x-gap)/(itemWidth+gap)` 求列、`(y+scrollOffset-gap)/(itemHeight+gap)` 求行，再回验 itemRect）
 
 ### Next Steps
 - GalleryWidget paintEvent 使用 `event->rect()` 缩小脏区域（低优先级，密集布局下收益有限）
@@ -72,12 +78,14 @@
 - **71009ed** — 第 4 轮汇总：TabBar/TitleBar QFontMetrics 缓存、DetailPanel/LightboxWidget 异步图片加载、DetailPanel clampScrollOffset 移出 paintEvent、GalleryWidget 惰性 fileExists
 - **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
 - 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
+- **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
+- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
 
 #### In Progress
 - 无
 
 #### Blocked
-- tst_filestorage 静默崩溃（预存问题，HEAD~1 已存在），与本次变更无关
+- 无（tst_filestorage 已在第 6 轮解决：原"静默崩溃"实为 `testScanSingleFile` 的路径分隔符断言错误——`QFileInfo::absoluteFilePath()` 返回正斜杠，测试却用 `QDir::toNativeSeparators()` 比较，已改为 `fromNativeSeparators()`；另新增 computeDiff 3 项 + per-dir 隔离集成测试，4/4 全绿）
 
 ### Key Decisions
 - 双 SQL 查询（countAssets + searchAssets）用 `COUNT(*) OVER()` 窗口函数合并为单次，减少数据库往返
@@ -87,6 +95,10 @@
 - TabBar/TitleBar 的 QFontMetrics 改为成员变量，在构造函数中用字体初始化（fontChanged 信号频率低，无需动态刷新）
 - 异步图片加载用 generation 计数器处理竞争（旧 generation 结果丢弃），通过 `QMetaObject::invokeMethod(this, ...)` 回到主线程设置 pixmap + update()
 - 惰性 fileExists：删除全部 4 处 `prefetchFileExistence` 调用，改为 paintEvent 中按需 stat + 缓存结果
+- FileWatcher 用 `QHash<QString, QStringList> m_knownByDir` 按目录维护已知文件集合，目录间事件隔离（原先全局共享 known 列表导致跨目录误报 fileRemoved → 用户数据被删）
+- QFontMetrics 是字体快照（COW）：头文件 `QFontMetrics m_x{m_font}` 初始化后，若构造函数再改 `m_font`，度量不会更新 → 字体改动后必须重新赋值 `m_x = QFontMetrics(m_font)`
+- undo/redo 快捷键不再直接连 QUndoStack，改为 lambda 内调用 `m_undoStack->undo()/redo()` 后执行 `reloadAfterUndo()`（loadAssets + 详情面板按 currentAssetId 重拉 getAsset/getMetadata/getTagsForAsset 刷新）
+- GalleryWidget::indexAt 由 O(n) 线性扫描改为 O(1) 行列公式计算（`(x-gap)/(itemWidth+gap)` 求列、`(y+scrollOffset-gap)/(itemHeight+gap)` 求行，再回验 itemRect）
 
 ### Next Steps
 - GalleryWidget paintEvent 使用 `event->rect()` 缩小脏区域（低优先级，密集布局下收益有限）
@@ -107,7 +119,13 @@
 - `src/ui/GalleryWidget.h/.cpp`：删除 `prefetchFileExistence` 声明/实现/全部 4 处调用、paintEvent 中按需 stat + 缓存、新增 `m_badgeFontFm`、`drawEmptyState` 静态 QVector
 - `src/ui/SidebarWidget.h/.cpp`：新增 `QFontMetrics m_sectionFontFm` / `m_itemFontFm`、`QFileInfo` → 纯字符串操作
 - `src/services/FileScanner.cpp`：`QFileInfo` → 纯字符串操作（suffix 提取）
-- `ci/scan-bug-patterns.ps1`：33 个检查块，自动扫描
+- `src/services/FileWatcher.h/.cpp`：全局 `m_knownFiles` → `QHash<QString, QStringList> m_knownByDir` 按目录隔离、新增静态 `FileDiff computeDiff`（含输出去重）、unwatch 剪枝
+- `src/ui/MainWindow.h/.cpp`：undo/redo 快捷键 → `reloadAfterUndo()`（loadAssets + 详情面板按 currentAssetId 重拉刷新）
+- `src/ui/TabBar.cpp`/`TitleBar.cpp`/`DetailPanel.cpp`/`SidebarWidget.cpp`：构造函数 setPixelSize 后重新赋值 QFontMetrics 成员（修复头文件初始化快照失效）
+- `src/services/LibraryController.cpp`：`addTagToAssets`/`deleteAssets` commit 失败时 rollback
+- `src/ui/GalleryWidget.cpp`：`indexAt` 线性扫描 → O(1) 行列公式计算
+- `tests/tst_filestorage.cpp`：`testScanSingleFile` 路径断言 `toNativeSeparators` → `fromNativeSeparators`；新增 computeDiff 3 项 + per-dir 隔离集成测试
+- `ci/scan-bug-patterns.ps1`：34 个检查块，自动扫描
 
 ---
 
@@ -173,6 +191,7 @@
 | 31 | paintEvent 中的 `.trimmed()` 调用 | 每帧堆分配 | 检查 paintEvent 或 `draw*` 辅助方法中是否直接调用 `.trimmed()` |
 | 32 | `QString` 值传递参数 | 不必要的 COW 原子操作 | 检查 `.h` 中函数参数是否为 `QString` (非 `const &`) |
 | 33 | `QFileInfo` 仅用于字符串操作 | 不必要的文件系统 stat 调用 | 检查 `QFileInfo(…).fileName()` / `.suffix()` 等纯字符串操作 |
+| 34 | 头文件 `QFontMetrics m_x{m_font}` 初始化后构造函数改 `m_font` 未重建 | 度量快照失效（字体改了但测量不更新） | 检查 QFontMetrics 成员对应的 QFont 在 .cpp 中是否有 `setPixelSize`/赋值，且之后未重新赋值 `m_x = QFontMetrics(...)` |
 
 ## 已修复的实例
 
@@ -201,6 +220,12 @@
 | CacheKey 短路比较 | ImageCache.h | `operator==` 中 `size` 先于 `filePath` 比较（int 短路 QString） |
 | renameTag SQL 化 | IDatabaseManager.h, DatabaseManager.h/.cpp, LibraryController.cpp | 新增 `getTag(id)` 替代 `getAllTags()` 全表扫描 |
 | qPrintable 替换 | DatabaseManager.cpp | `.toUtf8().constData()` → `qPrintable()` |
+| 跨目录误删数据丢失 | FileWatcher.h/.cpp | 全局 `m_knownFiles` → `QHash<QString, QStringList> m_knownByDir` 按目录维护已知集合，checkForNewFiles 只 diff 自身目录；新增静态 `computeDiff` 含输出去重 |
+| QFontMetrics 快照失效 (模式 34) | TabBar.cpp, TitleBar.cpp, DetailPanel.cpp, SidebarWidget.cpp | 构造函数 `setPixelSize` 后重新赋值 QFontMetrics 成员（如 `m_tabFontMetrics = QFontMetrics(m_tabFont)`） |
+| undo/redo 不刷新界面 | MainWindow.h/.cpp | undo/redo 快捷键改为 lambda 内调用 `m_undoStack->undo()/redo()` 后执行 `reloadAfterUndo()` |
+| 事务提交失败不回滚 (模式 13) | LibraryController.cpp | `addTagToAssets`/`deleteAssets` commit 失败时调用 `rollbackTransaction()` |
+| indexAt O(n) | GalleryWidget.cpp | `itemRect` 线性扫描 → O(1) 行列公式计算并回验 |
+| 路径分隔符断言错误 | tests/tst_filestorage.cpp | `QCOMPARE(a.filePath, QDir::toNativeSeparators(path))` → `fromNativeSeparators`（QFileInfo::absoluteFilePath 返回正斜杠） |
 
 ## 扫描器改进
 
@@ -228,6 +253,8 @@
 | CHECK 31（新增） | 检测 paintEvent 路径中的 `.trimmed()` 调用 — 每帧堆分配 |
 | CHECK 32（新增） | 检测 `QString` 按值传递参数 — 应使用 `const QString&` |
 | CHECK 33（新增） | 检测 `QFileInfo` 仅用于字符串操作（`fileName()` / `suffix()` 等纯字符串方法）— 使用字符串操作替代 |
+| CHECK 32 修正 | 正则仅匹配参数位置（`(QString name` / `, QString name`，含 `const QString name`），排除函数返回类型误报；接受 `const QString &` 与 `const QString&` 两种拼写 |
+| CHECK 34（新增） | 检测头文件 `QFontMetrics m_x{m_font}` 初始化但 .cpp 构造函数对 `m_font` 调用 `setPixelSize`/赋值后未重建 metrics — 防止 QFontMetrics 快照失效回归 |
 
 ## 递归自我改进流程
 

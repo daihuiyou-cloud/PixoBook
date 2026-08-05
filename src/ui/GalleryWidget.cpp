@@ -492,14 +492,15 @@ void GalleryWidget::ensureThumbnailsForVisibleItems()
     }
 }
 
-void GalleryWidget::paintEvent(QPaintEvent *)
+void GalleryWidget::paintEvent(QPaintEvent *event)
 {
+    const QRect dirty = event->rect();
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
-    p.fillRect(rect(), Color::BG_DARKEST);
 
     if (m_isDragOver) {
+        p.fillRect(rect(), Color::BG_DARKEST);
         QPen dashPen(Color::ACCENT, 2, Qt::DashLine);
         p.setPen(dashPen);
         p.setBrush(QColor(Color::ACCENT.red(), Color::ACCENT.green(), Color::ACCENT.blue(), 20));
@@ -511,9 +512,16 @@ void GalleryWidget::paintEvent(QPaintEvent *)
     }
 
     if (m_assets.isEmpty() || m_columns == 0) {
+        p.fillRect(rect(), Color::BG_DARKEST);
         drawEmptyState(p);
         return;
     }
+
+    // Only repaint the exposed region. Expand by (2, 2, 2, 12) so rounded-corner
+    // antialiasing and hover/selection shadows (which bleed up to 10px below an
+    // item) are fully cleared and redrawn without leaving stale pixels.
+    const QRect paintRegion = dirty.adjusted(-2, -2, 2, 12);
+    p.fillRect(paintRegion, Color::BG_DARKEST);
 
     int rowH = m_itemHeight() + kGap;
     int firstRow = qMax(0, m_scrollOffset / rowH);
@@ -523,7 +531,9 @@ void GalleryWidget::paintEvent(QPaintEvent *)
 
     for (int i = startIdx; i < endIdx; i++) {
         const Asset &asset = m_assets[i];
-        QRect r = itemRect(i);
+        const QRect r = itemRect(i);
+        if (!r.adjusted(-2, -2, 2, 12).intersects(paintRegion))
+            continue;
         bool isHovered = (i == m_hoveredIndex);
         bool isSelected = m_selectedIndices.contains(i);
 

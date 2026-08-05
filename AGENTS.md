@@ -11,9 +11,9 @@
 
 ### Constraints & Preferences
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
-- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 34 个检查块在其中可用
+- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 35 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
-- 当前处于实施模式，已提交 7 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5, dcc5b14)，第 7 轮已完成
+- 当前处于实施模式，已提交 8 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5, dcc5b14, dd7b53e)，第 8 轮已完成
 
 ### Progress
 
@@ -31,9 +31,13 @@
 - **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
 - 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
 - **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
-- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
+- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
+- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
+- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
 - **dcc5b14** — 第 7 轮：GalleryWidget paintEvent 脏区域窄化（`event->rect()` + `paintRegion = dirty.adjusted(-2,-2,2,12)`，覆盖圆角抗锯齿 + hover 阴影下溢 10px；项循环按 `itemRect(i).adjusted(...).intersects(paintRegion)` 跳过无关卡片；背景仅填充 paintRegion）
 - 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
+- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
+- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过
 
 #### In Progress
 - 无
@@ -53,6 +57,12 @@
 - QFontMetrics 是字体快照（COW）：头文件 `QFontMetrics m_x{m_font}` 初始化后，若构造函数再改 `m_font`，度量不会更新 → 字体改动后必须重新赋值 `m_x = QFontMetrics(m_font)`
 - undo/redo 快捷键不再直接连 QUndoStack，改为 lambda 内调用 `m_undoStack->undo()/redo()` 后执行 `reloadAfterUndo()`（loadAssets + 详情面板按 currentAssetId 重拉 getAsset/getMetadata/getTagsForAsset 刷新）
 - GalleryWidget::indexAt 由 O(n) 线性扫描改为 O(1) 行列公式计算（`(x-gap)/(itemWidth+gap)` 求列、`(y+scrollOffset-gap)/(itemHeight+gap)` 求行，再回验 itemRect）
+- 事务支持嵌套：`beginTransaction` 首次为真事务（`m_db.transaction()`），后续用 `SAVEPOINT pixobook_sp_{depth}`；commit/rollback 按深度递减，最内层用 RELEASE/ROLLBACK TO，外层才真正 COMMIT/ROLLBACK——使扫描长事务与用户批量操作（加标签/删除）并发安全
+- 扫描导入整个括在一个事务里（scanStarted begin / scanFinished commit，commit 失败回滚）：10k 文件从 ~30k 次独立 fsync 降为 1 次
+- 元数据解析下放后台：`FileScanner::scanDirectorySync` 在后台线程调用 `MetadataParser::parse`，通过 `ScannedAsset{Asset, Metadata}` 携带，主线程只做 DB 写入（消除逐文件 readAll 卡 UI）；ParserRegistry 仅启动时注册 → 后台并发 parse 线程安全
+- ImageCache LRU 用 `std::list<CacheKey>` + `std::unordered_map<CacheKey, iterator>`：get() 命中 O(1) splice，替代原 QList removeAll+append 的 O(n)（paint 热路径随缓存规模增长）
+- `generateThumbnail` 单个 `QImageReader`：`size()` → `setScaledSize` → `read()` 一次打开，删除冗余 `m_dimCache`
+- LightboxWidget 打开不再深拷贝：所有只读访问用 `qAsConst(m_assets)[i]`，仅收藏切换（稀有用户操作）才允许 detach
 
 ### Next Steps
 - 已将 TiMidity 条目移除：本项目（PixoBook 图片库）源码中无音频/MIDI 子系统，原 Next Step 不适用
@@ -81,9 +91,13 @@
 - **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
 - 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
 - **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
-- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
+- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
+- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
+- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
 - **dcc5b14** — 第 7 轮：GalleryWidget paintEvent 脏区域窄化（`event->rect()` + `paintRegion = dirty.adjusted(-2,-2,2,12)`，覆盖圆角抗锯齿 + hover 阴影下溢 10px；项循环按 `itemRect(i).adjusted(...).intersects(paintRegion)` 跳过无关卡片；背景仅填充 paintRegion）
 - 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
+- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
+- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过
 
 #### In Progress
 - 无
@@ -103,6 +117,12 @@
 - QFontMetrics 是字体快照（COW）：头文件 `QFontMetrics m_x{m_font}` 初始化后，若构造函数再改 `m_font`，度量不会更新 → 字体改动后必须重新赋值 `m_x = QFontMetrics(m_font)`
 - undo/redo 快捷键不再直接连 QUndoStack，改为 lambda 内调用 `m_undoStack->undo()/redo()` 后执行 `reloadAfterUndo()`（loadAssets + 详情面板按 currentAssetId 重拉 getAsset/getMetadata/getTagsForAsset 刷新）
 - GalleryWidget::indexAt 由 O(n) 线性扫描改为 O(1) 行列公式计算（`(x-gap)/(itemWidth+gap)` 求列、`(y+scrollOffset-gap)/(itemHeight+gap)` 求行，再回验 itemRect）
+- 事务支持嵌套：`beginTransaction` 首次为真事务（`m_db.transaction()`），后续用 `SAVEPOINT pixobook_sp_{depth}`；commit/rollback 按深度递减，最内层用 RELEASE/ROLLBACK TO，外层才真正 COMMIT/ROLLBACK——使扫描长事务与用户批量操作（加标签/删除）并发安全
+- 扫描导入整个括在一个事务里（scanStarted begin / scanFinished commit，commit 失败回滚）：10k 文件从 ~30k 次独立 fsync 降为 1 次
+- 元数据解析下放后台：`FileScanner::scanDirectorySync` 在后台线程调用 `MetadataParser::parse`，通过 `ScannedAsset{Asset, Metadata}` 携带，主线程只做 DB 写入（消除逐文件 readAll 卡 UI）；ParserRegistry 仅启动时注册 → 后台并发 parse 线程安全
+- ImageCache LRU 用 `std::list<CacheKey>` + `std::unordered_map<CacheKey, iterator>`：get() 命中 O(1) splice，替代原 QList removeAll+append 的 O(n)（paint 热路径随缓存规模增长）
+- `generateThumbnail` 单个 `QImageReader`：`size()` → `setScaledSize` → `read()` 一次打开，删除冗余 `m_dimCache`
+- LightboxWidget 打开不再深拷贝：所有只读访问用 `qAsConst(m_assets)[i]`，仅收藏切换（稀有用户操作）才允许 detach
 
 ### Next Steps
 - 已将 TiMidity 条目移除：本项目（PixoBook 图片库）源码中无音频/MIDI 子系统，原 Next Step 不适用
@@ -129,7 +149,12 @@
 - `src/services/LibraryController.cpp`：`addTagToAssets`/`deleteAssets` commit 失败时 rollback
 - `src/ui/GalleryWidget.cpp`：`indexAt` 线性扫描 → O(1) 行列公式计算；paintEvent 脏区域窄化（`event->rect()` + `paintRegion.adjusted(-2,-2,2,12)` + 项跳过测试）
 - `tests/tst_filestorage.cpp`：`testScanSingleFile` 路径断言 `toNativeSeparators` → `fromNativeSeparators`；新增 computeDiff 3 项 + per-dir 隔离集成测试
-- `ci/scan-bug-patterns.ps1`：34 个检查块，自动扫描
+- `src/database/DatabaseManager.h/.cpp`：事务 SAVEPOINT 嵌套（`m_txDepth` + `pixobook_sp_{depth}`），启用扫描长事务且与批量操作并发安全
+- `src/services/FileScanner.h/.cpp`：`scanStarted` 信号、`ScannedAsset{Asset, Metadata}`、后台元数据解析下放、`Q_DECLARE_METATYPE(ScannedAsset)`
+- `src/services/LibraryController.cpp`：scanStarted begin / assetFound 只写 DB / scanFinished commit（失败回滚）
+- `src/services/ImageCache.h/.cpp`：LRU `std::list` + `std::unordered_map<iterator>`（O(1) splice）、`generateThumbnail` 单次打开、移除 `m_dimCache`
+- `src/ui/LightboxWidget.cpp`：3 处只读访问改 `qAsConst(m_assets)[i]` 消除打开深拷贝
+- `ci/scan-bug-patterns.ps1`：35 个检查块，自动扫描
 
 ---
 
@@ -231,6 +256,13 @@
 | indexAt O(n) | GalleryWidget.cpp | `itemRect` 线性扫描 → O(1) 行列公式计算并回验 |
 | 路径分隔符断言错误 | tests/tst_filestorage.cpp | `QCOMPARE(a.filePath, QDir::toNativeSeparators(path))` → `fromNativeSeparators`（QFileInfo::absoluteFilePath 返回正斜杠） |
 | 局部 update 全量重绘 | GalleryWidget.cpp | paintEvent 改用 `event->rect()`：`paintRegion = dirty.adjusted(-2,-2,2,12)` 只填充/重绘受影响区域，项按 `itemRect.adjusted(...).intersects(paintRegion)` 跳过；hover/橡皮筋/滚动条拖拽时从全量 ~30 卡片降为 0~4 张 |
+| 扫描导入逐语句 fsync | DatabaseManager.cpp, LibraryController.cpp | `beginTransaction` 支持 SAVEPOINT 嵌套；scanStarted begin / scanFinished commit（失败回滚）把整个扫描括进一个事务，10k 文件从 ~30k 次 commit 降为 1 次 |
+| 主线程逐文件元数据解析 | FileScanner.cpp, LibraryController.cpp | 解析下放后台线程：`ScannedAsset{Asset, Metadata}` 携带，`assetFound` 信号改发 ScannedAsset；主线程只做 DB 写入 |
+| LRU O(n) touch (模式 28 增强) | ImageCache.h/.cpp | `QList<CacheKey> m_accessOrder` + `removeAll` → `std::list` + `std::unordered_map<CacheKey, iterator>`，get() 命中 O(1) splice |
+| 缩略图双次打开文件 | ImageCache.cpp | 探测 `QImageReader probe` + 读取 `QImageReader reader` 合并为单个 `QImageReader`（size→setScaledSize→read），删除 `m_dimCache` |
+| 灯箱打开深拷贝 | LightboxWidget.cpp | `m_assets[m_currentIndex]` → `qAsConst(m_assets)[m_currentIndex]`（3 处只读访问），打开 2000 项图库从 ~5 万次堆分配降为 0，仅收藏切换才 detach |
+| 跨线程信号类型未注册 (模式 17) | FileScanner.h | `ScannedAsset` 信号参数补 `Q_DECLARE_METATYPE(ScannedAsset)` |
+| 扫描事务无回滚 (模式 13) | LibraryController.cpp | scanFinished 中 commit 失败时 `rollbackTransaction()` |
 
 ## 扫描器改进
 
@@ -260,6 +292,7 @@
 | CHECK 33（新增） | 检测 `QFileInfo` 仅用于字符串操作（`fileName()` / `suffix()` 等纯字符串方法）— 使用字符串操作替代 |
 | CHECK 32 修正 | 正则仅匹配参数位置（`(QString name` / `, QString name`，含 `const QString name`），排除函数返回类型误报；接受 `const QString &` 与 `const QString&` 两种拼写 |
 | CHECK 34（新增） | 检测头文件 `QFontMetrics m_x{m_font}` 初始化但 .cpp 构造函数对 `m_font` 调用 `setPixelSize`/赋值后未重建 metrics — 防止 QFontMetrics 快照失效回归 |
+| CHECK 35（新增） | 检测 `get()`/`find()` 方法内的 `.removeAll()` — O(n) LRU touch，paint 热路径随缓存规模增长；应使用 `std::list` + iterator 哈希 O(1) splice |
 
 ## 递归自我改进流程
 

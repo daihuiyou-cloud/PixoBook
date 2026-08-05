@@ -13,7 +13,7 @@
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
 - 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 34 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
-- 当前处于实施模式，已提交 6 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5)，第 6 轮已完成
+- 当前处于实施模式，已提交 7 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5, dcc5b14)，第 7 轮已完成
 
 ### Progress
 
@@ -32,6 +32,8 @@
 - 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
 - **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
 - 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
+- **dcc5b14** — 第 7 轮：GalleryWidget paintEvent 脏区域窄化（`event->rect()` + `paintRegion = dirty.adjusted(-2,-2,2,12)`，覆盖圆角抗锯齿 + hover 阴影下溢 10px；项循环按 `itemRect(i).adjusted(...).intersects(paintRegion)` 跳过无关卡片；背景仅填充 paintRegion）
+- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
 
 #### In Progress
 - 无
@@ -53,8 +55,8 @@
 - GalleryWidget::indexAt 由 O(n) 线性扫描改为 O(1) 行列公式计算（`(x-gap)/(itemWidth+gap)` 求列、`(y+scrollOffset-gap)/(itemHeight+gap)` 求行，再回验 itemRect）
 
 ### Next Steps
-- GalleryWidget paintEvent 使用 `event->rect()` 缩小脏区域（低优先级，密集布局下收益有限）
-- 考虑 TiMidity 子进程的 stdio 读取超时（已有 `QTimer::singleShot(5000, ...)`，可在更复杂场景增加）
+- 已将 TiMidity 条目移除：本项目（PixoBook 图片库）源码中无音频/MIDI 子系统，原 Next Step 不适用
+- 若再发现局部 update(QRect) 但 paintEvent 全量重绘的自绘控件，复用第 7 轮脏区域窄化模式（如 LightboxWidget/SidebarWidget 的热区变化）
 
 ### Critical Context
 - `QFontMetrics` 构造在 Qt5 中涉及字体引擎初始化，在 paintEvent 循环中被多次调用时产生可测量的每帧分配
@@ -80,6 +82,8 @@
 - 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
 - **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
 - 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
+- **dcc5b14** — 第 7 轮：GalleryWidget paintEvent 脏区域窄化（`event->rect()` + `paintRegion = dirty.adjusted(-2,-2,2,12)`，覆盖圆角抗锯齿 + hover 阴影下溢 10px；项循环按 `itemRect(i).adjusted(...).intersects(paintRegion)` 跳过无关卡片；背景仅填充 paintRegion）
+- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
 
 #### In Progress
 - 无
@@ -101,8 +105,8 @@
 - GalleryWidget::indexAt 由 O(n) 线性扫描改为 O(1) 行列公式计算（`(x-gap)/(itemWidth+gap)` 求列、`(y+scrollOffset-gap)/(itemHeight+gap)` 求行，再回验 itemRect）
 
 ### Next Steps
-- GalleryWidget paintEvent 使用 `event->rect()` 缩小脏区域（低优先级，密集布局下收益有限）
-- 考虑 TiMidity 子进程的 stdio 读取超时（已有 `QTimer::singleShot(5000, ...)`，可在更复杂场景增加）
+- 已将 TiMidity 条目移除：本项目（PixoBook 图片库）源码中无音频/MIDI 子系统，原 Next Step 不适用
+- 若再发现局部 update(QRect) 但 paintEvent 全量重绘的自绘控件，复用第 7 轮脏区域窄化模式（如 LightboxWidget/SidebarWidget 的热区变化）
 
 ### Critical Context
 - `QFontMetrics` 构造在 Qt5 中涉及字体引擎初始化，在 paintEvent 循环中被多次调用时产生可测量的每帧分配
@@ -123,7 +127,7 @@
 - `src/ui/MainWindow.h/.cpp`：undo/redo 快捷键 → `reloadAfterUndo()`（loadAssets + 详情面板按 currentAssetId 重拉刷新）
 - `src/ui/TabBar.cpp`/`TitleBar.cpp`/`DetailPanel.cpp`/`SidebarWidget.cpp`：构造函数 setPixelSize 后重新赋值 QFontMetrics 成员（修复头文件初始化快照失效）
 - `src/services/LibraryController.cpp`：`addTagToAssets`/`deleteAssets` commit 失败时 rollback
-- `src/ui/GalleryWidget.cpp`：`indexAt` 线性扫描 → O(1) 行列公式计算
+- `src/ui/GalleryWidget.cpp`：`indexAt` 线性扫描 → O(1) 行列公式计算；paintEvent 脏区域窄化（`event->rect()` + `paintRegion.adjusted(-2,-2,2,12)` + 项跳过测试）
 - `tests/tst_filestorage.cpp`：`testScanSingleFile` 路径断言 `toNativeSeparators` → `fromNativeSeparators`；新增 computeDiff 3 项 + per-dir 隔离集成测试
 - `ci/scan-bug-patterns.ps1`：34 个检查块，自动扫描
 
@@ -226,6 +230,7 @@
 | 事务提交失败不回滚 (模式 13) | LibraryController.cpp | `addTagToAssets`/`deleteAssets` commit 失败时调用 `rollbackTransaction()` |
 | indexAt O(n) | GalleryWidget.cpp | `itemRect` 线性扫描 → O(1) 行列公式计算并回验 |
 | 路径分隔符断言错误 | tests/tst_filestorage.cpp | `QCOMPARE(a.filePath, QDir::toNativeSeparators(path))` → `fromNativeSeparators`（QFileInfo::absoluteFilePath 返回正斜杠） |
+| 局部 update 全量重绘 | GalleryWidget.cpp | paintEvent 改用 `event->rect()`：`paintRegion = dirty.adjusted(-2,-2,2,12)` 只填充/重绘受影响区域，项按 `itemRect.adjusted(...).intersects(paintRegion)` 跳过；hover/橡皮筋/滚动条拖拽时从全量 ~30 卡片降为 0~4 张 |
 
 ## 扫描器改进
 

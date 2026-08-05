@@ -596,15 +596,45 @@ QVector<Asset> DatabaseManager::getAssetsByTag(int tagId) const
 
 bool DatabaseManager::beginTransaction()
 {
-    return m_db.transaction();
+    if (m_txDepth == 0) {
+        if (!m_db.transaction())
+            return false;
+        m_txDepth = 1;
+        return true;
+    }
+    QString savepoint = QStringLiteral("pixobook_sp_%1").arg(m_txDepth);
+    QSqlQuery q(m_db);
+    if (!q.exec(QStringLiteral("SAVEPOINT %1").arg(savepoint)))
+        return false;
+    m_txDepth++;
+    return true;
 }
 
 bool DatabaseManager::commitTransaction()
 {
+    if (m_txDepth <= 0)
+        return false;
+    if (m_txDepth > 1) {
+        QString savepoint = QStringLiteral("pixobook_sp_%1").arg(m_txDepth - 1);
+        QSqlQuery q(m_db);
+        m_txDepth--;
+        return q.exec(QStringLiteral("RELEASE %1").arg(savepoint));
+    }
+    m_txDepth = 0;
     return m_db.commit();
 }
 
 bool DatabaseManager::rollbackTransaction()
 {
+    if (m_txDepth <= 0)
+        return false;
+    if (m_txDepth > 1) {
+        QString savepoint = QStringLiteral("pixobook_sp_%1").arg(m_txDepth - 1);
+        QSqlQuery q(m_db);
+        m_txDepth--;
+        return q.exec(QStringLiteral("ROLLBACK TO %1").arg(savepoint))
+               && q.exec(QStringLiteral("RELEASE %1").arg(savepoint));
+    }
+    m_txDepth = 0;
     return m_db.rollback();
 }

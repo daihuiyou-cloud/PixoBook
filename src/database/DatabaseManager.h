@@ -58,6 +58,7 @@ private:
     void migrate();
     QSqlDatabase m_db;
     QString m_connectionName;
+    int m_txDepth = 0;
 };
 
 #endif

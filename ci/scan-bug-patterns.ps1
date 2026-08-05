@@ -1019,6 +1019,27 @@ if ($staleFontMetricsIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 35: O(n) LRU touch — removeAll() on an access-order member inside
+#   a get()/find() method. A linear-list "touch" makes cache hits scale
+#   with cache size (paint-path hotspot). Use std::list + iterator map.
+# ====================================================================
+$lruOnIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "\.removeAll\s*\(" | ForEach-Object {
+    $lineNum = $_.LineNumber
+    $fullPath = $_.Path
+    $content = Get-Content $fullPath
+    $fnName = Get-NearestFunctionName -Content $content -LineNum $lineNum
+    if ($fnName -and $fnName -match '^(get|find)\w*$') {
+        $lruOnIssues += "$($_.Filename):$lineNum — removeAll() inside $fnName is an O(n) LRU touch; use std::list + iterator hash"
+    }
+}
+if ($lruOnIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "cache-lru-oln-touch"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "cache-lru-oln-touch"; Status = "FAIL"; Details = ($lruOnIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

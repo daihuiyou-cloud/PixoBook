@@ -11,14 +11,29 @@ ImageCache::ImageCache(qint64 maxBytes, QObject *parent)
 {
 }
 
+void ImageCache::touchLru(const CacheKey &key) const
+{
+    auto oit = m_orderIndex.find(key);
+    if (oit != m_orderIndex.end())
+        m_accessOrder.splice(m_accessOrder.end(), m_accessOrder, oit->second);
+}
+
+void ImageCache::removeFromLru(const CacheKey &key) const
+{
+    auto oit = m_orderIndex.find(key);
+    if (oit != m_orderIndex.end()) {
+        m_accessOrder.erase(oit->second);
+        m_orderIndex.erase(oit);
+    }
+}
+
 QPixmap ImageCache::get(const QString &filePath, const QSize &size) const
 {
     QMutexLocker lock(&m_mutex);
     CacheKey key{filePath, size};
     auto it = m_cache.find(key);
     if (it != m_cache.end()) {
-        m_accessOrder.removeAll(key);
-        m_accessOrder.append(key);
+        touchLru(key);
         return it.value();
     }
     return {};
@@ -33,12 +48,13 @@ void ImageCache::insert(const QString &filePath, const QSize &size, const QPixma
         m_currentBytes -= pixmapBytes(m_cache[key]);
         m_cache[key] = pixmap;
         m_currentBytes += newBytes;
-        m_accessOrder.removeAll(key);
-        m_accessOrder.append(key);
+        touchLru(key);
         return;
     }
-    while (m_currentBytes + newBytes > m_maxBytes && !m_accessOrder.isEmpty()) {
-        CacheKey oldest = m_accessOrder.takeFirst();
+    while (m_currentBytes + newBytes > m_maxBytes && !m_accessOrder.empty()) {
+        CacheKey oldest = m_accessOrder.front();
+        m_accessOrder.pop_front();
+        m_orderIndex.erase(oldest);
         if (m_cache.contains(oldest)) {
             m_currentBytes -= pixmapBytes(m_cache[oldest]);
             m_cache.remove(oldest);
@@ -46,7 +62,8 @@ void ImageCache::insert(const QString &filePath, const QSize &size, const QPixma
     }
     m_cache.insert(key, pixmap);
     m_currentBytes += newBytes;
-    m_accessOrder.append(key);
+    m_accessOrder.push_back(key);
+    m_orderIndex[key] = std::prev(m_accessOrder.end());
 }
 
 void ImageCache::invalidate(const QString &filePath)
@@ -56,13 +73,12 @@ void ImageCache::invalidate(const QString &filePath)
     while (it != m_cache.end()) {
         if (it.key().filePath == filePath) {
             m_currentBytes -= pixmapBytes(it.value());
-            m_accessOrder.removeAll(it.key());
+            removeFromLru(it.key());
             it = m_cache.erase(it);
         } else {
             ++it;
         }
     }
-    m_dimCache.remove(filePath);
 }
 
 void ImageCache::invalidateDir(const QString &dirPath)
@@ -75,18 +91,11 @@ void ImageCache::invalidateDir(const QString &dirPath)
     while (it != m_cache.end()) {
         if (it.key().filePath.startsWith(prefix, Qt::CaseInsensitive)) {
             m_currentBytes -= pixmapBytes(it.value());
-            m_accessOrder.removeAll(it.key());
+            removeFromLru(it.key());
             it = m_cache.erase(it);
         } else {
             ++it;
         }
-    }
-    auto dit = m_dimCache.begin();
-    while (dit != m_dimCache.end()) {
-        if (dit.key().startsWith(prefix, Qt::CaseInsensitive))
-            dit = m_dimCache.erase(dit);
-        else
-            ++dit;
     }
 }
 
@@ -95,8 +104,8 @@ void ImageCache::clear()
     QMutexLocker lock(&m_mutex);
     m_cache.clear();
     m_accessOrder.clear();
+    m_orderIndex.clear();
     m_currentBytes = 0;
-    m_dimCache.clear();
 }
 
 void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
@@ -129,22 +138,11 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
 
 QPixmap ImageCache::generateThumbnail(const QString &filePath, const QSize &size) const
 {
-    QSize imgSize;
-    {
-        QMutexLocker lock(&m_mutex);
-        auto it = m_dimCache.find(filePath);
-        if (it != m_dimCache.end()) {
-            imgSize = it.value();
-        } else {
-            QImageReader probe(filePath);
-            imgSize = probe.size();
-            if (!imgSize.isValid())
-                return {};
-            m_dimCache.insert(filePath, imgSize);
-        }
-    }
-
     QImageReader reader(filePath);
+    QSize imgSize = reader.size();
+    if (!imgSize.isValid())
+        return {};
+
     QSize fitSize = imgSize.scaled(size, Qt::KeepAspectRatio);
     if (fitSize != imgSize)
         reader.setScaledSize(fitSize);

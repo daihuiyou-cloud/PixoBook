@@ -1,5 +1,6 @@
 #include "FileScanner.h"
 #include "core/ImageFormats.h"
+#include "parsers/MetadataParser.h"
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QImageReader>
@@ -18,11 +19,12 @@ FileScanner::FileScanner(QObject *parent)
 
 void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
 {
+    emit scanStarted();
     QPointer<FileScanner> guard(this);
     QtConcurrent::run([guard, dirPath, recursive]() {
         FileScanner *self = guard.data();
         if (!self) return;
-        auto assets = std::make_shared<QVector<Asset>>(self->scanDirectorySync(dirPath, recursive));
+        auto assets = std::make_shared<QVector<ScannedAsset>>(self->scanDirectorySync(dirPath, recursive));
         self = guard.data();
         if (!self) return;
         int total = assets->size();
@@ -46,9 +48,9 @@ void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
     });
 }
 
-QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recursive) const
+QVector<ScannedAsset> FileScanner::scanDirectorySync(const QString &dirPath, bool recursive) const
 {
-    QVector<Asset> assets;
+    QVector<ScannedAsset> assets;
     QDirIterator::IteratorFlags flags = recursive ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags;
     QDirIterator it(dirPath, flags);
 
@@ -60,7 +62,8 @@ QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recur
         QString ext = fi.suffix().toLower();
         if (!isSupportedImageFormat(ext)) continue;
 
-        Asset asset;
+        ScannedAsset item;
+        Asset &asset = item.asset;
         asset.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         asset.filePath = fi.absoluteFilePath();
         asset.fileName = fi.fileName();
@@ -79,7 +82,11 @@ QVector<Asset> FileScanner::scanDirectorySync(const QString &dirPath, bool recur
 
         asset.hash = computeHash(asset.filePath);
 
-        assets.append(asset);
+        item.metadata = MetadataParser::parse(asset.filePath);
+        asset.metadataSource = item.metadata.source;
+        asset.metadataPrompt = item.metadata.prompt;
+
+        assets.append(item);
     }
 
     return assets;

@@ -56,7 +56,7 @@ void LightboxWidget::rebuildInfoStrings()
 {
     m_counterText = QStringLiteral("%1/%2").arg(m_currentIndex + 1).arg(m_assets.size());
     if (m_currentIndex >= 0 && m_currentIndex < m_assets.size()) {
-        const auto &a = m_assets[m_currentIndex];
+        const auto &a = qAsConst(m_assets)[m_currentIndex];
         m_infoText = QStringLiteral("%1 x %2 | %3 | %4 KB")
                          .arg(a.width).arg(a.height).arg(a.format.toUpper()).arg(a.fileSize / 1024);
     }
@@ -93,7 +93,7 @@ void LightboxWidget::loadCurrentImage()
         m_currentPixmap = QPixmap();
         return;
     }
-    const Asset &asset = m_assets[m_currentIndex];
+    const Asset &asset = qAsConst(m_assets)[m_currentIndex];
     if (!QFileInfo::exists(asset.filePath)) {
         m_currentPixmap = QPixmap();
         return;
@@ -226,7 +226,7 @@ void LightboxWidget::paintEvent(QPaintEvent *)
     }
 
     const QPoint localCursor = mapFromGlobal(QCursor::pos());
-    const Asset &asset = m_assets[m_currentIndex];
+    const Asset &asset = qAsConst(m_assets)[m_currentIndex];
 
     p.setFont(m_fontControl);
 

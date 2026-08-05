@@ -3,9 +3,10 @@
 
 #include <QPixmap>
 #include <QHash>
-#include <QList>
 #include <QString>
 #include <QMutex>
+#include <list>
+#include <unordered_map>
 #include "core/IImageCache.h"
 
 class ImageCache : public IImageCache
@@ -36,14 +37,22 @@ public:
             return qHash(k.filePath) ^ qHash(k.size.width()) ^ qHash(k.size.height());
         }
     };
+    struct CacheKeyHasher {
+        size_t operator()(const CacheKey &k) const {
+            return static_cast<size_t>(qHash(k.filePath) ^ qHash(k.size.width()) ^ qHash(k.size.height()));
+        }
+    };
 
 private:
     QHash<CacheKey, QPixmap> m_cache;
-    mutable QList<CacheKey> m_accessOrder;
+    mutable std::list<CacheKey> m_accessOrder;
+    mutable std::unordered_map<CacheKey, std::list<CacheKey>::iterator, CacheKeyHasher> m_orderIndex;
     qint64 m_maxBytes;
     mutable qint64 m_currentBytes = 0;
     mutable QMutex m_mutex;
-    mutable QHash<QString, QSize> m_dimCache;
+
+    void touchLru(const CacheKey &key) const;
+    void removeFromLru(const CacheKey &key) const;
 
     static qint64 pixmapBytes(const QPixmap &p) {
         if (p.isNull()) return 0;

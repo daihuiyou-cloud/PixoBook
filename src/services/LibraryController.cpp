@@ -12,12 +12,18 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
     , m_scanner(scanner)
     , m_watcher(watcher)
 {
-    connect(m_scanner, &FileScanner::assetFound, this, [this](const Asset &asset) {
+    connect(m_scanner, &FileScanner::scanStarted, this, [this]() {
+        if (!m_db->beginTransaction())
+            qWarning("scan: beginTransaction failed");
+    });
+
+    connect(m_scanner, &FileScanner::assetFound, this, [this](const ScannedAsset &item) {
+        const Asset &asset = item.asset;
         Asset existing = m_db->findByPath(asset.filePath);
         if (existing.id.isEmpty() && m_db->findByHash(asset.hash).id.isEmpty()) {
             (void)m_db->insertAsset(asset);
-            Metadata meta = MetadataParser::parse(asset.filePath);
-            if (!meta.source.isEmpty()) {
+            if (!item.metadata.source.isEmpty()) {
+                Metadata meta = item.metadata;
                 meta.assetId = asset.id;
                 (void)m_db->upsertMetadata(meta);
             }
@@ -26,6 +32,10 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
 
     connect(m_scanner, &FileScanner::scanProgress, this, &LibraryController::scanProgress);
     connect(m_scanner, &FileScanner::scanFinished, this, [this]() {
+        if (!m_db->commitTransaction()) {
+            qWarning("scan: commitTransaction failed");
+            (void)m_db->rollbackTransaction();
+        }
         emit assetCountChanged(m_db->countAssets());
         emit scanFinished();
         emit dataChanged();

@@ -3,7 +3,16 @@
 
 #include <QObject>
 #include <QVector>
+#include <QMetaType>
 #include "models/Asset.h"
+#include "models/Metadata.h"
+
+struct ScannedAsset {
+    Asset asset;
+    Metadata metadata;
+};
+
+Q_DECLARE_METATYPE(ScannedAsset)
 
 class FileScanner : public QObject
 {
@@ -18,12 +27,13 @@ public:
     static QString detectFormat(const QString &filePath);
 
 signals:
-    void assetFound(const Asset &asset);
+    void scanStarted();
+    void assetFound(const ScannedAsset &item);
     void scanProgress(int scanned, int total);
     void scanFinished();
 
 private:
-    QVector<Asset> scanDirectorySync(const QString &dirPath, bool recursive) const;
+    QVector<ScannedAsset> scanDirectorySync(const QString &dirPath, bool recursive) const;
 };
 
 #endif

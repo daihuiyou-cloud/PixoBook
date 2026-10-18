@@ -285,6 +285,135 @@ private slots:
         QCOMPARE(db->getAllAssetTags().value(tagged.id).size(), 1);
     }
 
+    // FTS5 index: prefix terms, prompt updates, renames and deletes must all
+    // stay in sync with the assets/metadata tables.
+    void testFullTextSearch()
+    {
+        if (!db->isFullTextSearchEnabled())
+            QSKIP("SQLite build has no FTS5");
+
+        const auto search = [this](const QString &keyword) {
+            return db->searchAssets(keyword, QString(), {}, false);
+        };
+
+        Asset a = makeAsset("fts-1", "C:/fts/sunset-beach.png");
+        QVERIFY(db->insertAsset(a));
+        Metadata m;
+        m.assetId = a.id;
+        m.source = "stable-diffusion";
+        m.prompt = "a red fox in a winter forest";
+        QVERIFY(db->upsertMetadata(m));
+
+        QCOMPARE(search("sunset").size(), 1);
+        QCOMPARE(search("beach").size(), 1);
+        QCOMPARE(search("fox").size(), 1);
+        QCOMPARE(search("winter").size(), 1);
+        QCOMPARE(db->countAssets("fox"), 1);
+        // Prefix terms behave like the old substring search for word starts.
+        QCOMPARE(search("win").size(), 1);
+
+        m.prompt = "a blue whale";
+        QVERIFY(db->upsertMetadata(m));
+        QCOMPARE(search("fox").size(), 0);
+        QCOMPARE(search("whale").size(), 1);
+
+        a.fileName = "summer-meadow.png";
+        a.filePath = "C:/fts/summer-meadow.png";
+        QVERIFY(db->updateAsset(a));
+        QCOMPARE(search("summer").size(), 1);
+        QCOMPARE(search("sunset").size(), 0);
+
+        QVERIFY(db->deleteAsset(a.id));
+        QCOMPARE(search("summer").size(), 0);
+    }
+
+    // CJK text is indexed character-by-character, so a quoted phrase can match
+    // a substring of a longer prompt or filename.
+    void testFullTextSearchCjk()
+    {
+        if (!db->isFullTextSearchEnabled())
+            QSKIP("SQLite build has no FTS5");
+
+        const auto search = [this](const QString &keyword) {
+            return db->searchAssets(keyword, QString(), {}, false);
+        };
+
+        Asset a = makeAsset("cjk-1", "C:/fts/风景照片.png");
+        QVERIFY(db->insertAsset(a));
+        Metadata m;
+        m.assetId = a.id;
+        m.source = "stable-diffusion";
+        m.prompt = "一只猫在月光下";
+        QVERIFY(db->upsertMetadata(m));
+
+        QCOMPARE(search("风景").size(), 1);
+        QCOMPARE(search("照片").size(), 1);
+        QCOMPARE(search("月光").size(), 1);
+        QCOMPARE(search("猫").size(), 1);
+        QCOMPARE(search("狗").size(), 0);
+        QCOMPARE(db->countAssets("月光"), 1);
+    }
+
+    // Cleaning missing records must also remove their search rows, otherwise
+    // an orphaned FTS entry could keep matching after the asset is gone.
+    void testDeleteMissingClearsSearchIndex()
+    {
+        if (!db->isFullTextSearchEnabled())
+            QSKIP("SQLite build has no FTS5");
+
+        const auto search = [this](const QString &keyword) {
+            return db->searchAssets(keyword, QString(), {}, false);
+        };
+
+        Asset keep = makeAsset("fts-keep", "C:/fts/keep-lighthouse.png");
+        Asset gone = makeAsset("fts-gone", "C:/fts/gone-lighthouse.png");
+        QVERIFY(db->insertAsset(keep));
+        QVERIFY(db->insertAsset(gone));
+        QCOMPARE(search("lighthouse").size(), 2);
+
+        QVERIFY(db->markAssetMissing(gone.filePath, QDateTime::currentDateTime()));
+        QVERIFY(db->deleteMissingAssets());
+        QCOMPARE(db->countAssets("lighthouse"), 1);
+        QCOMPARE(search("lighthouse").size(), 1);
+        QCOMPARE(search("lighthouse").first().id, keep.id);
+    }
+
+    // The index is derived data: dropping it must be repaired on next open.
+    void testSearchIndexRebuilds()
+    {
+        const QString path = tmpDir->filePath(QStringLiteral("fts_rebuild.db"));
+        {
+            DatabaseManager first(path);
+            QVERIFY(first.initialize());
+            if (!first.isFullTextSearchEnabled())
+                QSKIP("SQLite build has no FTS5");
+            Asset a = makeAsset("rebuild", "C:/rebuild/a.png");
+            QVERIFY(first.insertAsset(a));
+            Metadata m;
+            m.assetId = a.id;
+            m.prompt = "a lonely lighthouse";
+            QVERIFY(first.upsertMetadata(m));
+        }
+        {
+            const QString connection = QStringLiteral("fts_rebuild_connection");
+            {
+                QSqlDatabase raw = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+                raw.setDatabaseName(path);
+                QVERIFY(raw.open());
+                QSqlQuery q(raw);
+                QVERIFY(q.exec(QStringLiteral("DROP TABLE asset_search")));
+                raw.close();
+            }
+            QSqlDatabase::removeDatabase(connection);
+        }
+
+        DatabaseManager second(path);
+        QVERIFY(second.initialize());
+        QVERIFY(second.isFullTextSearchEnabled());
+        QCOMPARE(second.searchAssets("lighthouse", QString(), {}, false).size(), 1);
+        QCOMPARE(second.countAssets("lighthouse"), 1);
+    }
+
     // A v2 database (no missing_since) must upgrade in place, keep its rows
     // and leave a backup of the previous file.
     void testMigrationAddsMissingColumnAndBacksUp()

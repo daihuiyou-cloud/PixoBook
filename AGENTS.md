@@ -12,7 +12,7 @@
 
 ### Constraints & Preferences
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
-- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 38 个检查块在其中可用
+- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 39 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
 - 第 8 轮及以前 8 个 commit；第 9 轮 c109f98 / 8f10210 / 1f1e835；第 10 轮 b2275b4 / a771806 / 3b2066c；滚动条 cdc4996 / 7568863；审计修复 26d9a8f；工作区干净
 
@@ -70,6 +70,15 @@
   - 测试：`tst_database` 新增缺失状态保留/更新清除/只删缺失/导出批量查询/v2→v3 迁移+备份；`tst_librarycontroller` 新增"删除不丢标签且可恢复"、"重扫恢复回归文件"、"导出 JSON 内容"。
   - 构建 0 错 0 警告，38/38 扫描器 PASS，6/6 测试通过。
 
+- **第 12 轮（工作区）— FTS5 检索 + 分页查询去物化**：
+  - 新增 FTS5 虚表 `asset_search(asset_id UNINDEXED, file_name, prompt, negative_prompt)`，`rowid` 与 `assets.rowid` 对齐；`ensureSearchIndex()` 启动时创建、清理孤儿行并按 `asset_id` 补建缺失索引；`insertAsset`/`updateAsset`/`upsertMetadata`/`deleteAsset`/`deleteMissingAssets` 全部同步。FTS5 不可用时自动回退 LIKE。
+  - 混合检索：先查 `COUNT(*) FROM asset_search WHERE MATCH`，命中 < 全库 5% 时走 FTS 物化+排序；命中密集（如 "portrait" 占 55%）时走 `created_at` 索引序的 LIKE 扫描，命中一页即停。总数为单独的 `countAssets()` 查询，移除 `DISTINCT` + `COUNT(*) OVER()`；标签过滤改 `EXISTS`（不再 JOIN 出重复行）。
+  - CJK：索引时在每个汉字/假名/谚文两侧加空格（unicode61 逐字成 token），查询把 CJK 连续段构造成 `"月 光"` 短语；ASCII 段用前缀 `word*`。Qt 5.13.2 自带 SQLite 无 trigram tokenizer，这是无升级依赖的替代方案。
+  - 结果（本机）：10k 常用词 3.0ms（原 31ms）、深页 5.0ms（原 53ms）、CJK 0.8ms；50k 常用词 9.9ms（原 308ms）、深页 8.1ms（原 501ms）。导入因建索引从 0.65s/5.2s 升至 2.4s/21.5s（10k/50k）。
+  - 修复：`readAssetRow()` 用 `QSqlRecord::indexOf` 判断别名列，消除 `unknown field name` 警告；迁移备份前 `q.finish()`，避免 `wal_checkpoint(FULL)` 被活动语句锁住。
+  - 测试新增 4 项：FTS 前缀/元数据更新/改名/删除同步、CJK 子串、清理缺失同时清索引、删表后自动重建。
+  - 构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_database 20 项）。
+
 #### In Progress
 - 无
 
@@ -77,7 +86,7 @@
 - 无（tst_filestorage 已在第 6 轮解决：原"静默崩溃"实为 `testScanSingleFile` 的路径分隔符断言错误——`QFileInfo::absoluteFilePath()` 返回正斜杠，测试却用 `QDir::toNativeSeparators()` 比较，已改为 `fromNativeSeparators()`；另新增 computeDiff 3 项 + per-dir 隔离集成测试，4/4 全绿）
 
 ### Key Decisions
-- 双 SQL 查询（countAssets + searchAssets）用 `COUNT(*) OVER()` 窗口函数合并为单次，减少数据库往返
+- 双 SQL 查询（countAssets + searchAssets）用 `COUNT(*) OVER()` 窗口函数合并为单次（第 12 轮已撤销：该窗口函数迫使 SQLite 评估全部命中，50k 深页 501ms；现改为独立 count 查询，CHECK 39 拦截回归）
 - `getAllTags()` 缓存到 `MainWindow::m_cachedTags`，仅标签变更时通过 `tagsChanged` 信号刷新
 - SDParser 去重读：`detectSource` 和 `parse` 共享同一份 `QByteArray`，消除二次 PNG `readAll()`
 - `final` 关键字统一加到所有无子类的具体类，帮助 MSVC devirtualization
@@ -116,10 +125,17 @@
 - 恢复扫描必须让缺失路径重新进入 scanner：`scanFolder` 的 knownPaths 只放在线条目，`assetFound` 先查 `m_scanMissingAssets` 再查 known 集合，否则同 path 会被"已导入"跳过而永远无法恢复
 - 注释导出只包含有标签/收藏/metadata 的行，用 3 次批量查询 + `QSaveFile` 原子写；JSON 保留 `hash`/`filePath` 作为将来导入时的匹配键
 - 迁移前先 `wal_checkpoint(FULL)` 再复制 `*.bak-v{n}`；v3 的 `ALTER TABLE` 用 `PRAGMA table_info` 判重，避免新库（createSchema 已含列）重复加列失败
-- 性能工作以 `pixobook_bench` 的数字为准：没有 before/after 就不做"优化"；50k 常用词 p50 308ms 证明 LIKE 全表扫描是下一轮的主目标
+- 性能工作以 `pixobook_bench` 的数字为准：没有 before/after 就不做"优化"
+- FTS5 索引是**派生数据**：可随时 `DROP TABLE asset_search`，下次启动自动重建；`asset_search.rowid` 必须等于 `assets.rowid`（reindex 按 rowid O(1) 删旧行），因此**不能对该库执行 VACUUM**（会重写 rowid）。
+- 检索策略按命中密度分流：FTS 会物化并排序全部命中，适合选择性词；密集词用 `created_at` 索引序 LIKE 扫描 + LIMIT 提前结束更快。阈值取 `matches * 20 <= totalAssets`（<5%）。
+- 总数不要用 `COUNT(*) OVER()`：它让 SQLite 在 LIMIT 之前评估所有命中，10k 深页从 5ms 退化到 53ms。查询总数单独执行；FTS 计数不需要 join。
+- 标签过滤用 `EXISTS` 而不是 `LEFT JOIN asset_tags`：JOIN 会产生重复行，逼出 `DISTINCT`，而 `DISTINCT` 又会阻止 LIMIT 提前结束。
+- CJK 用"逐字空格 + 短语查询"而不是 trigram：Qt 5.13.2 的 SQLite 3.28 没有 trigram tokenizer；升级 SQLite 前这是零依赖方案。ASCII 搜索是词前缀语义（"port" 命中 "portrait"），不再是任意中间子串。
+- FTS 同步的代价是导入变慢（每文件 insert + metadata upsert 各一次 reindex）。若需恢复导入速度，可在扫描事务结束后批量补建索引，而不是每行 reindex。
 
 ### Next Steps
-- **检索架构（下一轮）**：先验证 Qt 5.13 自带 SQLite 的 `PRAGMA compile_options` 是否含 FTS5；建 external-content FTS5 表（prompt/negative_prompt/file_name），bm25 排序 + 前缀查询；CJK 视版本用 trigram tokenizer，否则保留 LIKE 分支。目标 50k 库 p95 < 200ms（当前 p50 308ms）。
+- **导入速度回补**：当前每文件 insert + metadata upsert 各触发一次 reindex（3 条 SQL），50k 首次导入 21.5s（原 5.2s）。下一轮在扫描事务中跳过逐行 reindex，`scanFinished` 后一次性补建（`ensureSearchIndex()` 已具备补建能力），目标 50k < 8s。
+- **相关度排序**：搜索目前仍按 created_at；FTS5 可用 `bm25(asset_search)`，但需要 UI 增加"相关度"排序项，并确保与分页稳定排序 (`id ASC`) 兼容。
 - 启动时/重扫后的存在性核对：应用关闭期间被删除的文件不会触发 watcher，重扫又因路径仍在 knownPaths 中而跳过，目前只能显示为"文件不存在"但 `missing_since` 为空。下一轮在 scanFolder 完成后对候选路径做一次 `exists()` 核对（只查已导入条目，代价 O(N) stat）。
 - 缺失条目的专用视图/手动"重新定位"对话框：当前依赖重扫同一文件夹恢复；跨盘移动需要用户重新扫描新位置（同 hash 会 adopt）。
 - 注释导入（合并策略：按 hash 匹配，冲突时跳过或保留导出值），让导出文件真正可用于迁移。
@@ -147,6 +163,12 @@
 - 扫描恢复时同时维护 `m_scanMissingAssets` / `m_scanKnownPaths` / `m_scanKnownHashes`，三者不一致会导致重复行或恢复失败
 - `pixobook_bench` 是控制台程序，运行时需要 Qt bin 在 PATH（`D:\Qt5.13.2\5.13.2\msvc2017_64\bin`），否则缺 DLL 静默退出
 - 本机 `build/` 的 CMake 缓存必须指向 64 位 Qt（msvc2017_64）；`Qt5_DIR` 若解析到 msvc2017（x86）会在链接期报 677 个未解析符号
+- Qt 5.13.2 自带 SQLite 已编入 FTS5（bench 输出 `search backend FTS5` 可确认）；但没有 trigram tokenizer，CJK 依赖 `normalizeForFts()` 的逐字空格方案
+- `asset_search` 是普通 FTS5 表（不是 external content）：`rowid = assets.rowid`，`asset_id` 仅作 join/unindexed 列。reindex 必须按 rowid 删除旧行，否则会留下重复索引项
+- `ensureSearchIndex()` 每次 initialize 都执行：建表 → 清理孤儿 → 补建缺失行。它容忍 FTS5 缺失（`m_ftsAvailable=false`，搜索退回 LIKE），迁移失败不应阻止应用启动
+- 检索阈值 `matches * 20 <= totalAssets`（<5%）是经验值：低于阈值走 FTS，高于阈值走索引序 LIKE。修改阈值必须用 `pixobook_bench` 的 10k/50k 数字验证
+- `searchAssets` 的总数由 `countAssets()` 单独查询；两者必须使用完全相同的过滤条件，否则分页总数会漂移
+- FTS 同步期间不要对该库执行 `VACUUM`：VACUUM 会重写 rowid，破坏 `asset_search.rowid = assets.rowid` 的约定；若必须 VACUUM，先 `DROP TABLE asset_search` 再重开应用重建
 
 ### Relevant Files
 - `src/ui/TabBar.h/.cpp`：新增 `QFontMetrics m_tabFontMetrics{m_tabFont}` 成员，`tabRect`/`addButtonRect` 移除临时 QFontMetrics
@@ -192,7 +214,7 @@
 - `tests/tst_librarycontroller.cpp`：known path 跳过、新子目录监听、commit 失败回滚、导入返回值
 - `tests/tst_parsers.cpp`：真实 PNG tEXt/zTXt 解析
 - `tests/tst_ui.cpp`：GalleryWidget refresh 保持选择
-- `ci/scan-bug-patterns.ps1`：38 个检查块，自动扫描（新增 CHECK 38 watcher-delete-instead-of-missing）
+- `ci/scan-bug-patterns.ps1`：39 个检查块，自动扫描（新增 CHECK 38/39）
 - `src/models/Asset.h`：新增 `QDateTime missingSince` + `isMissing()`
 - `src/core/IDatabaseManager.h`：新增 missing 状态 API（`markAssetMissing`/`markAssetPresent`/`countMissingAssets`/`getMissingAssets`/`deleteMissingAssets`）与导出批量查询（`getAnnotatedAssets`/`getAllMetadata`/`getAllAssetTags`）
 - `src/database/DatabaseManager.h/.cpp`：schema v3（`missing_since` + 部分索引）、`readAssetRow()` 统一行映射、迁移前 checkpoint+备份、`hasAssetColumn()` 判重
@@ -201,6 +223,10 @@
 - `bench/bench_main.cpp` + `CMakeLists.txt`：`pixobook_bench` 目标、`CONFIGURE_DEPENDS`
 - `tests/tst_database.cpp`：缺失状态/更新清除/只删缺失/导出查询/v2→v3 迁移备份
 - `tests/tst_librarycontroller.cpp`：删除不丢标签并可恢复、重扫恢复、导出 JSON
+- `src/database/DatabaseManager.*`：FTS5 `asset_search` 虚表、`ensureSearchIndex()`/`reindexAsset()`、`normalizeForFts()`/`buildFtsMatchQuery()`、混合检索与独立 count、`isFullTextSearchEnabled()`
+- `tests/tst_database.cpp`：FTS 前缀/更新/改名/删除同步、CJK 子串、清理缺失同步清索引、删表自动重建
+- `ci/scan-bug-patterns.ps1`：CHECK 39 `window-count-materialization`
+- `bench/bench_main.cpp`：新增 CJK 查询用例与 search backend 输出
 
 ---
 
@@ -279,6 +305,7 @@
 | 44 | 路径前缀 `startsWith(root)` 无分隔符边界 | 移除 `C:/Photos` 会误停 `C:/Photos2` 的监听 | 使用 `== root || startsWith(root + '/')` |
 | 45 | 互斥 setter 误用（`setActiveFolder("")` 清标签高亮） | 选中的标签在侧栏立即失去高亮 | 选标签用 `setActiveTag()`，其内部会清文件夹高亮 |
 | 46 | 监听器把"文件消失"直接 `deleteAsset` | 外置盘/网络盘/同步目录一次抖动就永久丢失标签与收藏（唯一不可恢复的失败） | 检查 `fileRemoved` 回调是否只标记 `missing_since`；删除必须由用户显式触发（CHECK 38 会拦截） |
+| 47 | 分页总数用 `DISTINCT` + `COUNT(*) OVER()` | 迫使 SQLite 物化并统计全部命中，深页随库线性变慢（50k 501ms），LIMIT 无法提前结束 | 总数单独查询；标签过滤用 `EXISTS` 消除重复行（CHECK 39 会拦截） |
 
 ## 已修复的实例
 
@@ -359,6 +386,8 @@
 | 文件消失即删数据 (模式 46) | DatabaseManager.*, LibraryController.*, IDatabaseManager.h, Asset.h | schema v3 新增 `missing_since`；watcher 只标记缺失；恢复走 fileAdded/手动导入/重扫；清理缺失需用户二次确认 |
 | 迁移无备份/新库重复加列 | DatabaseManager.cpp | 升级前 `wal_checkpoint(FULL)` + `*.bak-v{n}`；`ALTER TABLE` 前用 `PRAGMA table_info` 判重 |
 | 缺失文件无法恢复 | LibraryController.cpp | `scanFolder` 的 knownPaths 排除缺失；`assetFound` 先查 `m_scanMissingAssets` 再查 known，`restoreMissingAsset()` 保留 id/标签/收藏 |
+| 分页总数窗口物化 (模式 47) | DatabaseManager.cpp | 移除 `DISTINCT` + `COUNT(*) OVER()`，改独立 `countAssets()`；标签过滤 `EXISTS`；50k 深页 501ms→8ms |
+| 全文检索全表扫描 | DatabaseManager.h/.cpp | FTS5 `asset_search` + 混合检索（选择性词走 FTS，密集词走索引序 LIKE）+ CJK 逐字短语 |
 
 ## 扫描器改进
 
@@ -392,6 +421,7 @@
 | CHECK 36（新增） | 检测 paintEvent 或 `draw*` 辅助方法内的 `.arg()` — 用"最近的前置函数定义行"回溯，避免被上一行的 `Namespace::call()` 误导（CHECK 21 的 `Get-NearestFunctionName` 存在该盲区） |
 | CHECK 37（新增） | 检测 `QtConcurrent::run` 工作线程段内的 `QPixmap` / `QPainter` / `generateThumbnail()` — 在 `QMetaObject::invokeMethod` 处截断以排除 GUI lambda，并剥离 `//` 注释避免文档字符串误报 |
 | CHECK 38（新增） | 检测 `fileRemoved` 回调 20 行内出现 `deleteAsset(` — 文件消失必须标记缺失而非删除；剥离 `//` 注释，遇 `});` 结束窗口，避免把后续函数误判 |
+| CHECK 39（新增） | 检测 `COUNT(*) OVER()` — 分页总数窗口函数会迫使 SQLite 物化全部命中，应改为独立 count 查询（FTS 计数无需 join） |
 
 ## 递归自我改进流程
 

@@ -67,6 +67,9 @@ QString makePrompt(QRandomGenerator &rng)
     // A rare token so "needle" matches a small subset.
     if (rng.bounded(100) == 0)
         parts << QStringLiteral("needle");
+    // A CJK phrase so CJK search has something to find.
+    if (rng.bounded(50) == 0)
+        parts << QStringLiteral("一只猫在月光下");
     return parts.join(QLatin1Char(' '));
 }
 
@@ -161,6 +164,9 @@ int main(int argc, char *argv[])
     out << QStringLiteral("PixoBook benchmark - %1 assets, %2 runs per query\n")
                .arg(assetCount)
                .arg(runs);
+    out << QStringLiteral("search backend                 %1\n")
+               .arg(db.isFullTextSearchEnabled() ? QStringLiteral("FTS5")
+                                                 : QStringLiteral("LIKE (fallback)"));
 
     const double importMs = measureMs([&]() {
         if (!db.beginTransaction()) {
@@ -208,6 +214,7 @@ int main(int argc, char *argv[])
         {"search common word (\"portrait\")", "portrait"},
         {"search selective word (\"needle\")", "needle"},
         {"search miss (\"zzzzzz\")", "zzzzzz"},
+        {"search CJK (\"月光\")", "月光"},
     };
 
     for (const auto &c : cases) {

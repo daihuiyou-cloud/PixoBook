@@ -43,6 +43,9 @@ public:
     QHash<QString, Metadata> getAllMetadata() const override;
     QHash<QString, QVector<Tag>> getAllAssetTags() const override;
 
+    // False when the SQLite build lacks FTS5; search then falls back to LIKE.
+    [[nodiscard]] bool isFullTextSearchEnabled() const { return m_ftsAvailable; }
+
     [[nodiscard]] bool upsertMetadata(const Metadata &metadata) override;
     Metadata getMetadata(const QString &assetId) const override;
 
@@ -71,11 +74,14 @@ private:
     [[nodiscard]] bool migrate();
     [[nodiscard]] bool hasAssetColumn(const QString &column) const;
     void backupBeforeMigration(int fromVersion) const;
+    [[nodiscard]] bool ensureSearchIndex();
+    void reindexAsset(const QString &assetId);
 
     QSqlDatabase m_db;
     QString m_connectionName;
     QString m_dbPath;
     int m_txDepth = 0;
+    bool m_ftsAvailable = false;
 };
 
 #endif

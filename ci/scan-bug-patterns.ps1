@@ -1135,6 +1135,25 @@ if ($watcherDeleteIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 39: COUNT(*) OVER() used to return a page total.
+#   The window function makes SQLite evaluate every matching row before
+#   LIMIT can stop an index-ordered scan. Query the total separately (FTS5
+#   can answer it without joins) so a 50k library does not stall the UI.
+# ====================================================================
+$windowCountIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "COUNT\(\*\) OVER\s*\(" | ForEach-Object {
+    $code = $_.Line -replace '//.*$', ''
+    if ($code -match 'COUNT\(\*\) OVER') {
+        $windowCountIssues += "$($_.Filename):$($_.LineNumber) — COUNT(*) OVER() forces full materialization; query the count separately"
+    }
+}
+if ($windowCountIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "window-count-materialization"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "window-count-materialization"; Status = "FAIL"; Details = ($windowCountIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

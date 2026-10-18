@@ -11,7 +11,8 @@ A desktop application for managing, browsing, searching, and organizing AI-gener
   - **Stable Diffusion** — Parses prompt, negative prompt, seed, steps, CFG scale, model, sampler from PNG `tEXt`/`zTXt` chunks
   - **Midjourney** — Extracts seed and model name from filename patterns
   - **DALL-E** — Extracts prompt from filename patterns
-- **Database** — SQLite-backed storage with tags, favorites, prompt/filename search, and metadata querying
+- **Database** — SQLite-backed storage with tags, favorites, and metadata querying
+- **Full-text search** — FTS5 index over prompts and filenames. ASCII terms match word prefixes; CJK text is indexed per character so a substring such as "月光" matches inside a longer prompt. Falls back to `LIKE` when the SQLite build has no FTS5.
 - **Image gallery** — Grid-based thumbnail view with lazy loading, keyboard navigation, multi-select, and drag-and-drop import
 - **Lightbox viewer** — Full-screen image viewer with zoom/pan and navigation
 - **Detail panel** — Slide-out panel showing full image preview, metadata, and tag management
@@ -53,11 +54,20 @@ ctest
 
 The benchmark builds a synthetic library in a temporary database and reports
 batched-import time plus search latency (min/p50/p95) for a common word, a
-selective word, a miss, and a deep page. Compare the numbers across commits;
-they are measurements of the same machine, not absolute targets. Reference
-run on the development machine (10k assets): import 0.65 s, search p50 31 ms,
-deep page p50 53 ms. At 50k assets the `LIKE '%word%'` scan reaches p50 308 ms,
-which is why FTS5 is the next architectural step.
+selective word, a miss, a CJK phrase, and a deep page. Compare the numbers
+across commits; they are measurements of the same machine, not absolute
+targets.
+
+Reference run with the FTS5 index (development machine):
+
+| assets | import | common | selective | miss | CJK | deep page |
+|--------|--------|--------|-----------|------|-----|-----------|
+| 10k    | 2.4 s  | 3.0 ms | 1.1 ms    | 0.1 ms | 0.8 ms | 5.0 ms |
+| 50k    | 21.5 s | 9.9 ms | 19.4 ms   | 0.5 ms | 8.8 ms | 8.1 ms |
+
+The import figure includes building the search index (roughly 2.3k assets/s at
+50k). Before FTS5, the same machine measured 31 ms / 308 ms for the common
+word and 53 ms / 501 ms for the deep page at 10k / 50k.
 
 ## Project structure
 

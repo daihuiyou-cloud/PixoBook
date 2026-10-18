@@ -1,6 +1,7 @@
 #include "DatabaseManager.h"
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QSqlRecord>
 #include <QDebug>
 #include <QDateTime>
 #include <QDir>
@@ -58,6 +59,85 @@ QString escapeLikePattern(const QString &value)
     return escaped;
 }
 
+bool isCjk(QChar c)
+{
+    switch (c.script()) {
+    case QChar::Script_Han:
+    case QChar::Script_Hiragana:
+    case QChar::Script_Katakana:
+    case QChar::Script_Hangul:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// FTS5's unicode61 tokenizer treats a run of CJK characters as one token, so
+// "月光" would only match a whole-token query. Inserting spaces between the
+// characters makes each one a token; a quoted phrase ("月 光") then matches
+// adjacent characters, which is the behaviour users expect from substring
+// search. ASCII text is left untouched (the tokenizer already splits it).
+QString normalizeForFts(const QString &text)
+{
+    QString out;
+    out.reserve(text.size() + text.size() / 4);
+    for (const QChar c : text) {
+        if (isCjk(c)) {
+            if (!out.isEmpty() && !out.endsWith(QLatin1Char(' ')))
+                out += QLatin1Char(' ');
+            out += c;
+            out += QLatin1Char(' ');
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
+// Turns user input into an FTS5 MATCH expression: ASCII/word runs become
+// prefix terms (portrait*), CJK runs become character phrases ("月 光").
+// An empty result means "nothing searchable" and the caller falls back to
+// LIKE so punctuation-only queries keep working.
+QString buildFtsMatchQuery(const QString &keyword)
+{
+    QStringList terms;
+    QString word;
+    QString cjkRun;
+    const auto flushWord = [&]() {
+        if (!word.isEmpty()) {
+            terms.append(word + QLatin1Char('*'));
+            word.clear();
+        }
+    };
+    const auto flushCjk = [&]() {
+        if (!cjkRun.isEmpty()) {
+            QStringList chars;
+            chars.reserve(cjkRun.size());
+            for (const QChar c : cjkRun)
+                chars.append(QString(c));
+            terms.append(QLatin1Char('"') + chars.join(QLatin1Char(' '))
+                         + QLatin1Char('"'));
+            cjkRun.clear();
+        }
+    };
+
+    for (const QChar c : keyword) {
+        if (isCjk(c)) {
+            flushWord();
+            cjkRun += c;
+        } else if (c.isLetterOrNumber()) {
+            flushCjk();
+            word += c;
+        } else {
+            flushWord();
+            flushCjk();
+        }
+    }
+    flushWord();
+    flushCjk();
+    return terms.join(QStringLiteral(" AND "));
+}
+
 Asset readAssetRow(const QSqlQuery &q)
 {
     Asset a;
@@ -75,8 +155,12 @@ Asset readAssetRow(const QSqlQuery &q)
     a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
     a.missingSince = parseIsoDt(q.value("missing_since").toString(), Qt::ISODate);
     // Only present when the query joined metadata, as searchAssets() does.
-    a.metadataSource = q.value("metadata_source").toString();
-    a.metadataPrompt = q.value("metadata_prompt").toString();
+    // QSqlQuery::value(name) warns on unknown fields, so check the record first.
+    const QSqlRecord record = q.record();
+    if (record.indexOf(QStringLiteral("metadata_source")) >= 0)
+        a.metadataSource = q.value("metadata_source").toString();
+    if (record.indexOf(QStringLiteral("metadata_prompt")) >= 0)
+        a.metadataPrompt = q.value("metadata_prompt").toString();
     return a;
 }
 }
@@ -89,7 +173,9 @@ bool DatabaseManager::initialize()
     }
     if (!createSchema())
         return false;
-    return migrate();
+    if (!migrate())
+        return false;
+    return ensureSearchIndex();
 }
 
 bool DatabaseManager::createSchema()
@@ -187,6 +273,9 @@ bool DatabaseManager::migrate()
     int version = 0;
     if (q.next())
         version = q.value(0).toInt();
+    // Release the read statement before the checkpoint below; SQLite refuses
+    // wal_checkpoint(FULL) while a statement on the same connection is active.
+    q.finish();
 
     if (version > 0 && version < kSchemaVersion)
         backupBeforeMigration(version);
@@ -278,6 +367,86 @@ void DatabaseManager::backupBeforeMigration(int fromVersion) const
         qInfo() << "Database backed up to" << backupPath;
 }
 
+bool DatabaseManager::ensureSearchIndex()
+{
+    QSqlQuery create(m_db);
+    if (!create.exec("CREATE VIRTUAL TABLE IF NOT EXISTS asset_search USING fts5("
+                     "asset_id UNINDEXED, file_name, prompt, negative_prompt, "
+                     "tokenize = 'unicode61 remove_diacritics 2')")) {
+        qWarning() << "FTS5 search index unavailable, falling back to LIKE:"
+                   << create.lastError().text();
+        m_ftsAvailable = false;
+        return true;
+    }
+    m_ftsAvailable = true;
+
+    // Drop rows whose asset is gone (a delete that failed half-way, or a row
+    // removed by an older build). The join on assets hides them from search,
+    // but they would otherwise inflate the index forever.
+    QSqlQuery prune(m_db);
+    if (!prune.exec("DELETE FROM asset_search WHERE asset_id NOT IN (SELECT id FROM assets)"))
+        qWarning() << "FTS prune failed:" << prune.lastError().text();
+
+    // Index anything that has no search row yet: first run after the upgrade,
+    // or rows that were inserted while the index was unavailable.
+    QVector<QString> pending;
+    QSqlQuery missing(m_db);
+    if (missing.exec("SELECT a.id FROM assets a LEFT JOIN asset_search s "
+                     "ON s.asset_id = a.id WHERE s.rowid IS NULL")) {
+        while (missing.next())
+            pending.append(missing.value(0).toString());
+    }
+    if (pending.isEmpty())
+        return true;
+
+    if (!beginTransaction())
+        return true;
+    for (const auto &id : pending)
+        reindexAsset(id);
+    if (!commitTransaction()) {
+        qWarning() << "FTS backfill commit failed";
+        (void)rollbackTransaction();
+    }
+    return true;
+}
+
+void DatabaseManager::reindexAsset(const QString &assetId)
+{
+    if (!m_ftsAvailable)
+        return;
+    QSqlQuery info(m_db);
+    info.prepare("SELECT a.rowid, a.file_name, COALESCE(m.prompt, ''), "
+                 "COALESCE(m.negative_prompt, '') "
+                 "FROM assets a LEFT JOIN metadata m ON m.asset_id = a.id "
+                 "WHERE a.id = ?");
+    info.addBindValue(assetId);
+    if (!info.exec() || !info.next())
+        return;
+    const qint64 rowid = info.value(0).toLongLong();
+    const QString fileName = normalizeForFts(info.value(1).toString());
+    const QString prompt = normalizeForFts(info.value(2).toString());
+    const QString negative = normalizeForFts(info.value(3).toString());
+    info.finish();
+
+    QSqlQuery del(m_db);
+    del.prepare("DELETE FROM asset_search WHERE rowid = ?");
+    del.addBindValue(rowid);
+    if (!del.exec())
+        qWarning() << "FTS delete failed:" << del.lastError().text();
+
+    QSqlQuery ins(m_db);
+    ins.prepare("INSERT INTO asset_search "
+                "(rowid, asset_id, file_name, prompt, negative_prompt) "
+                "VALUES (?, ?, ?, ?, ?)");
+    ins.addBindValue(rowid);
+    ins.addBindValue(assetId);
+    ins.addBindValue(fileName);
+    ins.addBindValue(prompt);
+    ins.addBindValue(negative);
+    if (!ins.exec())
+        qWarning() << "FTS insert failed:" << ins.lastError().text();
+}
+
 bool DatabaseManager::insertAsset(const Asset &asset)
 {
     QSqlQuery q(m_db);
@@ -300,6 +469,7 @@ bool DatabaseManager::insertAsset(const Asset &asset)
         qWarning() << "insertAsset failed:" << q.lastError().text();
         return false;
     }
+    reindexAsset(asset.id);
     return true;
 }
 
@@ -321,7 +491,10 @@ bool DatabaseManager::updateAsset(const Asset &asset)
     q.addBindValue(asset.folderId);
     q.addBindValue(QDateTime::currentDateTime().toString(Qt::ISODate));
     q.addBindValue(asset.id);
-    return q.exec();
+    if (!q.exec())
+        return false;
+    reindexAsset(asset.id);
+    return true;
 }
 
 bool DatabaseManager::updateAssetFavorite(const QString &assetId, bool isFavorite)
@@ -336,10 +509,31 @@ bool DatabaseManager::updateAssetFavorite(const QString &assetId, bool isFavorit
 
 bool DatabaseManager::deleteAsset(const QString &assetId)
 {
+    // Capture rowid first: the search row is deleted by rowid after the asset
+    // is gone, and a failed delete must leave the index untouched.
+    qint64 rowid = -1;
+    if (m_ftsAvailable) {
+        QSqlQuery idq(m_db);
+        idq.prepare("SELECT rowid FROM assets WHERE id=?");
+        idq.addBindValue(assetId);
+        if (idq.exec() && idq.next())
+            rowid = idq.value(0).toLongLong();
+    }
+
     QSqlQuery q(m_db);
     q.prepare("DELETE FROM assets WHERE id=?");
     q.addBindValue(assetId);
-    return q.exec();
+    if (!q.exec())
+        return false;
+
+    if (m_ftsAvailable && rowid >= 0) {
+        QSqlQuery fts(m_db);
+        fts.prepare("DELETE FROM asset_search WHERE rowid=?");
+        fts.addBindValue(rowid);
+        if (!fts.exec())
+            qWarning() << "FTS delete failed:" << fts.lastError().text();
+    }
+    return true;
 }
 
 Asset DatabaseManager::getAsset(const QString &assetId) const
@@ -372,13 +566,46 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
                                               const QString &folderPath) const
 {
     QVector<Asset> assets;
-    QString sql = "SELECT DISTINCT a.*, m.source AS metadata_source, m.prompt AS metadata_prompt FROM assets a "
-                  "LEFT JOIN metadata m ON a.id = m.asset_id "
-                  "LEFT JOIN asset_tags at ON a.id = at.asset_id "
-                  "WHERE 1=1 ";
+    const QString ftsQuery = m_ftsAvailable ? buildFtsMatchQuery(keyword) : QString();
+    const bool hasFtsQuery = !ftsQuery.isEmpty();
+
+    // Choose how to retrieve the page. FTS materializes and sorts all matches,
+    // which wins for selective terms. For a common word, walking the
+    // created_at index with LIKE stops as soon as the page is full, which is
+    // much cheaper than sorting tens of thousands of FTS hits.
+    bool retrieveWithFts = false;
+    if (hasFtsQuery) {
+        int matches = 0;
+        QSqlQuery matchCount(m_db);
+        matchCount.prepare("SELECT COUNT(*) FROM asset_search WHERE asset_search MATCH ?");
+        matchCount.addBindValue(ftsQuery);
+        if (matchCount.exec() && matchCount.next())
+            matches = matchCount.value(0).toInt();
+
+        int totalAssets = 0;
+        QSqlQuery totalQuery(m_db);
+        if (totalQuery.exec("SELECT COUNT(*) FROM assets") && totalQuery.next())
+            totalAssets = totalQuery.value(0).toInt();
+
+        // Less than ~5% of the library: index the candidates. Otherwise let
+        // the ordered LIKE scan stop after the requested page.
+        retrieveWithFts = totalAssets <= 0 || matches * 20 <= totalAssets;
+    }
+
+    QString from = "FROM assets a LEFT JOIN metadata m ON a.id = m.asset_id ";
+    if (retrieveWithFts) {
+        from = "FROM asset_search "
+               "JOIN assets a ON a.id = asset_search.asset_id "
+               "LEFT JOIN metadata m ON a.id = m.asset_id ";
+    }
+    QString sql = "SELECT a.*, m.source AS metadata_source, "
+                  "m.prompt AS metadata_prompt " + from + "WHERE 1=1 ";
     QVector<QVariant> binds;
 
-    if (!keyword.isEmpty()) {
+    if (retrieveWithFts) {
+        sql += "AND asset_search MATCH ? ";
+        binds.append(ftsQuery);
+    } else if (!keyword.isEmpty()) {
         sql += "AND (a.file_name LIKE ? OR m.prompt LIKE ?) ";
         auto kw = "%" + keyword + "%";
         binds.append(kw);
@@ -397,7 +624,10 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
             placeholders << "?";
             binds.append(tid);
         }
-        sql += "AND at.tag_id IN (" + placeholders.join(",") + ") ";
+        // EXISTS keeps one row per asset, so the query needs no DISTINCT
+        // (DISTINCT would materialize the whole result before LIMIT).
+        sql += "AND EXISTS (SELECT 1 FROM asset_tags at WHERE at.asset_id = a.id "
+               "AND at.tag_id IN (" + placeholders.join(",") + ")) ";
     }
     if (!folderPath.isEmpty()) {
         // Match files directly in the folder and everything below it. LIKE is
@@ -414,16 +644,8 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
 
     // id is a stable tie-breaker: without it, rows sharing the same sort key
     // (e.g. identical created_at) can move between LIMIT/OFFSET pages.
-    if (outTotalCount) {
-        int dot = sortCol.indexOf('.');
-        QString sortColOuter = dot >= 0 ? sortCol.mid(dot + 1) : sortCol;
-        sql = "SELECT *, COUNT(*) OVER() AS _total_count FROM (" + sql + ") AS _inner "
-              "ORDER BY " + sortColOuter + " " + (sortAscending ? "ASC" : "DESC")
-              + ", id ASC";
-    } else {
-        sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC")
-               + ", a.id ASC";
-    }
+    sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC")
+           + ", a.id ASC";
 
     if (limit > 0) {
         sql += " LIMIT ? OFFSET ?";
@@ -437,17 +659,13 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
         q.addBindValue(b);
 
     if (q.exec()) {
-        bool gotCount = false;
-        while (q.next()) {
+        while (q.next())
             assets.append(readAssetRow(q));
-            if (outTotalCount && !gotCount) {
-                *outTotalCount = q.value("_total_count").toInt();
-                gotCount = true;
-            }
-        }
-        if (outTotalCount && !gotCount)
-            *outTotalCount = 0;
     }
+    // Count separately: a window function would force SQLite to evaluate
+    // every match before LIMIT could stop the ordered scan.
+    if (outTotalCount)
+        *outTotalCount = countAssets(keyword, source, tagIds, onlyFavorites, folderPath);
     return assets;
 }
 
@@ -455,13 +673,41 @@ int DatabaseManager::countAssets(const QString &keyword, const QString &source,
                                   const QVector<int> &tagIds, bool onlyFavorites,
                                   const QString &folderPath) const
 {
-    QString sql = "SELECT COUNT(DISTINCT a.id) FROM assets a "
-                  "LEFT JOIN metadata m ON a.id = m.asset_id "
-                  "LEFT JOIN asset_tags at ON a.id = at.asset_id "
-                  "WHERE 1=1 ";
+    const bool hasFilters = !source.isEmpty() || onlyFavorites
+                            || !tagIds.isEmpty() || !folderPath.isEmpty();
+    const QString ftsQuery = m_ftsAvailable ? buildFtsMatchQuery(keyword) : QString();
+    const bool useFts = !ftsQuery.isEmpty();
+
+    // Unfiltered counts are the hot path (status bar, total on every page).
+    // FTS can answer them without touching the assets/metadata joins.
+    if (!hasFilters && useFts) {
+        QSqlQuery q(m_db);
+        q.prepare("SELECT COUNT(*) FROM asset_search WHERE asset_search MATCH ?");
+        q.addBindValue(ftsQuery);
+        if (q.exec() && q.next())
+            return q.value(0).toInt();
+        return 0;
+    }
+    if (!hasFilters && keyword.isEmpty()) {
+        QSqlQuery q(m_db);
+        if (q.exec("SELECT COUNT(*) FROM assets") && q.next())
+            return q.value(0).toInt();
+        return 0;
+    }
+
+    QString from = "FROM assets a LEFT JOIN metadata m ON a.id = m.asset_id ";
+    if (useFts) {
+        from = "FROM asset_search "
+               "JOIN assets a ON a.id = asset_search.asset_id "
+               "LEFT JOIN metadata m ON a.id = m.asset_id ";
+    }
+    QString sql = "SELECT COUNT(DISTINCT a.id) " + from + "WHERE 1=1 ";
     QVector<QVariant> binds;
 
-    if (!keyword.isEmpty()) {
+    if (useFts) {
+        sql += "AND asset_search MATCH ? ";
+        binds.append(ftsQuery);
+    } else if (!keyword.isEmpty()) {
         sql += "AND (a.file_name LIKE ? OR m.prompt LIKE ?) ";
         auto kw = "%" + keyword + "%";
         binds.append(kw);
@@ -480,7 +726,8 @@ int DatabaseManager::countAssets(const QString &keyword, const QString &source,
             placeholders << "?";
             binds.append(tid);
         }
-        sql += "AND at.tag_id IN (" + placeholders.join(",") + ") ";
+        sql += "AND EXISTS (SELECT 1 FROM asset_tags at WHERE at.asset_id = a.id "
+               "AND at.tag_id IN (" + placeholders.join(",") + ")) ";
     }
     if (!folderPath.isEmpty()) {
         const QString prefix = escapeLikePattern(normalizeFolderPath(folderPath));
@@ -569,9 +816,25 @@ QVector<Asset> DatabaseManager::getMissingAssets() const
 
 bool DatabaseManager::deleteMissingAssets()
 {
+    if (!beginTransaction())
+        return false;
+    if (m_ftsAvailable) {
+        QSqlQuery fts(m_db);
+        if (!fts.exec("DELETE FROM asset_search WHERE rowid IN "
+                      "(SELECT rowid FROM assets WHERE missing_since <> '')")) {
+            qWarning() << "deleteMissingAssets: FTS delete failed:" << fts.lastError().text();
+            (void)rollbackTransaction();
+            return false;
+        }
+    }
     QSqlQuery q(m_db);
     if (!q.exec("DELETE FROM assets WHERE missing_since <> ''")) {
         qWarning() << "deleteMissingAssets failed:" << q.lastError().text();
+        (void)rollbackTransaction();
+        return false;
+    }
+    if (!commitTransaction()) {
+        (void)rollbackTransaction();
         return false;
     }
     return true;
@@ -655,6 +918,7 @@ bool DatabaseManager::upsertMetadata(const Metadata &metadata)
         qWarning() << "upsertMetadata failed:" << q.lastError().text();
         return false;
     }
+    reindexAsset(metadata.assetId);
     return true;
 }
 

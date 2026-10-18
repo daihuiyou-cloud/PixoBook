@@ -414,6 +414,14 @@ void LightboxWidget::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    // Clicks on the top/bottom overlay bars (filename, counter, empty toolbar
+    // space) must not be treated as "click outside the image" and close.
+    if (m_overlayVisible
+        && (QRect(0, 0, width(), 40).contains(event->pos())
+            || QRect(0, height() - 50, width(), 50).contains(event->pos()))) {
+        return;
+    }
+
     QRect imgArea = imageRect();
     if (imgArea.contains(event->pos())) {
         if (m_zoom > 1.05) {

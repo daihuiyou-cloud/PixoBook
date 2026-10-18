@@ -22,6 +22,9 @@ public:
 
     void setAssets(const QVector<Asset> &assets);
     void setAssets(const QVector<Asset> &assets, int totalCount);
+    // Re-query after a data change: keeps scroll position and re-selects the
+    // same asset ids when they are still present.
+    void refreshAssets(const QVector<Asset> &assets, int totalCount);
     void appendPage(const QVector<Asset> &assets, int totalCount);
     void appendAssets(const QVector<Asset> &assets);
     void clearAssets();

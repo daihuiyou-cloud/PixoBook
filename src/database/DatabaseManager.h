@@ -27,7 +27,8 @@ public:
                                 const QString &sortField = "created_at",
                                 bool sortAscending = false,
                                 int offset = 0, int limit = -1,
-                                int *outTotalCount = nullptr) const override;
+                                int *outTotalCount = nullptr,
+                                const QString &folderPath = QString()) const override;
     Asset findByPath(const QString &filePath) const override;
     Asset findByHash(const QString &hash) const override;
 
@@ -51,7 +52,8 @@ public:
     [[nodiscard]] bool rollbackTransaction() override;
 
     [[nodiscard]] int countAssets(const QString &keyword = {}, const QString &source = {},
-                                    const QVector<int> &tagIds = {}, bool onlyFavorites = false) const override;
+                                    const QVector<int> &tagIds = {}, bool onlyFavorites = false,
+                                    const QString &folderPath = QString()) const override;
 
 private:
     [[nodiscard]] bool createSchema();

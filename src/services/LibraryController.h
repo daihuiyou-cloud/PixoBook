@@ -30,7 +30,8 @@ public:
                               const QVector<int> &tagIds = {}, bool onlyFavorites = false,
                               const QString &sortField = "created_at", bool sortAscending = false,
                               int offset = 0, int limit = -1,
-                              int *outTotalCount = nullptr) const;
+                              int *outTotalCount = nullptr,
+                              const QString &folderPath = QString()) const;
     Asset getAsset(const QString &id) const;
     Metadata getMetadata(const QString &assetId) const;
     QVector<Tag> getTagsForAsset(const QString &assetId) const;
@@ -53,14 +54,15 @@ public:
     void setFolders(const QStringList &folders) { m_folders = folders; }
     [[nodiscard]] bool hasFolder(const QString &dir) const { return m_folders.contains(dir); }
 
-    // File operations
-    void scanAndInsertFile(const QString &path);
+    // File operations. Returns true when a new asset row was inserted.
+    [[nodiscard]] bool scanAndInsertFile(const QString &path);
     [[nodiscard]] bool deleteAssets(const QVector<Asset> &assets);
     void toggleFavorite(const QString &assetId, bool isFavorite);
 
     // Count
     int countAssets(const QString &keyword = {}, const QString &source = {},
-                    const QVector<int> &tagIds = {}, bool onlyFavorites = false) const;
+                    const QVector<int> &tagIds = {}, bool onlyFavorites = false,
+                    const QString &folderPath = QString()) const;
 
 signals:
     void assetCountChanged(int count);

@@ -21,6 +21,9 @@ public:
     QString sourceFilter() const;
     QString sortField() const;
     bool sortAscending() const;
+    // Updates the combo to match a programmatic sort change without emitting
+    // filterChanged (used when switching tabs).
+    void setSortSelection(const QString &field, bool ascending);
     bool onlyFavorites() const;
     void focusSearch();
     void setFavFilter(bool on);

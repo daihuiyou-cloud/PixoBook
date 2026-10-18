@@ -2,6 +2,7 @@
 #define FILESCANNER_H
 
 #include <QObject>
+#include <QSet>
 #include <QVector>
 #include <QMetaType>
 #include "models/Asset.h"
@@ -20,7 +21,10 @@ class FileScanner : public QObject
 public:
     explicit FileScanner(QObject *parent = nullptr);
 
-    void scanDirectory(const QString &dirPath, bool recursive = true);
+    // knownPaths lets a rescan skip hash/metadata work for already-imported
+    // files; they are filtered out before any expensive I/O.
+    void scanDirectory(const QString &dirPath, bool recursive = true,
+                       const QSet<QString> &knownPaths = {});
     static Asset scanSingleFile(const QString &filePath);
     [[nodiscard]] static bool isSupportedFormat(const QString &filePath);
     static QString computeHash(const QString &filePath);
@@ -33,7 +37,8 @@ signals:
     void scanFinished();
 
 private:
-    QVector<ScannedAsset> scanDirectorySync(const QString &dirPath, bool recursive) const;
+    QVector<ScannedAsset> scanDirectorySync(const QString &dirPath, bool recursive,
+                                            const QSet<QString> &knownPaths) const;
 };
 
 #endif

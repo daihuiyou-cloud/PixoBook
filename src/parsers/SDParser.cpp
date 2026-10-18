@@ -143,6 +143,14 @@ Metadata SDParser::parseFromPNGChunks(const QString &filePath) const
     if (!file.open(QIODevice::ReadOnly))
         return {};
 
+    // Check the signature first: reading a whole JPEG/WEBP only to fail the
+    // PNG check is pure I/O waste during a folder scan.
+    static const QByteArray kPngSignature("\x89PNG\r\n\x1a\n", 8);
+    if (file.read(8) != kPngSignature)
+        return {};
+    if (!file.seek(0))
+        return {};
+
     QByteArray data = file.readAll();
     Metadata meta;
     if (tryParseFromData(data, meta))

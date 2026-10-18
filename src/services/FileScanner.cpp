@@ -17,14 +17,16 @@ FileScanner::FileScanner(QObject *parent)
 {
 }
 
-void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
+void FileScanner::scanDirectory(const QString &dirPath, bool recursive,
+                                const QSet<QString> &knownPaths)
 {
     emit scanStarted();
     QPointer<FileScanner> guard(this);
-    QtConcurrent::run([guard, dirPath, recursive]() {
+    QtConcurrent::run([guard, dirPath, recursive, knownPaths]() {
         FileScanner *self = guard.data();
         if (!self) return;
-        auto assets = std::make_shared<QVector<ScannedAsset>>(self->scanDirectorySync(dirPath, recursive));
+        auto assets = std::make_shared<QVector<ScannedAsset>>(
+            self->scanDirectorySync(dirPath, recursive, knownPaths));
         self = guard.data();
         if (!self) return;
         int total = assets->size();
@@ -48,7 +50,8 @@ void FileScanner::scanDirectory(const QString &dirPath, bool recursive)
     });
 }
 
-QVector<ScannedAsset> FileScanner::scanDirectorySync(const QString &dirPath, bool recursive) const
+QVector<ScannedAsset> FileScanner::scanDirectorySync(const QString &dirPath, bool recursive,
+                                                     const QSet<QString> &knownPaths) const
 {
     QVector<ScannedAsset> assets;
     QDirIterator::IteratorFlags flags = recursive ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags;
@@ -70,8 +73,14 @@ QVector<ScannedAsset> FileScanner::scanDirectorySync(const QString &dirPath, boo
         asset.fileSize = fi.size();
         asset.format = ext;
         asset.folderId = fi.absolutePath();
-        asset.createdAt = fi.birthTime();
         asset.updatedAt = fi.lastModified();
+        asset.createdAt = fi.birthTime();
+        if (!asset.createdAt.isValid())
+            asset.createdAt = asset.updatedAt;
+
+        // Already imported: skip the expensive dimension/hash/metadata work.
+        if (knownPaths.contains(asset.filePath))
+            continue;
 
         QImageReader reader(asset.filePath);
         QSize dims = reader.size();
@@ -119,8 +128,10 @@ Asset FileScanner::scanSingleFile(const QString &filePath)
     asset.fileSize = fi.size();
     asset.format = ext;
     asset.folderId = fi.absolutePath();
-    asset.createdAt = fi.birthTime();
     asset.updatedAt = fi.lastModified();
+    asset.createdAt = fi.birthTime();
+    if (!asset.createdAt.isValid())
+        asset.createdAt = asset.updatedAt;
 
     QImageReader reader(asset.filePath);
     QSize dims = reader.size();

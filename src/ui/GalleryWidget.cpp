@@ -181,6 +181,47 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     update();
 }
 
+void GalleryWidget::refreshAssets(const QVector<Asset> &assets, int totalCount)
+{
+    const int oldScroll = m_scrollOffset;
+    QSet<QString> selectedIds;
+    selectedIds.reserve(m_selectedIndices.size());
+    for (int idx : qAsConst(m_selectedIndices)) {
+        if (idx >= 0 && idx < m_assets.size())
+            selectedIds.insert(m_assets[idx].id);
+    }
+    const QString currentId = m_selectedAsset.id;
+    const bool hadSelection = !selectedIds.isEmpty() || !currentId.isEmpty();
+
+    m_assets = assets;
+    m_totalAssetCount = totalCount;
+    m_hoveredIndex = -1;
+    m_lastClickedIndex = -1;
+    m_selectedAsset = {};
+    m_selectedIndices.clear();
+    m_fileExistsCache.clear();
+    pruneRequestedThumbnails(assets);
+    rebuildMetaLines();
+    layoutItems();
+
+    for (int i = 0; i < m_assets.size(); ++i) {
+        if (!selectedIds.contains(m_assets[i].id))
+            continue;
+        m_selectedIndices.insert(i);
+        if (m_assets[i].id == currentId || m_selectedAsset.id.isEmpty())
+            m_selectedAsset = m_assets[i];
+    }
+    if (m_lastClickedIndex < 0 && !m_selectedIndices.isEmpty())
+        m_lastClickedIndex = *m_selectedIndices.constBegin();
+
+    m_scrollOffset = qBound(0, oldScroll, maxScrollOffset());
+    ensureThumbnailsForVisibleItems();
+    update();
+
+    if (hadSelection && m_selectedIndices.isEmpty())
+        emit assetSelected({});
+}
+
 void GalleryWidget::appendPage(const QVector<Asset> &assets, int totalCount)
 {
     m_totalAssetCount = totalCount;

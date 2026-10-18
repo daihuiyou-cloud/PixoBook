@@ -3,6 +3,7 @@
 #include <QSqlError>
 #include <QDebug>
 #include <QDateTime>
+#include <QDir>
 
 DatabaseManager::DatabaseManager(const QString &dbPath)
 {
@@ -27,6 +28,27 @@ QDateTime parseIsoDt(const QString &s, Qt::DateFormat fmt = Qt::ISODate)
 {
     auto dt = QDateTime::fromString(s, fmt);
     return dt.isValid() ? dt : QDateTime();
+}
+
+// Asset.filePath always uses '/' separators (QFileInfo::absoluteFilePath).
+QString normalizeFolderPath(const QString &path)
+{
+    QString p = QDir::fromNativeSeparators(path);
+    while (p.size() > 1 && p.endsWith('/'))
+        p.chop(1);
+    return p;
+}
+
+QString escapeLikePattern(const QString &value)
+{
+    QString escaped;
+    escaped.reserve(value.size());
+    for (const QChar c : value) {
+        if (c == '\\' || c == '%' || c == '_')
+            escaped += '\\';
+        escaped += c;
+    }
+    return escaped;
 }
 }
 
@@ -279,7 +301,8 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
                                               const QVector<int> &tagIds, bool onlyFavorites,
                                               const QString &sortField, bool sortAscending,
                                               int offset, int limit,
-                                              int *outTotalCount) const
+                                              int *outTotalCount,
+                                              const QString &folderPath) const
 {
     QVector<Asset> assets;
     QString sql = "SELECT DISTINCT a.*, m.source AS metadata_source, m.prompt AS metadata_prompt FROM assets a "
@@ -308,6 +331,14 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
             binds.append(tid);
         }
         sql += "AND at.tag_id IN (" + placeholders.join(",") + ") ";
+    }
+    if (!folderPath.isEmpty()) {
+        // Match files directly in the folder and everything below it. LIKE is
+        // case-insensitive for ASCII paths on Windows; '%'/'_' are escaped.
+        const QString prefix = escapeLikePattern(normalizeFolderPath(folderPath));
+        sql += "AND (a.file_path LIKE ? ESCAPE '\\' OR a.file_path LIKE ? ESCAPE '\\') ";
+        binds.append(prefix);
+        binds.append(prefix + "/%");
     }
     // Validate sort field to prevent SQL injection
     QString sortCol = "a.created_at";
@@ -369,7 +400,8 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
 }
 
 int DatabaseManager::countAssets(const QString &keyword, const QString &source,
-                                  const QVector<int> &tagIds, bool onlyFavorites) const
+                                  const QVector<int> &tagIds, bool onlyFavorites,
+                                  const QString &folderPath) const
 {
     QString sql = "SELECT COUNT(DISTINCT a.id) FROM assets a "
                   "LEFT JOIN metadata m ON a.id = m.asset_id "
@@ -397,6 +429,12 @@ int DatabaseManager::countAssets(const QString &keyword, const QString &source,
             binds.append(tid);
         }
         sql += "AND at.tag_id IN (" + placeholders.join(",") + ") ";
+    }
+    if (!folderPath.isEmpty()) {
+        const QString prefix = escapeLikePattern(normalizeFolderPath(folderPath));
+        sql += "AND (a.file_path LIKE ? ESCAPE '\\' OR a.file_path LIKE ? ESCAPE '\\') ";
+        binds.append(prefix);
+        binds.append(prefix + "/%");
     }
 
     QSqlQuery q(m_db);

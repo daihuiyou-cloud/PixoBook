@@ -431,7 +431,8 @@ void SidebarWidget::showFolderContextMenu(int idx, const QPoint &pos)
     QAction *refreshAction = menu.addAction(tr("刷新"));
     connect(refreshAction, &QAction::triggered, this, [this, idx]() { emit folderRefreshRequested(m_folders[idx]); });
 
-    QAction *removeAction = menu.addAction(tr("从库中移除"));
+    QAction *removeAction = menu.addAction(tr("停止监听此文件夹"));
+    removeAction->setToolTip(tr("停止监听，已导入的素材会保留"));
     connect(removeAction, &QAction::triggered, this, [this, idx]() { emit folderRemoveRequested(m_folders[idx]); });
 
     menu.addSeparator();

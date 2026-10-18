@@ -41,6 +41,8 @@ private:
     void onImportFolder();
     void onImportFile();
     void loadAssets();
+    void refreshAssets();
+    void applyAssets(bool preserveView);
     void reloadAfterUndo();
     void saveSettings();
     void loadSettings();
@@ -56,6 +58,7 @@ private:
         bool onlyFavorites = false;
         QString sortField = QStringLiteral("created_at");
         bool sortAscending = false;
+        QString folderPath;
         int tabIndex = 0;
     };
     AssetQuery currentAssetQuery() const;
@@ -86,6 +89,7 @@ private:
     // State
     QStringList m_folders;
     int m_activeTagId = -1;
+    QString m_activeFolderPath;
     QVector<Tag> m_cachedTags;
     bool m_initFailed = true;
 };

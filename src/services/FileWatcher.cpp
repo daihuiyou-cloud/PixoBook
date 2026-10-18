@@ -118,6 +118,10 @@ void FileWatcher::onDirectoryChanged(const QString &path)
         QString subDir = it.filePath();
         if (!m_watcher->directories().contains(subDir)) {
             m_watcher->addPath(subDir);
+            // The directory may already contain files copied in before the
+            // watcher was attached; schedule a scan so they are not missed.
+            if (!m_pendingDirs.contains(subDir))
+                m_pendingDirs.append(subDir);
         }
     }
 

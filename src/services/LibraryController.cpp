@@ -107,10 +107,11 @@ QVector<Asset> LibraryController::loadAssets(const QString &keyword, const QStri
                                               const QVector<int> &tagIds, bool onlyFavorites,
                                               const QString &sortField, bool sortAscending,
                                               int offset, int limit,
-                                              int *outTotalCount) const
+                                              int *outTotalCount,
+                                              const QString &folderPath) const
 {
     return m_db->searchAssets(keyword, source, tagIds, onlyFavorites, sortField, sortAscending,
-                              offset, limit, outTotalCount);
+                              offset, limit, outTotalCount, folderPath);
 }
 
 Asset LibraryController::getAsset(const QString &id) const
@@ -214,7 +215,15 @@ void LibraryController::scanFolder(const QString &dir)
 {
     addFolder(dir);
     m_cache->invalidateDir(dir);
-    m_scanner->scanDirectory(dir, true);
+    // Give the scanner the current path set so it can skip hash/metadata work
+    // for files that are already imported. The full scan snapshot in
+    // scanStarted() still handles hash de-duplication for new files.
+    QSet<QString> knownPaths;
+    const auto existing = m_db->getAllAssets();
+    knownPaths.reserve(existing.size());
+    for (const auto &a : existing)
+        knownPaths.insert(a.filePath);
+    m_scanner->scanDirectory(dir, true, knownPaths);
 }
 
 void LibraryController::removeFolder(const QString &dir)
@@ -225,19 +234,19 @@ void LibraryController::removeFolder(const QString &dir)
     emit dataChanged();
 }
 
-void LibraryController::scanAndInsertFile(const QString &path)
+bool LibraryController::scanAndInsertFile(const QString &path)
 {
     Asset asset = FileScanner::scanSingleFile(path);
-    if (asset.id.isEmpty()) return;
+    if (asset.id.isEmpty()) return false;
     if (m_scanDepth > 0 && (m_scanKnownPaths.contains(asset.filePath)
                             || (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash)))) {
-        return;
+        return false;
     }
-    if (!m_db->findByHash(asset.hash).id.isEmpty()) return;
+    if (!m_db->findByHash(asset.hash).id.isEmpty()) return false;
 
     if (!m_db->insertAsset(asset)) {
         qWarning() << "scanAndInsertFile: insertAsset failed for" << asset.filePath;
-        return;
+        return false;
     }
     if (m_scanDepth > 0) {
         m_scanKnownPaths.insert(asset.filePath);
@@ -249,6 +258,7 @@ void LibraryController::scanAndInsertFile(const QString &path)
         meta.assetId = asset.id;
         (void)m_db->upsertMetadata(meta);
     }
+    return true;
 }
 
 bool LibraryController::deleteAssets(const QVector<Asset> &assets)
@@ -281,7 +291,8 @@ void LibraryController::toggleFavorite(const QString &assetId, bool isFavorite)
 }
 
 int LibraryController::countAssets(const QString &keyword, const QString &source,
-                                    const QVector<int> &tagIds, bool onlyFavorites) const
+                                    const QVector<int> &tagIds, bool onlyFavorites,
+                                    const QString &folderPath) const
 {
-    return m_db->countAssets(keyword, source, tagIds, onlyFavorites);
+    return m_db->countAssets(keyword, source, tagIds, onlyFavorites, folderPath);
 }

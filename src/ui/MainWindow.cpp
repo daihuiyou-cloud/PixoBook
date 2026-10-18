@@ -247,7 +247,7 @@ void MainWindow::setupConnections()
 
     connect(m_library, &LibraryController::dataChanged, this, [this]() {
         m_statusCount->setText(
-            tr("%1 张图片").arg(m_gallery->assetCount()));
+            tr("%1 张图片").arg(m_gallery->totalAssetCount()));
     });
 
     connect(m_library, &LibraryController::tagsChanged, this, [this]() {
@@ -286,10 +286,13 @@ void MainWindow::setupConnections()
         }
     });
     connect(m_sidebar, &SidebarWidget::folderSelected, this, [this](const QString &path) {
-        // Selecting a folder leaves the tag view; otherwise the scan result is
-        // still filtered by the previously active tag.
+        // A folder click both filters the gallery to that folder and refreshes
+        // its contents; leaving the tag view avoids an AND of stale filters.
         m_activeTagId = -1;
+        m_activeFolderPath = path;
+        m_sidebar->setActiveFolder(path);
         m_library->scanFolder(path);
+        loadAssets();
     });
     connect(m_sidebar, &SidebarWidget::addFolderClicked, this, [this]() {
         QString dir = QFileDialog::getExistingDirectory(this,
@@ -305,15 +308,26 @@ void MainWindow::setupConnections()
     });
     connect(m_sidebar, &SidebarWidget::tagSelected, this, [this](int tagId) {
         m_activeTagId = tagId;
+        m_activeFolderPath.clear();
+        m_sidebar->setActiveFolder(QString());
         loadAssets();
     });
     connect(m_sidebar, &SidebarWidget::folderRefreshRequested, this, [this](const QString &path) {
         m_library->scanFolder(path);
     });
     connect(m_sidebar, &SidebarWidget::folderRemoveRequested, this, [this](const QString &path) {
+        const auto reply = QMessageBox::question(
+            this, tr("停止监听"),
+            tr("停止监听该文件夹？已导入的素材会保留在素材库中。"),
+            QMessageBox::Yes | QMessageBox::No);
+        if (reply != QMessageBox::Yes)
+            return;
         m_library->removeFolder(path);
         m_sidebar->setFolders(m_library->folders());
         m_activeTagId = -1;
+        if (m_activeFolderPath == path)
+            m_activeFolderPath.clear();
+        m_sidebar->setActiveFolder(m_activeFolderPath);
         loadAssets();
     });
 
@@ -358,12 +372,17 @@ void MainWindow::setupConnections()
                 tagIdList.append(m_library->db()->getTagIdsForAsset(a.id));
             }
             m_undoStack->push(new DeleteAssetsCommand(m_library, assets, metaList, tagIdList));
-            if (m_detailPanel->isVisible() && !assets.isEmpty()
-                && m_detailPanel->currentAssetId() == assets[0].id) {
-                m_detailPanel->clear();
-                m_detailPanel->setVisible(false);
+            if (m_detailPanel->isVisible()) {
+                const QString currentId = m_detailPanel->currentAssetId();
+                for (const auto &deleted : assets) {
+                    if (deleted.id == currentId) {
+                        m_detailPanel->clear();
+                        m_detailPanel->setVisible(false);
+                        break;
+                    }
+                }
             }
-            loadAssets();
+            refreshAssets();
         }
     });
 
@@ -371,14 +390,14 @@ void MainWindow::setupConnections()
         int tagId = pickTagId(assetIds);
         if (tagId >= 0) {
             m_undoStack->push(new AddTagToAssetsCommand(m_library, assetIds, tagId));
-            loadAssets();
+            refreshAssets();
         }
     });
 
     connect(m_gallery, &GalleryWidget::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {
         bool oldState = !isFavorite;
         m_undoStack->push(new ToggleFavoriteCommand(m_library, assetId, oldState, isFavorite));
-        loadAssets();
+        refreshAssets();
     });
 
     connect(m_gallery, &GalleryWidget::filesDropped, this, [this](const QStringList &paths) {
@@ -414,6 +433,10 @@ void MainWindow::setupConnections()
     connect(m_tabBar, &TabBar::currentChanged, this, [this](int idx) {
         m_searchBar->blockSignals(true);
         m_searchBar->setFavFilter(idx == 1);
+        // "最近导入" starts as newest-first, and the sort combo shows it, so a
+        // later manual sort change is no longer silently overridden.
+        if (idx == 2)
+            m_searchBar->setSortSelection(QStringLiteral("created_at"), false);
         m_searchBar->blockSignals(false);
         loadAssets();
     });
@@ -432,14 +455,14 @@ void MainWindow::setupConnections()
                 QVector<Tag> tags = m_library->getTagsForAsset(assetId);
                 m_detailPanel->showAsset(a, meta, tags);
             }
-            loadAssets();
+            refreshAssets();
         }
     });
 
     connect(m_detailPanel, &DetailPanel::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {
         bool oldState = !isFavorite;
         m_undoStack->push(new ToggleFavoriteCommand(m_library, assetId, oldState, isFavorite));
-        loadAssets();
+        refreshAssets();
     });
 
     connect(m_detailPanel, &DetailPanel::tagRemoved, this, [this](const QString &assetId, int tagId) {
@@ -450,7 +473,7 @@ void MainWindow::setupConnections()
             QVector<Tag> tags = m_library->getTagsForAsset(assetId);
             m_detailPanel->showAsset(a, meta, tags);
         }
-        loadAssets();
+        refreshAssets();
     });
 
     connect(m_detailPanel, &DetailPanel::previewRequested, this, [this](const QString &assetId) {
@@ -474,7 +497,7 @@ void MainWindow::setupConnections()
             QTimer::singleShot(0, this, [this, asset, meta]() {
                 QVector<Tag> tags = m_library->getTagsForAsset(asset.id);
                 m_detailPanel->showAsset(asset, meta, tags);
-                loadAssets();
+                refreshAssets();
                 ToastNotification::show(this, tr("已保存 Prompt"));
             });
         }
@@ -485,12 +508,13 @@ void MainWindow::setupConnections()
     connect(m_lightbox, &LightboxWidget::favoriteToggled, this, [this](const QString &assetId, bool isFavorite) {
         bool oldState = !isFavorite;
         m_undoStack->push(new ToggleFavoriteCommand(m_library, assetId, oldState, isFavorite));
-        loadAssets();
+        refreshAssets();
     });
 
     // Activity bar
     connect(m_activityBar, &ActivityBar::activitySelected, this, [this](ActivityBar::Activity act) {
         m_sidebar->setVisible(true);
+        m_activeFolderPath.clear();
 
         // Block signals to avoid cascading refreshes
         m_tabBar->blockSignals(true);
@@ -585,10 +609,12 @@ void MainWindow::onImportFile()
         QString(),
         tr("图片 (*.png *.jpg *.jpeg *.webp)"));
     if (!file.isEmpty()) {
-        m_library->scanAndInsertFile(file);
+        const bool inserted = m_library->scanAndInsertFile(file);
         loadAssets();
         m_statusMsg->setText(tr("就绪"));
-        ToastNotification::show(this, tr("已导入 1 张图片"));
+        ToastNotification::show(this, inserted
+            ? tr("已导入 1 张图片")
+            : tr("未导入：图片已在库中或格式不支持"));
     }
 }
 
@@ -604,15 +630,12 @@ MainWindow::AssetQuery MainWindow::currentAssetQuery() const
 
     // Apply tab-driven filters on top of search bar state. Keep this in one
     // place: pagination must use exactly the same query as the initial load.
-    if (query.tabIndex == 1) {
+    if (query.tabIndex == 1)
         query.onlyFavorites = true;
-    } else if (query.tabIndex == 2) {
-        query.sortField = QStringLiteral("created_at");
-        query.sortAscending = false;
-    }
 
     if (m_activeTagId >= 0)
         query.tagIds.append(m_activeTagId);
+    query.folderPath = m_activeFolderPath;
     return query;
 }
 
@@ -621,16 +644,35 @@ QVector<Asset> MainWindow::queryAssets(const AssetQuery &query, int offset, int 
 {
     return m_library->loadAssets(query.keyword, query.source, query.tagIds,
                                  query.onlyFavorites, query.sortField,
-                                 query.sortAscending, offset, limit, outTotalCount);
+                                 query.sortAscending, offset, limit, outTotalCount,
+                                 query.folderPath);
 }
 
 void MainWindow::loadAssets()
 {
+    applyAssets(false);
+}
+
+void MainWindow::refreshAssets()
+{
+    // Data-changing actions (favorite/tag/prompt) keep scroll and selection so
+    // starring an item deep in the grid does not jump back to the first page.
+    applyAssets(true);
+}
+
+void MainWindow::applyAssets(bool preserveView)
+{
     const AssetQuery query = currentAssetQuery();
 
+    // Preserve the number of already-loaded pages when refreshing in place, so
+    // a favorite toggle deep in a lazy-paginated grid does not shrink the list.
+    const int limit = preserveView ? qMax(200, m_gallery->assetCount()) : 200;
     int totalCount = 0;
-    auto assets = queryAssets(query, 0, 200, &totalCount);
-    m_gallery->setAssets(assets, totalCount);
+    auto assets = queryAssets(query, 0, limit, &totalCount);
+    if (preserveView)
+        m_gallery->refreshAssets(assets, totalCount);
+    else
+        m_gallery->setAssets(assets, totalCount);
     m_gallery->setSearchKeyword(query.keyword);
     if (m_cachedTags.isEmpty())
         m_cachedTags = m_library->getAllTags();
@@ -653,12 +695,23 @@ void MainWindow::loadAssets()
         summary << tr("仅收藏");
     if (m_activeTagId >= 0)
         summary << tr("标签筛选");
+    if (!query.folderPath.isEmpty()) {
+        QString folderName = query.folderPath;
+        while (folderName.endsWith('/'))
+            folderName.chop(1);
+        const int slash = folderName.lastIndexOf('/');
+        if (slash >= 0)
+            folderName = folderName.mid(slash + 1);
+        if (folderName.isEmpty())
+            folderName = query.folderPath;
+        summary << tr("文件夹: %1").arg(folderName);
+    }
     m_searchBar->setResultSummary(summary.join(QStringLiteral(" / ")));
 }
 
 void MainWindow::reloadAfterUndo()
 {
-    loadAssets();
+    refreshAssets();
     if (!m_detailPanel->isVisible())
         return;
     const QString id = m_detailPanel->currentAssetId();

@@ -275,6 +275,21 @@ QString SearchBar::keyword() const { return m_searchInput->text().trimmed(); }
 QString SearchBar::sourceFilter() const { return m_sourceCombo->currentData().toString(); }
 QString SearchBar::sortField() const { return m_cachedSortField; }
 bool SearchBar::sortAscending() const { return m_cachedSortAscending; }
+
+void SearchBar::setSortSelection(const QString &field, bool ascending)
+{
+    const QString data = field + QLatin1Char('|')
+        + (ascending ? QStringLiteral("ASC") : QStringLiteral("DESC"));
+    const int index = m_sortCombo->findData(data);
+    if (index < 0 || index == m_sortCombo->currentIndex())
+        return;
+    const bool blocked = m_sortCombo->blockSignals(true);
+    m_sortCombo->setCurrentIndex(index);
+    m_sortCombo->blockSignals(blocked);
+    m_cachedSortField = field;
+    m_cachedSortAscending = ascending;
+    updateFilterSummary();
+}
 bool SearchBar::onlyFavorites() const { return m_onlyFavorites; }
 void SearchBar::focusSearch() { m_searchInput->setFocus(); m_searchInput->selectAll(); }
 void SearchBar::setFavFilter(bool on) { m_favButton->setChecked(on); }

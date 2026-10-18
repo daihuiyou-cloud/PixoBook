@@ -26,7 +26,8 @@ public:
                                         const QString &sortField = "created_at",
                                         bool sortAscending = false,
                                         int offset = 0, int limit = -1,
-                                        int *outTotalCount = nullptr) const = 0;
+                                        int *outTotalCount = nullptr,
+                                        const QString &folderPath = QString()) const = 0;
     virtual Asset findByPath(const QString &filePath) const = 0;
     virtual Asset findByHash(const QString &hash) const = 0;
 
@@ -55,7 +56,8 @@ public:
 
     // Count queries
     [[nodiscard]] virtual int countAssets(const QString &keyword = {}, const QString &source = {},
-                                          const QVector<int> &tagIds = {}, bool onlyFavorites = false) const = 0;
+                                          const QVector<int> &tagIds = {}, bool onlyFavorites = false,
+                                          const QString &folderPath = QString()) const = 0;
 };
 
 #endif

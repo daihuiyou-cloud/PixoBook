@@ -31,6 +31,7 @@ class TestFileStorage : public QObject
 private slots:
     void initTestCase() {
         m_dir = new QTemporaryDir();
+        QVERIFY2(m_dir->isValid(), qPrintable(m_dir->errorString()));
     }
 
     void cleanupTestCase() {
@@ -250,6 +251,28 @@ private slots:
         ImageCache cache(10);
         QPixmap thumb = cache.generateThumbnail("C:/nonexistent/missing.png", QSize(50, 50));
         QVERIFY(thumb.isNull());
+    }
+
+    // A failed decode must not occupy a cache slot (get() must stay a miss).
+    void testImageCacheNullIsNotCached()
+    {
+        ImageCache cache(50);
+        cache.insert("C:/nonexistent/missing.png", QSize(32, 32), QPixmap());
+        QVERIFY(cache.get("C:/nonexistent/missing.png", QSize(32, 32)).isNull());
+    }
+
+    void testImageCacheRequestThumbnailAsync()
+    {
+        ImageCache cache(50);
+        QString path = createTestImage("async_thumb.png", 120, 80);
+        QSignalSpy readySpy(&cache, &ImageCache::thumbnailReady);
+        cache.requestThumbnail(path, QSize(40, 40));
+        QTRY_VERIFY_WITH_TIMEOUT(readySpy.count() >= 1, 5000);
+
+        const QSize requested(40, 40);
+        QPixmap thumb = cache.get(path, requested);
+        QVERIFY2(!thumb.isNull(), "thumbnailReady must be emitted after the cache insert");
+        QCOMPARE(thumb.size(), requested);
     }
 
     void testImageCacheGetNonExistent()

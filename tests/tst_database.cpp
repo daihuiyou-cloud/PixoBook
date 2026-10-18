@@ -106,6 +106,44 @@ private slots:
         QCOMPARE(a.fileName, "test.png");
     }
 
+    // Rows with identical sort keys must not move between LIMIT/OFFSET pages.
+    void testSearchPaginationStable()
+    {
+        const QDateTime stamp = QDateTime::fromString("2024-01-01T00:00:00", Qt::ISODate);
+        QVERIFY(stamp.isValid());
+        Tag pageTag;
+        pageTag.name = "pagination";
+        pageTag.color = QColor("#123456");
+        const int tagId = db->insertTag(pageTag);
+        QVERIFY(tagId >= 0);
+
+        for (int i = 0; i < 9; ++i) {
+            Asset a;
+            a.id = QStringLiteral("page-id-%1").arg(i);
+            a.filePath = QStringLiteral("C:/pagination/page-%1.png").arg(i);
+            a.fileName = QStringLiteral("page-%1.png").arg(i);
+            a.hash = QStringLiteral("page-hash-%1").arg(i);
+            a.createdAt = stamp;
+            a.updatedAt = stamp;
+            QVERIFY2(db->insertAsset(a), qPrintable(a.filePath));
+            QVERIFY(db->addTagToAsset(a.id, tagId));
+        }
+
+        QVector<QString> seen;
+        for (int offset = 0; offset < 9; offset += 3) {
+            int total = -1;
+            const auto page = db->searchAssets("", "", {tagId}, false,
+                                               "created_at", true, offset, 3, &total);
+            QCOMPARE(page.size(), 3);
+            QCOMPARE(total, 9);
+            for (const auto &a : page) {
+                QVERIFY2(!seen.contains(a.id), qPrintable(QStringLiteral("duplicate row %1").arg(a.id)));
+                seen.append(a.id);
+            }
+        }
+        QCOMPARE(seen.size(), 9);
+    }
+
     void testDeleteAsset()
     {
         QVERIFY(db->deleteAsset("test-id-1"));

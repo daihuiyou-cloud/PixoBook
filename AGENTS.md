@@ -13,7 +13,7 @@
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
 - 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 37 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
-- 第 8 轮及以前提交 8 个 commit；第 9 轮已提交 c109f98 / 8f10210 / 1f1e835；第 10 轮已完成（工作区变更，待提交）
+- 第 8 轮及以前 8 个 commit；第 9 轮 c109f98 / 8f10210 / 1f1e835；第 10 轮 b2275b4 / a771806 / 3b2066c；滚动条 cdc4996 / 7568863；审计修复 26d9a8f；工作区干净
 
 ### Progress
 
@@ -96,6 +96,9 @@
 - "最近导入"tab 通过 `SearchBar::setSortSelection()` 同步排序控件，查询层不再静默覆盖用户排序
 - 重扫时 `FileScanner` 接收已知 path 集合，在尺寸/哈希/元数据解析之前跳过已导入文件；scanStarted 的全量 path/hash 快照仍负责跨路径的内容去重
 - `tst_database` 每个用例使用独立数据库文件，保证 `tst_database <single-test>` 也能通过
+- 文件重命名/移动的识别条件：同 hash、不同 path、旧 path 已不存在；此时 `updateAsset` 复用原 id 行（标签/元数据保留），不新建也不删除
+- FileWatcher 卸载按路径边界（`== root || startsWith(root + '/')`）判断，避免 `C:/Photos` 误伤 `C:/Photos2`
+- Sidebar 的 `setActiveFolder()` 会清除标签高亮，`setActiveTag()` 会清除文件夹高亮；选择标签时必须用后者
 
 ### Next Steps
 - 新增任何后台解码路径时，worker 只返回 `QImage`，`QPixmap` 必须在 GUI 线程构造（CHECK 37 会拦截）
@@ -234,6 +237,9 @@
 | 40 | 批量删除后只检查第一项是否在详情面板 | 详情面板可能继续显示已删除素材 | 遍历所有被删 id 判断 `currentAssetId()` |
 | 41 | FileSystemWatcher 只 `addPath` 新子目录、不补扫 | watcher 注册前已存在的文件永远不会导入 | 新子目录同时加入待扫描队列，触发 `checkForNewFiles()` |
 | 42 | 滚轮/拖动后把 scrollOffset 吸附到整行 | 单格滚轮（15px）被四舍五入回原行，滚动看起来完全无效 | 滚动位置保持像素精度；仅键盘导航按 item 对齐 |
+| 43 | 重命名/移动后先 added 后 removed，added 因同 hash 被跳过 | 随后 removed 删除旧行：素材、标签、元数据全部丢失 | 同 hash + 旧 path 不存在时 `adoptRenamedAsset()` 复用原行更新路径 |
+| 44 | 路径前缀 `startsWith(root)` 无分隔符边界 | 移除 `C:/Photos` 会误停 `C:/Photos2` 的监听 | 使用 `== root || startsWith(root + '/')` |
+| 45 | 互斥 setter 误用（`setActiveFolder("")` 清标签高亮） | 选中的标签在侧栏立即失去高亮 | 选标签用 `setActiveTag()`，其内部会清文件夹高亮 |
 
 ## 已修复的实例
 
@@ -307,6 +313,10 @@
 | 测试用例相互依赖 | tests/tst_database.cpp | 每个用例独立数据库文件，支持单测运行 |
 | 滚动条滚轮失效 (模式 42) | GalleryWidget.cpp | 移除 scrollToPos/wheelEvent 的行吸附；滚轮步长 angleDelta/2；轨道点击按 thumb 居中；thumb 命中区覆盖整条轨道 |
 | 详情面板滚轮过慢 | DetailPanel.cpp | angleDelta/8 → /2，与画廊一致 |
+| 重命名丢失素材/标签 (模式 43) | LibraryController.h/.cpp | `adoptRenamedAsset()`：同 hash、旧 path 不存在时更新原 asset 的路径并保留 id/标签/元数据 |
+| 卸载误伤兄弟目录 (模式 44) | FileWatcher.cpp | `pathIsSameOrUnder()` 按路径分隔符边界判断，覆盖 Windows/Unix 根路径 |
+| 标签选中后无高亮 (模式 45) | MainWindow.cpp | tagSelected 改用 `setActiveTag()`，不再调用会清标签的 `setActiveFolder("")` |
+| 拖拽文件夹侧栏不更新 | MainWindow.cpp | gallery filesDropped 后 `setFolders(m_library->folders())` |
 
 ## 扫描器改进
 

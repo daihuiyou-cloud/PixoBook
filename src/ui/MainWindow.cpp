@@ -249,6 +249,14 @@ void MainWindow::setupConnections()
         updateStatusCounts(m_gallery->totalAssetCount());
     });
 
+    connect(m_library, &LibraryController::missingCheckFinished, this, [this](int marked) {
+        if (marked <= 0)
+            return;
+        m_statusMsg->setText(tr("发现 %1 个文件缺失").arg(marked));
+        ToastNotification::show(this, tr("发现 %1 个文件缺失，标签与收藏已保留").arg(marked));
+        updateStatusCounts(m_gallery->totalAssetCount());
+    });
+
     connect(m_library, &LibraryController::tagsChanged, this, [this]() {
         m_cachedTags.clear();
     });
@@ -589,6 +597,8 @@ void MainWindow::setupShortcuts()
                      [this]() { m_undoStack->redo(); reloadAfterUndo(); }});
         cmds.append({tr("导出注释..."), "",
                      [this]() { onExportAnnotations(); }});
+        cmds.append({tr("导入注释..."), "",
+                     [this]() { onImportAnnotations(); }});
         cmds.append({tr("清理缺失记录..."), "",
                      [this]() { onCleanupMissing(); }});
         m_commandPalette->show(cmds);
@@ -662,6 +672,31 @@ void MainWindow::onExportAnnotations()
     } else {
         QMessageBox::warning(this, tr("导出失败"), error);
     }
+}
+
+void MainWindow::onImportAnnotations()
+{
+    const QString path = QFileDialog::getOpenFileName(this, tr("导入注释"), QString(),
+                                                      tr("JSON (*.json)"));
+    if (path.isEmpty())
+        return;
+    LibraryController::ImportSummary summary;
+    QString error;
+    if (!m_library->importAnnotations(path, &summary, &error)) {
+        QMessageBox::warning(this, tr("导入失败"), error);
+        return;
+    }
+    m_cachedTags.clear();
+    loadAssets();
+    QMessageBox::information(
+        this, tr("导入完成"),
+        tr("匹配 %1 个素材，%2 个未匹配。\n新建标签 %3 个，设置收藏 %4 个，补充元数据 %5 条。")
+            .arg(summary.matched)
+            .arg(summary.unmatched)
+            .arg(summary.tagsCreated)
+            .arg(summary.favoritesSet)
+            .arg(summary.metadataFilled));
+    ToastNotification::show(this, tr("已合并注释"));
 }
 
 void MainWindow::onCleanupMissing()

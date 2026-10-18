@@ -4,11 +4,31 @@
 #include "parsers/MetadataParser.h"
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPointer>
 #include <QSaveFile>
+#include <QtConcurrent>
+
+namespace {
+bool isUnderAnyFolder(const QString &path, const QStringList &roots)
+{
+    const QString p = QDir::fromNativeSeparators(path);
+    for (const auto &root : roots) {
+        QString r = QDir::fromNativeSeparators(root);
+        while (r.size() > 1 && r.endsWith(QLatin1Char('/')))
+            r.chop(1);
+        if (p.compare(r, Qt::CaseInsensitive) == 0
+            || p.startsWith(r + QLatin1Char('/'), Qt::CaseInsensitive))
+            return true;
+    }
+    return false;
+}
+}
 
 LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
                                      FileScanner *scanner, FileWatcher *watcher,
@@ -19,6 +39,12 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
     , m_scanner(scanner)
     , m_watcher(watcher)
 {
+    // Give the watcher a moment to deliver removals before stat-ing the tree.
+    m_reconcileTimer.setSingleShot(true);
+    m_reconcileTimer.setInterval(1000);
+    connect(&m_reconcileTimer, &QTimer::timeout,
+            this, &LibraryController::reconcileMissingFiles);
+
     connect(m_scanner, &FileScanner::scanStarted, this, [this]() {
         ++m_scanDepth;
         if (m_db->beginTransaction())
@@ -107,6 +133,9 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
             m_db->setDeferSearchIndexing(false);
             if (!m_db->indexPendingAssets())
                 qWarning("scan: search index flush failed");
+            // Files deleted while the app was closed are not covered by the
+            // watcher; reconcile once the scan settles.
+            m_reconcileTimer.start();
         }
         emit assetCountChanged(m_db->countAssets());
         emit scanFinished();
@@ -414,6 +443,67 @@ void LibraryController::toggleFavorite(const QString &assetId, bool isFavorite)
     emit dataChanged();
 }
 
+void LibraryController::reconcileMissingFiles()
+{
+    if (m_reconcileRunning || m_folders.isEmpty())
+        return;
+
+    // Only rows under watched folders are checked: an asset from a folder the
+    // user stopped watching may live on a drive that is currently unplugged,
+    // and must not be marked missing just because we are not watching it.
+    const auto assets = m_db->getAllAssets();
+    QVector<QPair<QString, QString>> candidates;
+    candidates.reserve(assets.size());
+    for (const auto &a : assets) {
+        if (a.isMissing() || a.filePath.isEmpty())
+            continue;
+        if (!isUnderAnyFolder(a.filePath, m_folders))
+            continue;
+        candidates.append(qMakePair(a.id, a.filePath));
+    }
+    if (candidates.isEmpty())
+        return;
+
+    m_reconcileRunning = true;
+    QPointer<LibraryController> guard(this);
+    QtConcurrent::run([guard, candidates]() {
+        QStringList missing;
+        missing.reserve(candidates.size());
+        for (const auto &candidate : candidates) {
+            if (!QFileInfo::exists(candidate.second))
+                missing.append(candidate.second);
+        }
+        if (!guard)
+            return;
+        QMetaObject::invokeMethod(guard, [guard, missing]() {
+            if (!guard)
+                return;
+            guard->m_reconcileRunning = false;
+            if (missing.isEmpty()) {
+                emit guard->missingCheckFinished(0);
+                return;
+            }
+            if (!guard->m_db->beginTransaction()) {
+                emit guard->missingCheckFinished(0);
+                return;
+            }
+            int marked = 0;
+            const QDateTime now = QDateTime::currentDateTime();
+            for (const auto &path : missing) {
+                if (guard->m_db->markAssetMissing(path, now))
+                    ++marked;
+            }
+            if (!guard->m_db->commitTransaction()) {
+                (void)guard->m_db->rollbackTransaction();
+                marked = 0;
+            }
+            emit guard->missingCheckFinished(marked);
+            if (marked > 0)
+                emit guard->dataChanged();
+        }, Qt::QueuedConnection);
+    });
+}
+
 int LibraryController::countMissingAssets() const
 {
     return m_db->countMissingAssets();
@@ -498,6 +588,122 @@ bool LibraryController::exportAnnotations(const QString &filePath,
     }
     if (!file.commit())
         return fail(file.errorString());
+    return true;
+}
+
+bool LibraryController::importAnnotations(const QString &filePath, ImportSummary *summary,
+                                          QString *errorMessage)
+{
+    ImportSummary counts;
+    auto fail = [&](const QString &message) {
+        if (errorMessage)
+            *errorMessage = message;
+        if (summary)
+            *summary = counts;
+        return false;
+    };
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return fail(file.errorString());
+    if (file.size() > 64LL * 1024 * 1024)
+        return fail(tr("annotation file is larger than 64 MB"));
+
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError)
+        return fail(parseError.errorString());
+    if (!doc.isObject())
+        return fail(tr("not a PixoBook annotation file"));
+    const QJsonObject root = doc.object();
+    if (root.value(QStringLiteral("format")).toString()
+        != QLatin1String("pixobook-annotations"))
+        return fail(tr("not a PixoBook annotation file"));
+
+    QHash<QString, int> tagIdByName;
+    const auto existingTags = m_db->getAllTags();
+    for (const auto &tag : existingTags)
+        tagIdByName.insert(tag.name, tag.id);
+
+    if (!m_db->beginTransaction())
+        return fail(tr("could not start a transaction"));
+
+    const QJsonArray assets = root.value(QStringLiteral("assets")).toArray();
+    for (const auto &value : assets) {
+        const QJsonObject entry = value.toObject();
+        const QString hash = entry.value(QStringLiteral("hash")).toString();
+        const QString path = entry.value(QStringLiteral("filePath")).toString();
+
+        Asset asset;
+        if (!hash.isEmpty())
+            asset = m_db->findByHash(hash);
+        if (asset.id.isEmpty() && !path.isEmpty())
+            asset = m_db->findByPath(path);
+        if (asset.id.isEmpty()) {
+            ++counts.unmatched;
+            continue;
+        }
+        ++counts.matched;
+
+        if (entry.value(QStringLiteral("isFavorite")).toBool() && !asset.isFavorite) {
+            if (m_db->updateAssetFavorite(asset.id, true))
+                ++counts.favoritesSet;
+        }
+
+        const QJsonArray tags = entry.value(QStringLiteral("tags")).toArray();
+        for (const auto &tagValue : tags) {
+            const QJsonObject tagObj = tagValue.toObject();
+            const QString name = tagObj.value(QStringLiteral("name")).toString().trimmed();
+            if (name.isEmpty())
+                continue;
+            int tagId = tagIdByName.value(name, -1);
+            if (tagId < 0) {
+                QColor color(tagObj.value(QStringLiteral("color")).toString());
+                if (!color.isValid())
+                    color = QColor(QStringLiteral("#888888"));
+                Tag tag;
+                tag.name = name;
+                tag.color = color;
+                tagId = m_db->insertTag(tag);
+                if (tagId < 0)
+                    continue;
+                tagIdByName.insert(name, tagId);
+                ++counts.tagsCreated;
+            }
+            (void)m_db->addTagToAsset(asset.id, tagId);
+        }
+
+        const QJsonObject metaObj = entry.value(QStringLiteral("metadata")).toObject();
+        if (!metaObj.isEmpty() && m_db->getMetadata(asset.id).source.isEmpty()) {
+            Metadata meta;
+            meta.assetId = asset.id;
+            meta.source = metaObj.value(QStringLiteral("source")).toString();
+            meta.prompt = metaObj.value(QStringLiteral("prompt")).toString();
+            meta.negativePrompt = metaObj.value(QStringLiteral("negativePrompt")).toString();
+            meta.seed = static_cast<long long>(
+                metaObj.value(QStringLiteral("seed")).toDouble());
+            meta.steps = metaObj.value(QStringLiteral("steps")).toInt();
+            meta.cfgScale = metaObj.value(QStringLiteral("cfgScale")).toDouble();
+            meta.modelName = metaObj.value(QStringLiteral("modelName")).toString();
+            meta.sampler = metaObj.value(QStringLiteral("sampler")).toString();
+            meta.rawJson = metaObj.value(QStringLiteral("rawJson")).toString();
+            if (m_db->upsertMetadata(meta))
+                ++counts.metadataFilled;
+        }
+    }
+
+    if (!m_db->commitTransaction()) {
+        (void)m_db->rollbackTransaction();
+        return fail(tr("could not commit imported annotations"));
+    }
+
+    if (summary)
+        *summary = counts;
+    if (counts.matched > 0) {
+        emit dataChanged();
+        if (counts.tagsCreated > 0)
+            emit tagsChanged();
+    }
     return true;
 }
 

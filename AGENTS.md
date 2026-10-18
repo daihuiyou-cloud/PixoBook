@@ -80,6 +80,12 @@
   - 测试新增 5 项：FTS 前缀/元数据更新/改名/删除同步、CJK 子串、清理缺失同时清索引、删表后自动重建、延迟索引只跳过新行。
   - 构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_database 21 项）。
 
+- **第 13 轮（工作区）— 缺失核对 + 注释回灌**：
+  - 缺失核对：`LibraryController::reconcileMissingFiles()` 在后台线程对**正在监听的文件夹**内的在线条目做 `QFileInfo::exists`，缺失者在 GUI 线程批量 `markAssetMissing`；扫描结束 1s 去抖后自动触发，也可手动调用。只核对监听目录，避免把"已停止监听、盘未挂载"的素材误标缺失。新增 `missingCheckFinished(int)` 信号，MainWindow 弹 Toast/更新状态栏。
+  - 注释回灌：`importAnnotations()` 读取导出的 JSON（format/version 校验，64MB 上限），按 hash 优先、path 兜底匹配；收藏只置真、标签按名字并集（缺标签自动创建）、metadata 只在本地为空时填充。单事务提交，返回 matched/unmatched/tagsCreated/favoritesSet/metadataFilled 统计；命令面板"导入注释..."展示合并摘要。
+  - 测试新增 2 项：关闭期间删除的文件被核对标记缺失且标签保留；注释 JSON 按 hash 合并、未知素材计 unmatched、标签/收藏/metadata 生效。
+  - 构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_librarycontroller 16 项）。
+
 #### In Progress
 - 无
 
@@ -135,12 +141,16 @@
 - 扫描导入时延迟建索引：`setDeferSearchIndexing(true)` → 批量写 assets/metadata → commit → `indexPendingAssets()`（一条 prepared INSERT 循环）。逐行 reindex 会让 50k 导入从 5.4s 退化到 21.5s。
 - 延迟只对本次扫描新插入的 id 生效（`m_deferredNewAssets`）：扫描期间用户编辑已有素材的 prompt/文件名仍走立即 reindex，避免索引在扫描结束前过期。
 - `indexPendingAssets()` 同时是启动补建入口：查询 `LEFT JOIN asset_search` 找缺失行并批量插入；它不删除已有行，删除/改名仍走 `reindexAsset()` 的 rowid 删除+插入。
+- 缺失核对只覆盖 `m_folders` 内的路径：停止监听的文件夹可能位于暂时未挂载的磁盘，绝不能因为"没在监听"就标记缺失；这与 `fileRemoved` 的语义一致（不可达 ≠ 删除）。
+- 核对线程只做 `QFileInfo::exists`；所有 DB 写入通过 `QMetaObject::invokeMethod` 排队回 GUI 线程（QSqlDatabase 连接有线程亲和性）。`QPointer` guard 防止控制器销毁后回调。
+- 扫描结束后的核对延迟 1000ms 去抖，让 watcher 先送达删除事件；`m_reconcileRunning` 防止重叠，重复调用直接返回。
+- 注释导入是**合并**而不是覆盖：收藏只置真、标签并集、metadata 仅在本地 `source` 为空时写入。没有文件字节时无法新建素材，匹配不到的条目计入 `unmatched` 并跳过。
+- 导入按 hash 优先匹配（内容身份），path 兜底（文件移动但未重扫）；同一 hash 多行时 `findByHash` 返回第一行，属于已知限制。
 
 ### Next Steps
 - **相关度排序**：搜索目前仍按 created_at；FTS5 可用 `bm25(asset_search)`，但需要 UI 增加"相关度"排序项，并确保与分页稳定排序 (`id ASC`) 兼容。
-- 启动时/重扫后的存在性核对：应用关闭期间被删除的文件不会触发 watcher，重扫又因路径仍在 knownPaths 中而跳过，目前只能显示为"文件不存在"但 `missing_since` 为空。下一轮在 scanFolder 完成后对候选路径做一次 `exists()` 核对（只查已导入条目，代价 O(N) stat）。
-- 缺失条目的专用视图/手动"重新定位"对话框：当前依赖重扫同一文件夹恢复；跨盘移动需要用户重新扫描新位置（同 hash 会 adopt）。
-- 注释导入（合并策略：按 hash 匹配，冲突时跳过或保留导出值），让导出文件真正可用于迁移。
+- 缺失条目的专用视图/手动"重新定位"对话框：核对已能发现缺失，但恢复仍依赖重扫同一文件夹；跨盘移动需要用户重新扫描新位置（同 hash 会 adopt）。
+- 注释导入的冲突预览：当前静默合并，后续可在导入前展示 matched/unmatched/将新建标签列表供确认。
 - 备份保留策略：`*.bak-v{n}` 目前只增不删，后续只保留最近 N 个。
 - 把 `pixobook_bench` 纳入 CI 趋势记录（至少每轮记录 10k/50k 的 p50/p95 数字）。
 - 新增任何后台解码路径时，worker 只返回 `QImage`，`QPixmap` 必须在 GUI 线程构造（CHECK 37 会拦截）
@@ -171,6 +181,8 @@
 - 检索阈值 `matches * 20 <= totalAssets`（<5%）是经验值：低于阈值走 FTS，高于阈值走索引序 LIKE。修改阈值必须用 `pixobook_bench` 的 10k/50k 数字验证
 - `searchAssets` 的总数由 `countAssets()` 单独查询；两者必须使用完全相同的过滤条件，否则分页总数会漂移
 - FTS 同步期间不要对该库执行 `VACUUM`：VACUUM 会重写 rowid，破坏 `asset_search.rowid = assets.rowid` 的约定；若必须 VACUUM，先 `DROP TABLE asset_search` 再重开应用重建
+- 缺失核对自动触发的时机是 `scanFinished` 后 1000ms；若用户在这 1s 内又启动扫描，定时器会重置（单次），最终只核对一次
+- 注释导入上限 64MB；JSON 顶层必须是 `format: "pixobook-annotations"`。导入失败会回滚整个事务，不会留下半合并状态
 
 ### Relevant Files
 - `src/ui/TabBar.h/.cpp`：新增 `QFontMetrics m_tabFontMetrics{m_tabFont}` 成员，`tabRect`/`addButtonRect` 移除临时 QFontMetrics
@@ -229,6 +241,9 @@
 - `tests/tst_database.cpp`：FTS 前缀/更新/改名/删除同步、CJK 子串、清理缺失同步清索引、删表自动重建
 - `ci/scan-bug-patterns.ps1`：CHECK 39 `window-count-materialization`
 - `bench/bench_main.cpp`：新增 CJK 查询用例与 search backend 输出
+- `src/services/LibraryController.h/.cpp`：`reconcileMissingFiles()`（后台 stat + 1s 去抖）、`missingCheckFinished` 信号、`importAnnotations()`（hash/path 匹配、合并策略、统计）
+- `src/ui/MainWindow.h/.cpp`：缺失核对 Toast/状态、命令面板"导入注释..."与合并摘要
+- `tests/tst_librarycontroller.cpp`：关闭期间删除的核对测试、注释导入合并测试（16 项）
 
 ---
 
@@ -308,6 +323,7 @@
 | 45 | 互斥 setter 误用（`setActiveFolder("")` 清标签高亮） | 选中的标签在侧栏立即失去高亮 | 选标签用 `setActiveTag()`，其内部会清文件夹高亮 |
 | 46 | 监听器把"文件消失"直接 `deleteAsset` | 外置盘/网络盘/同步目录一次抖动就永久丢失标签与收藏（唯一不可恢复的失败） | 检查 `fileRemoved` 回调是否只标记 `missing_since`；删除必须由用户显式触发（CHECK 38 会拦截） |
 | 47 | 分页总数用 `DISTINCT` + `COUNT(*) OVER()` | 迫使 SQLite 物化并统计全部命中，深页随库线性变慢（50k 501ms），LIMIT 无法提前结束 | 总数单独查询；标签过滤用 `EXISTS` 消除重复行（CHECK 39 会拦截） |
+| 48 | 只依赖 watcher 发现文件删除 | 应用关闭期间的删除永远不标记缺失，状态栏与筛选长期失真 | 扫描结束后对监听目录做一次存在性核对（后台 stat，只覆盖 watched folders） |
 
 ## 已修复的实例
 
@@ -390,6 +406,8 @@
 | 缺失文件无法恢复 | LibraryController.cpp | `scanFolder` 的 knownPaths 排除缺失；`assetFound` 先查 `m_scanMissingAssets` 再查 known，`restoreMissingAsset()` 保留 id/标签/收藏 |
 | 分页总数窗口物化 (模式 47) | DatabaseManager.cpp | 移除 `DISTINCT` + `COUNT(*) OVER()`，改独立 `countAssets()`；标签过滤 `EXISTS`；50k 深页 501ms→8ms |
 | 全文检索全表扫描 | DatabaseManager.h/.cpp | FTS5 `asset_search` + 混合检索（选择性词走 FTS，密集词走索引序 LIKE）+ CJK 逐字短语 |
+| 关闭期间删除的文件未标缺失 (模式 48) | LibraryController.h/.cpp | `reconcileMissingFiles()` 后台 stat 监听目录，scanFinished 后 1s 去抖触发，GUI 线程批量标记；只覆盖 watched folders |
+| 注释无法回灌 | LibraryController.h/.cpp, MainWindow.h/.cpp | `importAnnotations()` 按 hash→path 匹配，标签并集/收藏置真/metadata 仅在空时填充，单事务 + 统计摘要 |
 
 ## 扫描器改进
 

@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QSet>
 #include <QStringList>
+#include <QTimer>
 #include "core/IDatabaseManager.h"
 #include "core/IImageCache.h"
 #include "models/Asset.h"
@@ -75,12 +76,34 @@ public:
     [[nodiscard]] bool exportAnnotations(const QString &filePath,
                                          QString *errorMessage = nullptr) const;
 
+    struct ImportSummary {
+        int matched = 0;
+        int unmatched = 0;
+        int tagsCreated = 0;
+        int favoritesSet = 0;
+        int metadataFilled = 0;
+    };
+
+    // Merge policy: favorites are only turned on, tags are unioned, metadata
+    // fills only rows that have none. Assets are matched by hash first, then
+    // by path; entries with no local asset are reported as unmatched.
+    [[nodiscard]] bool importAnnotations(const QString &filePath,
+                                         ImportSummary *summary = nullptr,
+                                         QString *errorMessage = nullptr);
+
+    // Stats the files under every watched folder in a background thread and
+    // marks rows whose file vanished while the app was closed. Runs after a
+    // scan (debounced) and can be called explicitly.
+    void reconcileMissingFiles();
+
 signals:
     void assetCountChanged(int count);
     void scanProgress(int current, int total);
     void scanFinished();
     void dataChanged();
     void tagsChanged();
+    // Number of rows marked missing by the last reconcile pass (0 if all good).
+    void missingCheckFinished(int markedMissing);
 
 private:
     // A moved/renamed file keeps its old DB row (and tags/metadata) when the
@@ -105,6 +128,8 @@ private:
     int m_scanTxDepth = 0;
     QSet<QString> m_scanKnownPaths;
     QSet<QString> m_scanKnownHashes;
+    QTimer m_reconcileTimer;
+    bool m_reconcileRunning = false;
     // Missing rows are rescanned (their paths are not "known") so a returning
     // file can be restored instead of duplicated.
     QHash<QString, Asset> m_scanMissingAssets;

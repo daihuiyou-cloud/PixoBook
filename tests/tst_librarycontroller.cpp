@@ -295,6 +295,94 @@ private slots:
         QCOMPARE(m_db->getTagsForAsset(before.id).size(), 1);
     }
 
+    // Files deleted while the app was closed never reach the watcher; the
+    // reconcile pass stats watched folders and marks them missing.
+    void testReconcileMarksFilesDeletedWhileClosed()
+    {
+        const QString root = m_dir->filePath("reconcile-root");
+        QVERIFY(QDir().mkpath(root));
+        const QString keepPath = root + "/keep.png";
+        const QString gonePath = root + "/gone.png";
+        QImage img(16, 16, QImage::Format_RGB32);
+        img.fill(Qt::red);
+        QVERIFY(img.save(keepPath));
+        img.fill(Qt::blue);
+        QVERIFY(img.save(gonePath));
+
+        QSignalSpy finished(m_ctrl, &LibraryController::scanFinished);
+        m_ctrl->scanFolder(root);
+        QTRY_VERIFY_WITH_TIMEOUT(finished.count() >= 1, 5000);
+
+        const Asset gone = m_db->findByPath(gonePath);
+        QVERIFY(!gone.id.isEmpty());
+        QVERIFY(m_db->addTagToAsset(gone.id, m_tagId));
+
+        // Let the automatic post-scan reconcile (1s debounce) finish first.
+        QSignalSpy checked(m_ctrl, &LibraryController::missingCheckFinished);
+        QTRY_VERIFY_WITH_TIMEOUT(checked.count() >= 1, 5000);
+        QVERIFY(!m_db->findByPath(gonePath).isMissing());
+
+        QVERIFY(QFile::remove(gonePath));
+        m_ctrl->reconcileMissingFiles();
+        QTRY_VERIFY_WITH_TIMEOUT(m_db->findByPath(gonePath).isMissing(), 5000);
+        QVERIFY(!m_db->findByPath(keepPath).isMissing());
+        QCOMPARE(m_db->getTagsForAsset(gone.id).size(), 1);
+    }
+
+    void testImportAnnotationsMergesByHash()
+    {
+        Asset target = makeAsset("import-target");
+        QVERIFY(m_db->insertAsset(target));
+
+        QJsonObject entry;
+        entry[QStringLiteral("id")] = QStringLiteral("exported-id");
+        entry[QStringLiteral("filePath")] = target.filePath;
+        entry[QStringLiteral("hash")] = target.hash;
+        entry[QStringLiteral("isFavorite")] = true;
+
+        QJsonObject tag;
+        tag[QStringLiteral("name")] = QStringLiteral("imported-tag");
+        tag[QStringLiteral("color")] = QStringLiteral("#ff8800");
+        entry[QStringLiteral("tags")] = QJsonArray{tag};
+
+        QJsonObject meta;
+        meta[QStringLiteral("source")] = QStringLiteral("stable-diffusion");
+        meta[QStringLiteral("prompt")] = QStringLiteral("imported prompt");
+        meta[QStringLiteral("seed")] = 12345;
+        entry[QStringLiteral("metadata")] = meta;
+
+        QJsonObject unknown;
+        unknown[QStringLiteral("filePath")] = m_dir->filePath("not-here.png");
+        unknown[QStringLiteral("hash")] = QStringLiteral("hash-does-not-exist");
+
+        QJsonObject root;
+        root[QStringLiteral("format")] = QStringLiteral("pixobook-annotations");
+        root[QStringLiteral("version")] = 1;
+        root[QStringLiteral("assets")] = QJsonArray{entry, unknown};
+
+        const QString jsonPath = m_dir->filePath("import-annotations.json");
+        QFile file(jsonPath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(root).toJson());
+        file.close();
+
+        LibraryController::ImportSummary summary;
+        QString error;
+        QVERIFY2(m_ctrl->importAnnotations(jsonPath, &summary, &error), qPrintable(error));
+        QCOMPARE(summary.matched, 1);
+        QCOMPARE(summary.unmatched, 1);
+        QCOMPARE(summary.tagsCreated, 1);
+        QCOMPARE(summary.favoritesSet, 1);
+        QCOMPARE(summary.metadataFilled, 1);
+
+        QVERIFY(m_db->getAsset(target.id).isFavorite);
+        QCOMPARE(m_db->getTagsForAsset(target.id).size(), 1);
+        QCOMPARE(m_db->getTagsForAsset(target.id).first().name,
+                 QStringLiteral("imported-tag"));
+        QCOMPARE(m_db->getMetadata(target.id).prompt, QStringLiteral("imported prompt"));
+        QCOMPARE(m_db->getMetadata(target.id).seed, 12345LL);
+    }
+
     void testExportAnnotationsWritesTagsAndPrompt()
     {
         const QString path = m_dir->filePath("export-me.png");

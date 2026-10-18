@@ -16,8 +16,8 @@ A desktop application for managing, browsing, searching, and organizing AI-gener
 - **Image gallery** — Grid-based thumbnail view with lazy loading, keyboard navigation, multi-select, and drag-and-drop import
 - **Lightbox viewer** — Full-screen image viewer with zoom/pan and navigation
 - **Detail panel** — Slide-out panel showing full image preview, metadata, and tag management
-- **File watching** — Real-time monitoring of watched folders. New files are imported; a disappeared file is marked **missing** instead of being deleted, so tags and favorites survive an unplugged drive, a stale network share, or a temporarily unavailable folder. Rescanning the folder restores the row.
-- **Annotation export** — Writes tags, favorites and parsed metadata as JSON (`pixobook-annotations.json`); the database can be rebuilt from a rescan, but annotations cannot.
+- **File watching** — Real-time monitoring of watched folders. New files are imported; a disappeared file is marked **missing** instead of being deleted, so tags and favorites survive an unplugged drive, a stale network share, or a temporarily unavailable folder. After every scan a background pass also catches files deleted while the app was closed. Rescanning the folder restores the row.
+- **Annotation export / import** — Writes tags, favorites and parsed metadata as JSON (`pixobook-annotations.json`) and merges them back on another machine or database. Import matches by content hash first, then by path; tags are unioned, favorites only turned on, metadata fills rows that have none.
 - **Custom dark theme** — Fully custom-painted UI with VS Code Codicon icon font
 - **Command palette** — `Ctrl+Shift+P` quick action menu
 - **Tag system** — Color-coded tags with filtering

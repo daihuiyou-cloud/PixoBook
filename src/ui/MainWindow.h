@@ -50,6 +50,7 @@ private:
     int pickTagId(const QVector<QString> &assetIds);
     void updateStatusCounts(int totalCount);
     void onExportAnnotations();
+    void onImportAnnotations();
     void onCleanupMissing();
 
     // Snapshot of the active filters. Kept in one place so the initial load and

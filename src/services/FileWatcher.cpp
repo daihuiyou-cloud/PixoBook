@@ -5,6 +5,20 @@
 #include <QFileInfo>
 #include <QSet>
 
+namespace {
+bool pathIsSameOrUnder(const QString &path, const QString &root)
+{
+    QString normalizedRoot = QDir::fromNativeSeparators(root);
+    while (normalizedRoot.size() > 1 && normalizedRoot.endsWith('/'))
+        normalizedRoot.chop(1);
+    const QString normalizedPath = QDir::fromNativeSeparators(path);
+    if (normalizedRoot == QLatin1String("/"))
+        return normalizedPath.startsWith('/');
+    return normalizedPath.compare(normalizedRoot, Qt::CaseInsensitive) == 0
+        || normalizedPath.startsWith(normalizedRoot + '/', Qt::CaseInsensitive);
+}
+}
+
 FileWatcher::FileWatcher(QObject *parent)
     : QObject(parent)
 {
@@ -83,16 +97,15 @@ void FileWatcher::unwatchDirectoryTree(const QString &rootPath)
     m_watchedDirs.remove(rootPath);
     QStringList toRemove;
     for (const auto &dir : m_watcher->directories()) {
-        if (dir.startsWith(rootPath, Qt::CaseInsensitive))
+        if (pathIsSameOrUnder(dir, rootPath))
             toRemove.append(dir);
     }
     for (const auto &dir : toRemove)
         m_watcher->removePath(dir);
 
-    const QString normalized = QDir::fromNativeSeparators(rootPath);
     auto it = m_knownByDir.begin();
     while (it != m_knownByDir.end()) {
-        if (it.key().startsWith(normalized, Qt::CaseInsensitive))
+        if (pathIsSameOrUnder(it.key(), rootPath))
             it = m_knownByDir.erase(it);
         else
             ++it;

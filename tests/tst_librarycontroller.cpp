@@ -129,6 +129,31 @@ private slots:
         QCOMPARE(m_db->getTagsForAsset(asset.id).size(), 1);
     }
 
+    void testRenameKeepsAssetIdentity()
+    {
+        const QString oldPath = m_dir->filePath("rename-a.png");
+        const QString newPath = m_dir->filePath("rename-b.png");
+        QImage img(24, 24, QImage::Format_RGB32);
+        img.fill(Qt::darkYellow);
+        QVERIFY(img.save(oldPath));
+        QVERIFY(m_ctrl->scanAndInsertFile(oldPath));
+
+        const Asset before = m_db->findByPath(oldPath);
+        QVERIFY(!before.id.isEmpty());
+        QVERIFY(m_db->addTagToAsset(before.id, m_tagId));
+        QVERIFY(QFile::rename(oldPath, newPath));
+
+        // Watcher/manual import sees the new path as a duplicate hash; it must
+        // adopt the existing row instead of creating a second one (and before
+        // the subsequent fileRemoved event deletes the old row).
+        m_ctrl->scanAndInsertFile(newPath);
+
+        const Asset after = m_db->findByPath(newPath);
+        QCOMPARE(after.id, before.id);
+        QVERIFY(m_db->findByPath(oldPath).id.isEmpty());
+        QCOMPARE(m_db->getTagsForAsset(after.id).size(), 1);
+    }
+
     void testDeleteAssetsCommitFailureReturnsFalse()
     {
         QTemporaryDir dbDir;

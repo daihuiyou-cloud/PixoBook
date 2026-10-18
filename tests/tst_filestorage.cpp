@@ -231,6 +231,30 @@ private slots:
         watcher.removeWatchPath(dirB.path());
     }
 
+    // Removing C:/Photos must not unwatch C:/Photos2 (prefix without boundary).
+    void testFileWatcherUnwatchSiblingPrefix()
+    {
+        QTemporaryDir base;
+        QVERIFY(base.isValid());
+        const QString root = base.filePath("Photos");
+        const QString sibling = base.filePath("Photos2");
+        QVERIFY(QDir().mkpath(root));
+        QVERIFY(QDir().mkpath(sibling));
+
+        FileWatcher watcher;
+        watcher.addWatchPath(root);
+        watcher.addWatchPath(sibling);
+        watcher.removeWatchPath(root);
+
+        QSignalSpy addedSpy(&watcher, &FileWatcher::fileAdded);
+        QImage img(8, 8, QImage::Format_RGB32);
+        img.fill(Qt::blue);
+        QVERIFY(img.save(sibling + "/still-watched.png"));
+        QTRY_VERIFY_WITH_TIMEOUT(addedSpy.count() >= 1, 3000);
+        QCOMPARE(QDir::fromNativeSeparators(addedSpy.first().first().toString()),
+                 QDir::fromNativeSeparators(sibling + "/still-watched.png"));
+    }
+
     void testImageCacheGenerate()
     {
         ImageCache cache(10);

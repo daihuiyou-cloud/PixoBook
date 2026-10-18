@@ -72,6 +72,10 @@ signals:
     void tagsChanged();
 
 private:
+    // A moved/renamed file keeps its old DB row (and tags/metadata) when the
+    // new path has the same content hash and the old path no longer exists.
+    bool adoptRenamedAsset(const Asset &scanned);
+
     IDatabaseManager *m_db;
     IImageCache *m_cache;
     FileScanner *m_scanner;

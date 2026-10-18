@@ -309,7 +309,9 @@ void MainWindow::setupConnections()
     connect(m_sidebar, &SidebarWidget::tagSelected, this, [this](int tagId) {
         m_activeTagId = tagId;
         m_activeFolderPath.clear();
-        m_sidebar->setActiveFolder(QString());
+        // setActiveTag also clears the folder highlight; setActiveFolder would
+        // clear the tag highlight we just selected.
+        m_sidebar->setActiveTag(tagId);
         loadAssets();
     });
     connect(m_sidebar, &SidebarWidget::folderRefreshRequested, this, [this](const QString &path) {
@@ -408,6 +410,8 @@ void MainWindow::setupConnections()
             else if (fi.isFile() && FileScanner::isSupportedFormat(path))
                 m_library->scanAndInsertFile(path);
         }
+        // A dropped folder is added to the watched list by scanFolder().
+        m_sidebar->setFolders(m_library->folders());
         loadAssets();
     });
     connect(m_gallery, &GalleryWidget::importFolderRequested, this, &MainWindow::onImportFolder);

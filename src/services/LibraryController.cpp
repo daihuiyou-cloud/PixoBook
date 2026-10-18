@@ -3,6 +3,7 @@
 #include "services/FileWatcher.h"
 #include "parsers/MetadataParser.h"
 #include <QDebug>
+#include <QFileInfo>
 
 LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
                                      FileScanner *scanner, FileWatcher *watcher,
@@ -40,11 +41,17 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
         if (m_scanDepth > 0) {
             if (m_scanKnownPaths.contains(asset.filePath))
                 return;
-            if (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash))
+            if (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash)) {
+                (void)adoptRenamedAsset(asset);
                 return;
-        } else if (!m_db->findByPath(asset.filePath).id.isEmpty()
-                   || !m_db->findByHash(asset.hash).id.isEmpty()) {
-            return;
+            }
+        } else {
+            if (!m_db->findByPath(asset.filePath).id.isEmpty())
+                return;
+            if (!m_db->findByHash(asset.hash).id.isEmpty()) {
+                (void)adoptRenamedAsset(asset);
+                return;
+            }
         }
         if (!m_db->insertAsset(asset)) {
             qWarning() << "scan: insertAsset failed for" << asset.filePath;
@@ -238,11 +245,21 @@ bool LibraryController::scanAndInsertFile(const QString &path)
 {
     Asset asset = FileScanner::scanSingleFile(path);
     if (asset.id.isEmpty()) return false;
-    if (m_scanDepth > 0 && (m_scanKnownPaths.contains(asset.filePath)
-                            || (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash)))) {
-        return false;
+    if (m_scanDepth > 0) {
+        if (m_scanKnownPaths.contains(asset.filePath))
+            return false;
+        if (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash)) {
+            (void)adoptRenamedAsset(asset);
+            return false;
+        }
+    } else {
+        if (!m_db->findByPath(asset.filePath).id.isEmpty())
+            return false;
+        if (!m_db->findByHash(asset.hash).id.isEmpty()) {
+            (void)adoptRenamedAsset(asset);
+            return false;
+        }
     }
-    if (!m_db->findByHash(asset.hash).id.isEmpty()) return false;
 
     if (!m_db->insertAsset(asset)) {
         qWarning() << "scanAndInsertFile: insertAsset failed for" << asset.filePath;
@@ -257,6 +274,38 @@ bool LibraryController::scanAndInsertFile(const QString &path)
     if (!meta.source.isEmpty()) {
         meta.assetId = asset.id;
         (void)m_db->upsertMetadata(meta);
+    }
+    return true;
+}
+
+bool LibraryController::adoptRenamedAsset(const Asset &scanned)
+{
+    if (scanned.hash.isEmpty())
+        return false;
+    const Asset existing = m_db->findByHash(scanned.hash);
+    if (existing.id.isEmpty() || existing.filePath == scanned.filePath)
+        return false;
+    // Only treat it as a move/rename when the old path is really gone. A copy
+    // imported next to the original must stay a duplicate, not steal its row.
+    if (existing.filePath.isEmpty() || QFileInfo::exists(existing.filePath))
+        return false;
+
+    Asset updated = existing;
+    updated.filePath = scanned.filePath;
+    updated.fileName = scanned.fileName;
+    updated.fileSize = scanned.fileSize;
+    updated.width = scanned.width;
+    updated.height = scanned.height;
+    updated.format = scanned.format;
+    updated.folderId = scanned.folderId;
+    updated.updatedAt = scanned.updatedAt;
+    if (!m_db->updateAsset(updated)) {
+        qWarning() << "adoptRenamedAsset: updateAsset failed for" << scanned.filePath;
+        return false;
+    }
+    if (m_scanDepth > 0) {
+        m_scanKnownPaths.remove(existing.filePath);
+        m_scanKnownPaths.insert(updated.filePath);
     }
     return true;
 }

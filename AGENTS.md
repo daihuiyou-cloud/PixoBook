@@ -11,9 +11,9 @@
 
 ### Constraints & Preferences
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
-- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 35 个检查块在其中可用
+- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 37 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
-- 当前处于实施模式，已提交 8 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5, dcc5b14, dd7b53e)，第 8 轮已完成
+- 已提交 8 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5, dcc5b14, dd7b53e)；第 9 轮已完成（工作区变更，尚未提交）
 
 ### Progress
 
@@ -36,8 +36,13 @@
 - 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
 - **dcc5b14** — 第 7 轮：GalleryWidget paintEvent 脏区域窄化（`event->rect()` + `paintRegion = dirty.adjusted(-2,-2,2,12)`，覆盖圆角抗锯齿 + hover 阴影下溢 10px；项循环按 `itemRect(i).adjusted(...).intersects(paintRegion)` 跳过无关卡片；背景仅填充 paintRegion）
 - 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
-- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
-- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过
+- **第 9 轮（工作区）**：
+  - 正确性：收藏图标 `star` 误用 `star-empty` 字形（0xea6a → 0xeb59）；undo "添加标签"会移除操作前已存在的标签（构造时记录 `m_newlyTaggedAssetIds`）；`deleteAssets` commit 失败仍返回 true；CommandPalette 的 undo/redo 不刷新界面、导入文件夹不更新侧栏；点击文件夹后旧标签筛选仍生效；右键菜单作用于旧选区；Ctrl/Shift/Alt 橡皮筋分支不可达；Sidebar 折叠标签区后 `m_addTagRect` 命中区残留；DetailPanel `clear()` 未使异步解码失效
+  - 查询/扫描：首屏与懒加载共用 `MainWindow::AssetQuery` + `queryAssets()`（修复"最近导入"tab 翻页排序丢失）；`searchAssets` 追加 `id ASC` 稳定排序；扫描去重从每文件 2 次 SQL 改为 `getAllAssets()` 一次性 path/hash 快照 + 内存集合（`m_scanDepth` / `m_scanTxDepth` 支持并发扫描）；Schema/migrate 失败时初始化直接失败
+  - 线程/缓存：QtConcurrent worker 只解码 `QImage`，`QPixmap::fromImage` 统一回到 GUI 线程（DetailPanel/Lightbox/ImageCache）；ImageCache `m_pending` 去重 in-flight 解码、拒绝缓存空 pixmap；Gallery 清空 `m_fileExistsCache`
+  - paintEvent：DetailPanel 标签数文本、Gallery 空搜索标题与批量工具栏文本预计算，消除每帧 `.arg()`
+  - 扫描器新增 CHECK 36（paintevent-helper-arg-alloc）与 CHECK 37（qtconcurrent-qpixmap-worker）
+  - 构建 0 错 0 警告，37/37 扫描器 PASS，5/5 测试通过（新增 tst_librarycontroller：undo 标签/删除恢复/扫描幂等；数据库分页稳定性；异步缩略图）
 
 #### In Progress
 - 无
@@ -63,77 +68,29 @@
 - ImageCache LRU 用 `std::list<CacheKey>` + `std::unordered_map<CacheKey, iterator>`：get() 命中 O(1) splice，替代原 QList removeAll+append 的 O(n)（paint 热路径随缓存规模增长）
 - `generateThumbnail` 单个 `QImageReader`：`size()` → `setScaledSize` → `read()` 一次打开，删除冗余 `m_dimCache`
 - LightboxWidget 打开不再深拷贝：所有只读访问用 `qAsConst(m_assets)[i]`，仅收藏切换（稀有用户操作）才允许 detach
+- 首屏与懒加载统一走 `MainWindow::AssetQuery` + `queryAssets()`：tab 过滤/排序只计算一次，避免 loadMore 复制粘贴逻辑漂移
+- `searchAssets` 的 ORDER BY 追加 `id ASC` 作为稳定排序键：相同 `created_at` 的行不会在 LIMIT/OFFSET 分页间重复或漏出
+- 扫描去重快照：scanStarted 时用一次 `getAllAssets()` 建立 path/hash 内存集合，assetFound 只查集合；`m_scanDepth` / `m_scanTxDepth` 分离"并发扫描计数"与"已开启事务计数"，最后一个扫描结束才清空集合并提交外层事务
+- `QtConcurrent` worker 内只允许 `QImage`：`QPixmap::fromImage` 一律放在 `QMetaObject::invokeMethod` 的 GUI lambda 中执行（DetailPanel/Lightbox/ImageCache）
+- ImageCache 的 `m_pending`（unordered_set）防止同一 key 的缩略图被重复后台解码；`insertLocked` 拒绝空 pixmap，避免空值占位后 `get()` 永远 miss
+- `AddTagToAssetsCommand` 构造时记录 `m_newlyTaggedAssetIds`（原本没有该标签的 asset），undo 只撤销这些，保护操作前已有的标签关联
+- `createSchema()` / `migrate()` 返回 bool：DDL 或 schema_version 写入失败时 `initialize()` 直接失败，避免在空表上静默运行
+- 图标字体中 `star` 必须映射 `star-full`（0xeb59），`star-empty` 是 0xea6a；两者混用会让收藏状态视觉上不可区分
 
 ### Next Steps
-- 已将 TiMidity 条目移除：本项目（PixoBook 图片库）源码中无音频/MIDI 子系统，原 Next Step 不适用
+- 新增任何后台解码路径时，worker 只返回 `QImage`，`QPixmap` 必须在 GUI 线程构造（CHECK 37 会拦截）
+- 扫描期新增/删除文件的路径必须同步更新 `m_scanKnownPaths` / `m_scanKnownHashes`，否则去重快照会漂移
+- 可继续优化扫描的 metadata 写入：目前仍是每文件一次 prepared upsert，后续可批量/复用 QSqlQuery
 - 若再发现局部 update(QRect) 但 paintEvent 全量重绘的自绘控件，复用第 7 轮脏区域窄化模式（如 LightboxWidget/SidebarWidget 的热区变化）
 
 ### Critical Context
 - `QFontMetrics` 构造在 Qt5 中涉及字体引擎初始化，在 paintEvent 循环中被多次调用时产生可测量的每帧分配
 - 异步图片加载需要 `#include <QtConcurrent>` + `#include <QPointer>` 在 .cpp 中，`m_loadGeneration` 在 .h 中声明为 `int`，以 0 初始化
 - `QImageReader::read()` 对高分辨率图片（>4K）可阻塞主线程 200-500ms，离线解码后 `invokeMethod` 回主线程设置 QPixmap + update()
-- `prefetchFileExistence` 对所有 asset（含不可见项）执行 stat，大规模图库（>10000 项）场景产生大量不必要的文件系统调用
-- tst_filestorage 静默崩溃是预存问题，与本次变更无关
-
-### Progress
-
-#### Done
-- **ddd08ee** — paintEvent 热路径零分配 + 10 处性能优化（GalleryWidget/DetailPanel/SidebarWidget 预计算）
-- **7d322af** — CacheKey::operator== 短路（size 先于 filePath）、renameTag SQL 化（`getTag()` 替代 `getAllTags()` 全表扫描）、qPrintable 替换、扫描器新增 CHECK 31-33（paintevent-trimmed / qstring-byvalue / qfileinfo-string-only）
-- **bda1aeb** — `searchAssets` 窗口函数合并 count+search（`COUNT(*) OVER()` 子查询）、`MainWindow` tags 缓存 + `LibraryController::tagsChanged` 信号、`SDParser::tryParseFromData` 消除二次 PNG 文件读取、20 个类加 `final` 关键字、`Asset.h` 字段重排（QString 连续）
-- 全部构建 0 错 0 警告，33/33 扫描器 PASS（2 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
-- **本轮（第 4 轮）**：
-  - TabBar/TitleBar QFontMetrics 成员缓存，消除每帧临时 QFontMetrics（~6-8 次分配/帧）
-  - DetailPanel + LightboxWidget 异步图片加载（`m_loadGeneration` 计数器 + `QtConcurrent::run` 后台解码 + `QPointer` guard）
-  - DetailPanel `clampScrollOffset()` 从 paintEvent 移到 resizeEvent（已在 wheelEvent 内联）
-  - GalleryWidget 惰性 `QFileInfo::exists()`：删除 `prefetchFileExistence`，paintEvent 中对可见项按需 stat + 缓存
-- **71009ed** — 第 4 轮汇总：TabBar/TitleBar QFontMetrics 缓存、DetailPanel/LightboxWidget 异步图片加载、DetailPanel clampScrollOffset 移出 paintEvent、GalleryWidget 惰性 fileExists
-- **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
-- 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
-- **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
-- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
-- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
-- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
-- **dcc5b14** — 第 7 轮：GalleryWidget paintEvent 脏区域窄化（`event->rect()` + `paintRegion = dirty.adjusted(-2,-2,2,12)`，覆盖圆角抗锯齿 + hover 阴影下溢 10px；项循环按 `itemRect(i).adjusted(...).intersects(paintRegion)` 跳过无关卡片；背景仅填充 paintRegion）
-- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
-- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
-- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过
-
-#### In Progress
-- 无
-
-#### Blocked
-- 无（tst_filestorage 已在第 6 轮解决：原"静默崩溃"实为 `testScanSingleFile` 的路径分隔符断言错误——`QFileInfo::absoluteFilePath()` 返回正斜杠，测试却用 `QDir::toNativeSeparators()` 比较，已改为 `fromNativeSeparators()`；另新增 computeDiff 3 项 + per-dir 隔离集成测试，4/4 全绿）
-
-### Key Decisions
-- 双 SQL 查询（countAssets + searchAssets）用 `COUNT(*) OVER()` 窗口函数合并为单次，减少数据库往返
-- `getAllTags()` 缓存到 `MainWindow::m_cachedTags`，仅标签变更时通过 `tagsChanged` 信号刷新
-- SDParser 去重读：`detectSource` 和 `parse` 共享同一份 `QByteArray`，消除二次 PNG `readAll()`
-- `final` 关键字统一加到所有无子类的具体类，帮助 MSVC devirtualization
-- TabBar/TitleBar 的 QFontMetrics 改为成员变量，在构造函数中用字体初始化（fontChanged 信号频率低，无需动态刷新）
-- 异步图片加载用 generation 计数器处理竞争（旧 generation 结果丢弃），通过 `QMetaObject::invokeMethod(this, ...)` 回到主线程设置 pixmap + update()
-- 惰性 fileExists：删除全部 4 处 `prefetchFileExistence` 调用，改为 paintEvent 中按需 stat + 缓存结果
-- FileWatcher 用 `QHash<QString, QStringList> m_knownByDir` 按目录维护已知文件集合，目录间事件隔离（原先全局共享 known 列表导致跨目录误报 fileRemoved → 用户数据被删）
-- QFontMetrics 是字体快照（COW）：头文件 `QFontMetrics m_x{m_font}` 初始化后，若构造函数再改 `m_font`，度量不会更新 → 字体改动后必须重新赋值 `m_x = QFontMetrics(m_font)`
-- undo/redo 快捷键不再直接连 QUndoStack，改为 lambda 内调用 `m_undoStack->undo()/redo()` 后执行 `reloadAfterUndo()`（loadAssets + 详情面板按 currentAssetId 重拉 getAsset/getMetadata/getTagsForAsset 刷新）
-- GalleryWidget::indexAt 由 O(n) 线性扫描改为 O(1) 行列公式计算（`(x-gap)/(itemWidth+gap)` 求列、`(y+scrollOffset-gap)/(itemHeight+gap)` 求行，再回验 itemRect）
-- 事务支持嵌套：`beginTransaction` 首次为真事务（`m_db.transaction()`），后续用 `SAVEPOINT pixobook_sp_{depth}`；commit/rollback 按深度递减，最内层用 RELEASE/ROLLBACK TO，外层才真正 COMMIT/ROLLBACK——使扫描长事务与用户批量操作（加标签/删除）并发安全
-- 扫描导入整个括在一个事务里（scanStarted begin / scanFinished commit，commit 失败回滚）：10k 文件从 ~30k 次独立 fsync 降为 1 次
-- 元数据解析下放后台：`FileScanner::scanDirectorySync` 在后台线程调用 `MetadataParser::parse`，通过 `ScannedAsset{Asset, Metadata}` 携带，主线程只做 DB 写入（消除逐文件 readAll 卡 UI）；ParserRegistry 仅启动时注册 → 后台并发 parse 线程安全
-- ImageCache LRU 用 `std::list<CacheKey>` + `std::unordered_map<CacheKey, iterator>`：get() 命中 O(1) splice，替代原 QList removeAll+append 的 O(n)（paint 热路径随缓存规模增长）
-- `generateThumbnail` 单个 `QImageReader`：`size()` → `setScaledSize` → `read()` 一次打开，删除冗余 `m_dimCache`
-- LightboxWidget 打开不再深拷贝：所有只读访问用 `qAsConst(m_assets)[i]`，仅收藏切换（稀有用户操作）才允许 detach
-
-### Next Steps
-- 已将 TiMidity 条目移除：本项目（PixoBook 图片库）源码中无音频/MIDI 子系统，原 Next Step 不适用
-- 若再发现局部 update(QRect) 但 paintEvent 全量重绘的自绘控件，复用第 7 轮脏区域窄化模式（如 LightboxWidget/SidebarWidget 的热区变化）
-
-### Critical Context
-- `QFontMetrics` 构造在 Qt5 中涉及字体引擎初始化，在 paintEvent 循环中被多次调用时产生可测量的每帧分配
-- 异步图片加载需要 `#include <QtConcurrent>` + `#include <QPointer>` 在 .cpp 中，`m_loadGeneration` 在 .h 中声明为 `int`，以 0 初始化
-- `QImageReader::read()` 对高分辨率图片（>4K）可阻塞主线程 200-500ms，离线解码后 `invokeMethod` 回主线程设置 QPixmap + update()
-- `prefetchFileExistence` 对所有 asset（含不可见项）执行 stat，大规模图库（>10000 项）场景产生大量不必要的文件系统调用
-- tst_filestorage 静默崩溃是预存问题，与本次变更无关
+- `QPixmap` 绑定 GUI 线程，工作线程只能解码 `QImage`；跨线程返回 `QPixmap` 在部分平台/驱动上会崩溃或渲染异常
+- ImageCache `finishThumbnail` 必须在同一把 `m_mutex` 下先 erase `m_pending` 再 `insertLocked`，emit 放到锁外
+- 扫描快照期间 FileWatcher 的 fileAdded/fileRemoved 必须同步维护集合；并发扫描通过 `m_scanDepth` / `m_scanTxDepth` 配对提交
+- `DELETE`/写操作失败后 `rollbackTransaction()` 也可能失败，调用方应以操作返回值为准，不能假定回滚成功
 
 ### Relevant Files
 - `src/ui/TabBar.h/.cpp`：新增 `QFontMetrics m_tabFontMetrics{m_tabFont}` 成员，`tabRect`/`addButtonRect` 移除临时 QFontMetrics
@@ -154,7 +111,20 @@
 - `src/services/LibraryController.cpp`：scanStarted begin / assetFound 只写 DB / scanFinished commit（失败回滚）
 - `src/services/ImageCache.h/.cpp`：LRU `std::list` + `std::unordered_map<iterator>`（O(1) splice）、`generateThumbnail` 单次打开、移除 `m_dimCache`
 - `src/ui/LightboxWidget.cpp`：3 处只读访问改 `qAsConst(m_assets)[i]` 消除打开深拷贝
-- `ci/scan-bug-patterns.ps1`：35 个检查块，自动扫描
+- `src/ui/Codicon.h`：修正 `star` → 0xeb59（star-full），新增 `star-full` 别名
+- `src/services/LibraryController.h/.cpp`：扫描 path/hash 内存快照、`m_scanDepth`/`m_scanTxDepth` 并发事务计数、`deleteAssets` commit 失败返回 false、插入失败日志
+- `src/ui/UndoCommands.h/.cpp`：`AddTagToAssetsCommand` 记录 `m_newlyTaggedAssetIds`，undo 只撤销新增关联
+- `src/ui/MainWindow.h/.cpp`：`AssetQuery`/`queryAssets()` 统一查询、命令面板 undo/redo 刷新与导入文件夹、folderSelected 清除标签筛选
+- `src/ui/GalleryWidget.h/.cpp`：右键先选当前项、空白区橡皮筋支持修饰键、`m_emptySearchTitle`/`m_batchSummaryText` 预计算、setAssets 清空 fileExists 缓存
+- `src/ui/SidebarWidget.cpp`：折叠标签区清空 `m_addTagRect`（鼠标/键盘）
+- `src/ui/DetailPanel.h/.cpp`：`clear()` 递增 `m_loadGeneration`、`m_favStarRect` 复位、`m_tagCountText` 预计算、worker 仅解码 QImage
+- `src/ui/LightboxWidget.cpp`：worker 仅解码 QImage，GUI 线程 `QPixmap::fromImage`
+- `src/services/ImageCache.h/.cpp`：`m_pending` in-flight 去重、`insertLocked` 拒绝空 pixmap、`renderThumbnail` 返回 QImage
+- `src/database/DatabaseManager.h/.cpp`：`createSchema`/`migrate` 返回 bool、稳定排序 `id ASC`、析构时先释放连接句柄
+- `tests/tst_librarycontroller.cpp`：新增 undo 标签/删除恢复/扫描幂等测试
+- `tests/tst_database.cpp`：新增相同时间戳分页稳定性测试
+- `tests/tst_filestorage.cpp`：新增空 pixmap 不缓存、异步缩略图测试；initTestCase 校验临时目录
+- `ci/scan-bug-patterns.ps1`：37 个检查块，自动扫描（新增 CHECK 36/37）
 
 ---
 
@@ -221,6 +191,10 @@
 | 32 | `QString` 值传递参数 | 不必要的 COW 原子操作 | 检查 `.h` 中函数参数是否为 `QString` (非 `const &`) |
 | 33 | `QFileInfo` 仅用于字符串操作 | 不必要的文件系统 stat 调用 | 检查 `QFileInfo(…).fileName()` / `.suffix()` 等纯字符串操作 |
 | 34 | 头文件 `QFontMetrics m_x{m_font}` 初始化后构造函数改 `m_font` 未重建 | 度量快照失效（字体改了但测量不更新） | 检查 QFontMetrics 成员对应的 QFont 在 .cpp 中是否有 `setPixelSize`/赋值，且之后未重新赋值 `m_x = QFontMetrics(...)` |
+| 35 | 图标字体 codepoint 映射错误（`star` 用了 `star-empty` 的 0xea6a） | 收藏/非收藏状态视觉上完全相同 | 对照 `resources/codicon.css` 的 `.codicon-<name>:before` 校验 `Codicon::icon()` 映射 |
+| 36 | `QtConcurrent::run` 工作线程内创建 `QPixmap` / `QPainter` | QPixmap 绑定 GUI 线程，可能崩溃或渲染异常 | worker 只解码 `QImage`；`QPixmap::fromImage` 放在 `QMetaObject::invokeMethod` 的 GUI lambda 中 |
+| 37 | 缓存 `insert()` 存入空 pixmap / 同一 key 并发重复解码 | 空值永久占位（get 永远 miss）+ 每帧重复派发解码 | `insert` 拒绝 null；用 `m_pending` 集合去重 in-flight 请求 |
+| 38 | 带修饰键的鼠标操作分支位于"空白区"分支之前 | 修饰键+橡皮筋等组合功能不可达（死代码） | 检查 `modifiers()` 分支是否先于 `idx < 0` / 空白区处理 |
 
 ## 已修复的实例
 
@@ -263,6 +237,24 @@
 | 灯箱打开深拷贝 | LightboxWidget.cpp | `m_assets[m_currentIndex]` → `qAsConst(m_assets)[m_currentIndex]`（3 处只读访问），打开 2000 项图库从 ~5 万次堆分配降为 0，仅收藏切换才 detach |
 | 跨线程信号类型未注册 (模式 17) | FileScanner.h | `ScannedAsset` 信号参数补 `Q_DECLARE_METATYPE(ScannedAsset)` |
 | 扫描事务无回滚 (模式 13) | LibraryController.cpp | scanFinished 中 commit 失败时 `rollbackTransaction()` |
+| 收藏图标字形错误 (模式 35) | Codicon.h | `star` 从 0xea6a（star-empty）改为 0xeb59（star-full），并新增 `star-full` 别名 |
+| undo 误删既有标签 | UndoCommands.h/.cpp | `AddTagToAssetsCommand` 构造时记录 `m_newlyTaggedAssetIds`，undo 只移除命令新增的关联 |
+| commit 失败仍返回成功 (模式 13) | LibraryController.cpp | `deleteAssets` commit 失败时 rollback、emit dataChanged、返回 false |
+| CommandPalette 撤销不刷新 | MainWindow.cpp | 命令面板 undo/redo 与快捷键一致，执行后调用 `reloadAfterUndo()` |
+| 命令面板导入文件夹不更新侧栏 | MainWindow.cpp | 改为调用 `onImportFolder()`（scanFolder + setFolders） |
+| 文件夹选择残留标签筛选 | MainWindow.cpp | `folderSelected` 中 `m_activeTagId = -1` |
+| 右键菜单操作旧选区 | GalleryWidget.cpp | 右键未选中项时先选中该项并 emit assetSelected |
+| 修饰键橡皮筋不可达 (模式 38) | GalleryWidget.cpp | 将 `idx < 0` 空白区分支前移，再处理 Ctrl/Shift/Alt |
+| 折叠区残留命中框 | SidebarWidget.cpp | 折叠标签区时清空 `m_addTagRect` 与 hover 状态（鼠标与键盘路径） |
+| 异步加载越过 clear | DetailPanel.cpp | `clear()` 中 `++m_loadGeneration`，丢弃旧解码结果；同时重置 `m_favStarRect` |
+| 分页过滤器漂移 | MainWindow.h/.cpp | `AssetQuery` + `queryAssets()` 统一首屏与 loadMore 的筛选/排序 |
+| 相同时间戳分页重复/漏项 | DatabaseManager.cpp | `searchAssets` ORDER BY 追加 `id ASC` 稳定排序键 |
+| 扫描逐文件 2 次去重查询 | LibraryController.h/.cpp | scanStarted 快照 path/hash 集合 + 内存去重；`m_scanDepth`/`m_scanTxDepth` 支持并发扫描 |
+| 工作线程创建 QPixmap (模式 36) | DetailPanel.cpp, LightboxWidget.cpp, ImageCache.h/.cpp | worker 只解码 QImage；`QPixmap::fromImage` 在 GUI 线程 lambda 内执行 |
+| 空 pixmap 占位 + 重复解码 (模式 37) | ImageCache.h/.cpp | `insertLocked` 拒绝 null；`m_pending` 去重 in-flight 解码 |
+| Schema DDL 静默失败 (模式 7) | DatabaseManager.h/.cpp | `createSchema`/`migrate` 返回 bool，任一步失败则 `initialize()` 失败 |
+| 数据库连接析构告警 | DatabaseManager.cpp | close 后 `m_db = QSqlDatabase()` 再 removeDatabase，避免连接仍在使用告警 |
+| paintEvent `.arg()` 漏检 | GalleryWidget.h/.cpp, DetailPanel.h/.cpp | 预计算 `m_emptySearchTitle` / `m_batchSummaryText` / `m_tagCountText` |
 
 ## 扫描器改进
 
@@ -293,6 +285,8 @@
 | CHECK 32 修正 | 正则仅匹配参数位置（`(QString name` / `, QString name`，含 `const QString name`），排除函数返回类型误报；接受 `const QString &` 与 `const QString&` 两种拼写 |
 | CHECK 34（新增） | 检测头文件 `QFontMetrics m_x{m_font}` 初始化但 .cpp 构造函数对 `m_font` 调用 `setPixelSize`/赋值后未重建 metrics — 防止 QFontMetrics 快照失效回归 |
 | CHECK 35（新增） | 检测 `get()`/`find()` 方法内的 `.removeAll()` — O(n) LRU touch，paint 热路径随缓存规模增长；应使用 `std::list` + iterator 哈希 O(1) splice |
+| CHECK 36（新增） | 检测 paintEvent 或 `draw*` 辅助方法内的 `.arg()` — 用"最近的前置函数定义行"回溯，避免被上一行的 `Namespace::call()` 误导（CHECK 21 的 `Get-NearestFunctionName` 存在该盲区） |
+| CHECK 37（新增） | 检测 `QtConcurrent::run` 工作线程段内的 `QPixmap` / `QPainter` / `generateThumbnail()` — 在 `QMetaObject::invokeMethod` 处截断以排除 GUI lambda，并剥离 `//` 注释避免文档字符串误报 |
 
 ## 递归自我改进流程
 

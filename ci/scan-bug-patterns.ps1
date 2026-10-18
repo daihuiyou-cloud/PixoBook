@@ -1040,6 +1040,72 @@ if ($lruOnIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 36: QString formatting (.arg) in paintEvent or draw* helpers
+#   The nearest preceding definition line is used instead of call-site
+#   heuristics, so nested Name::call(...) lines cannot hide the helper.
+# ====================================================================
+$paintArgIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Where-Object {
+    $_ | Select-String -Pattern "::paintEvent" -Quiet
+} | ForEach-Object {
+    $fileName = $_.Name
+    $content = Get-Content $_.FullName
+    for ($i = 0; $i -lt $content.Count; $i++) {
+        if ($content[$i] -notmatch '\.arg\(') { continue }
+        $fnName = $null
+        for ($j = $i; $j -ge 0; $j--) {
+            if ($content[$j] -match '^\s*[\w:<>,\*&]+\s+([A-Za-z_]\w*)::([A-Za-z_]\w*)\s*\(') {
+                $fnName = $Matches[2]
+                break
+            }
+            if ($content[$j] -match '^\s*void\s+\w+::paintEvent\s*\(') {
+                $fnName = 'paintEvent'
+                break
+            }
+        }
+        if ($fnName -and ($fnName -eq 'paintEvent' -or $fnName -like 'draw*')) {
+            $paintArgIssues += "$($fileName):$($i+1) — .arg() inside $fnName (called from paintEvent; pre-compute the text)"
+        }
+    }
+}
+if ($paintArgIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "paintevent-helper-arg-alloc"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "paintevent-helper-arg-alloc"; Status = "FAIL"; Details = ($paintArgIssues -join "; ") }
+}
+
+# ====================================================================
+# CHECK 37: QPixmap/QPainter created inside a QtConcurrent worker
+#   QPixmap is bound to the GUI thread. Decode to QImage in the worker,
+#   then build the QPixmap inside the queued GUI lambda.
+# ====================================================================
+$workerPixmapIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "QtConcurrent::run" | ForEach-Object {
+    $fileName = $_.Filename
+    $lineNum = $_.LineNumber
+    $fullPath = $_.Path
+    $content = Get-Content $fullPath
+    $start = $lineNum - 1
+    $end = [Math]::Min($content.Count - 1, $start + 40)
+    $workerBody = @()
+    for ($i = $start; $i -le $end; $i++) {
+        # Everything after the GUI hand-off belongs to the main thread.
+        if ($content[$i] -match 'QMetaObject::invokeMethod') { break }
+        # Ignore line comments: they may mention QPixmap while explaining the rule.
+        $workerBody += ($content[$i] -replace '//.*$', '')
+    }
+    $body = $workerBody -join "`n"
+    if ($body -match '\bQPixmap\b|\bQPainter\b|\bgenerateThumbnail\s*\(') {
+        $workerPixmapIssues += "$($fileName):$lineNum — QPixmap/QPainter used in the worker part of QtConcurrent::run (decode to QImage, convert on the GUI thread)"
+    }
+}
+if ($workerPixmapIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "qtconcurrent-qpixmap-worker"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "qtconcurrent-qpixmap-worker"; Status = "FAIL"; Details = ($workerPixmapIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

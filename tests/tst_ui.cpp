@@ -1,5 +1,6 @@
 #include <QtTest/QtTest>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include "services/ImageCache.h"
 #include "ui/GalleryWidget.h"
 #include "ui/VisualConstants.h"
@@ -16,6 +17,14 @@ public:
         QMouseEvent event(QEvent::MouseButtonPress, pos, Qt::LeftButton,
                           Qt::LeftButton, Qt::NoModifier);
         mousePressEvent(&event);
+    }
+
+    void wheelBy(int angleDelta)
+    {
+        QWheelEvent event(QPointF(100, 100), QPointF(100, 100), QPoint(),
+                          QPoint(0, angleDelta), Qt::NoButton, Qt::NoModifier,
+                          Qt::NoScrollPhase, false);
+        wheelEvent(&event);
     }
 };
 
@@ -57,6 +66,36 @@ private slots:
         withoutSelected.removeAt(5);
         gallery.refreshAssets(withoutSelected, withoutSelected.size());
         QVERIFY(gallery.selectedAsset().id.isEmpty());
+    }
+
+    // A single wheel notch must move the grid. The old row-snapping logic
+    // rounded a 60px step back to the same row, so scrolling appeared dead.
+    void testWheelScrollsGrid()
+    {
+        ImageCache cache(4 * 1024 * 1024);
+        TestableGallery gallery(&cache);
+        gallery.resize(800, 600);
+        gallery.setThumbnailSize(100);
+
+        QVector<Asset> assets;
+        for (int i = 0; i < 30; ++i) {
+            Asset a;
+            a.id = QStringLiteral("scroll-%1").arg(i);
+            a.filePath = QStringLiteral("C:/nonexistent/scroll-%1.png").arg(i);
+            a.fileName = QStringLiteral("scroll-%1.png").arg(i);
+            assets.append(a);
+        }
+        gallery.setAssets(assets, assets.size());
+
+        // Before scrolling, y=150 is still row 0.
+        gallery.clickAt(QPoint(Visual::GalleryTopPadding + 20, 150));
+        QCOMPARE(gallery.selectedAsset().id, QStringLiteral("scroll-0"));
+
+        gallery.wheelBy(-120); // one standard notch -> 60px down
+
+        // Row 1 now starts at ~132px, so the same point selects item 5.
+        gallery.clickAt(QPoint(Visual::GalleryTopPadding + 20, 150));
+        QCOMPARE(gallery.selectedAsset().id, QStringLiteral("scroll-5"));
     }
 };
 

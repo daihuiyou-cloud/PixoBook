@@ -645,7 +645,8 @@ void DetailPanel::wheelEvent(QWheelEvent *event)
         m_zoomText = m_imageInfoPrefix + QString::number(static_cast<int>(m_zoom * 100)) + "%";
         update();
     } else if (m_maxScrollOffset > 0) {
-        int delta = pixelDelta.isNull() ? angleDelta.y() / 8 : pixelDelta.y();
+        // Match the gallery: one wheel notch scrolls ~60px instead of 15px.
+        int delta = pixelDelta.isNull() ? angleDelta.y() / 2 : pixelDelta.y();
         m_scrollOffset -= delta;
         m_scrollOffset = qBound(0, m_scrollOffset, m_maxScrollOffset);
         update();

@@ -156,6 +156,8 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_selectedAsset = {};
     m_selectedIndices.clear();
     m_scrollOffset = 0;
+    m_scrollbarDragging = false;
+    m_scrollbarHovered = false;
     m_fileExistsCache.clear();
     pruneRequestedThumbnails(assets);
     rebuildMetaLines();
@@ -173,6 +175,8 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     m_selectedAsset = {};
     m_selectedIndices.clear();
     m_scrollOffset = 0;
+    m_scrollbarDragging = false;
+    m_scrollbarHovered = false;
     m_fileExistsCache.clear();
     pruneRequestedThumbnails(assets);
     rebuildMetaLines();
@@ -199,6 +203,8 @@ void GalleryWidget::refreshAssets(const QVector<Asset> &assets, int totalCount)
     m_lastClickedIndex = -1;
     m_selectedAsset = {};
     m_selectedIndices.clear();
+    m_scrollbarDragging = false;
+    m_scrollbarHovered = false;
     m_fileExistsCache.clear();
     pruneRequestedThumbnails(assets);
     rebuildMetaLines();
@@ -321,14 +327,12 @@ int GalleryWidget::maxScrollOffset() const
 
 void GalleryWidget::scrollToPos(int y)
 {
-    int maxOff = maxScrollOffset();
-    if (maxOff <= 0) return;
+    const int maxOff = maxScrollOffset();
+    if (maxOff <= 0)
+        return;
+    // Smooth pixel scrolling: row snapping made a single wheel notch (15px)
+    // round back to the same row, so the grid appeared not to scroll at all.
     m_scrollOffset = qBound(0, y, maxOff);
-    int rowH = m_itemHeight() + kGap;
-    if (rowH > 0) {
-        int snapRow = (m_scrollOffset + rowH / 2) / rowH;
-        m_scrollOffset = qBound(0, snapRow * rowH, maxOff);
-    }
     ensureThumbnailsForVisibleItems();
     update();
     checkLoadMore();
@@ -342,21 +346,24 @@ void GalleryWidget::drawScrollIndicator(QPainter &p) const
         m_scrollbarThumbRect = QRect();
         return;
     }
-    int trackX = width() - kScrollbarWidth;
+    const int trackX = width() - kScrollbarWidth;
     m_scrollbarTrackRect = QRect(trackX, 0, kScrollbarWidth, height());
 
-    int thumbH = qMax(30, height() * height() / (height() + maxOff));
-    int thumbY = (height() - thumbH) * m_scrollOffset / maxOff;
-    m_scrollbarThumbRect = QRect(trackX + 1, thumbY, kScrollbarWidth - 2, thumbH);
+    const int thumbH = qMax(30, height() * height() / (height() + maxOff));
+    const int thumbY = (height() - thumbH) * m_scrollOffset / maxOff;
+    // Full track width for hit-testing; the visible thumb is inset.
+    m_scrollbarThumbRect = QRect(trackX, thumbY, kScrollbarWidth, thumbH);
 
-    p.fillRect(m_scrollbarTrackRect, QColor(0, 0, 0, 0));
+    if (m_scrollbarHovered || m_scrollbarDragging) {
+        p.fillRect(m_scrollbarTrackRect, QColor(255, 255, 255, 10));
+    }
 
     QColor thumbColor = m_scrollbarDragging
         ? Color::SCROLLBAR_ACTIVE
         : (m_scrollbarHovered ? Color::SCROLLBAR_HOVER : Color::SCROLLBAR);
     p.setBrush(thumbColor);
     p.setPen(Qt::NoPen);
-    p.drawRoundedRect(m_scrollbarThumbRect, 3, 3);
+    p.drawRoundedRect(m_scrollbarThumbRect.adjusted(2, 0, -2, 0), 3, 3);
 }
 
 QRect GalleryWidget::itemRect(int index) const
@@ -828,8 +835,9 @@ void GalleryWidget::mouseMoveEvent(QMouseEvent *event)
     if (oldEmpty != m_emptyHoveredButton)
         update();
 
-    bool oldScrollHover = m_scrollbarHovered;
-    m_scrollbarHovered = m_scrollbarThumbRect.contains(event->pos());
+    const bool oldScrollHover = m_scrollbarHovered;
+    const QRect scrollTrack(width() - kScrollbarWidth, 0, kScrollbarWidth, height());
+    m_scrollbarHovered = maxScrollOffset() > 0 && scrollTrack.contains(event->pos());
     if (oldScrollHover != m_scrollbarHovered)
         update();
 }
@@ -859,22 +867,29 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
         }
     }
 
-    if (m_scrollbarThumbRect.contains(event->pos())) {
-        m_scrollbarDragging = true;
-        m_scrollbarDragStartY = event->pos().y();
-        m_scrollbarDragStartOffset = m_scrollOffset;
-        update();
-        return;
-    }
-    if (m_scrollbarTrackRect.contains(event->pos()) && !m_scrollbarThumbRect.contains(event->pos())) {
-        int maxOff = maxScrollOffset();
-        int h = height();
-        if (maxOff > 0 && h > 0) {
-            int clickRatio = event->pos().y();
-            int targetOff = clickRatio * maxOff / h;
-            scrollToPos(targetOff);
+    const int scrollMax = maxScrollOffset();
+    if (scrollMax > 0) {
+        // Compute the thumb geometry from the current scroll state instead of
+        // relying on rects cached by the last paintEvent.
+        const QRect scrollTrack(width() - kScrollbarWidth, 0, kScrollbarWidth, height());
+        const int thumbH = qMax(30, height() * height() / (height() + scrollMax));
+        const int thumbY = (height() - thumbH) * m_scrollOffset / scrollMax;
+        const QRect scrollThumb(scrollTrack.x(), thumbY, scrollTrack.width(), thumbH);
+        if (scrollThumb.contains(event->pos())) {
+            m_scrollbarDragging = true;
+            m_scrollbarDragStartY = event->pos().y();
+            m_scrollbarDragStartOffset = m_scrollOffset;
+            update();
+            return;
         }
-        return;
+        if (scrollTrack.contains(event->pos())) {
+            // Center the thumb on the click instead of treating the click as
+            // the top edge of the thumb.
+            const int trackH = qMax(1, height() - thumbH);
+            const int targetOff = (event->pos().y() - thumbH / 2) * scrollMax / trackH;
+            scrollToPos(targetOff);
+            return;
+        }
     }
 
     if (m_assets.isEmpty() && m_searchKeyword.isEmpty()) {
@@ -1064,20 +1079,19 @@ void GalleryWidget::updateRubberBandSelection(const QRect &oldBand)
 void GalleryWidget::wheelEvent(QWheelEvent *event)
 {
     int delta;
-    if (!event->pixelDelta().isNull())
+    if (!event->pixelDelta().isNull()) {
         delta = event->pixelDelta().y();
-    else
-        delta = event->angleDelta().y() / 8;
-    m_scrollOffset -= delta;
-    m_scrollOffset = qBound(0, m_scrollOffset, qMax(0, m_totalHeight - height()));
-    int rowH = m_itemHeight() + kGap;
-    if (rowH > 0) {
-        int snapRow = (m_scrollOffset + rowH / 2) / rowH;
-        m_scrollOffset = qBound(0, snapRow * rowH, qMax(0, m_totalHeight - height()));
+    } else {
+        // A standard wheel notch is 120 units; divide by 2 gives ~60px, which
+        // matches one comfortable scroll step (Qt's default is 3 lines).
+        delta = event->angleDelta().y() / 2;
     }
+    m_scrollOffset -= delta;
+    m_scrollOffset = qBound(0, m_scrollOffset, maxScrollOffset());
     ensureThumbnailsForVisibleItems();
     update();
     checkLoadMore();
+    event->accept();
 }
 
 void GalleryWidget::resizeEvent(QResizeEvent *)

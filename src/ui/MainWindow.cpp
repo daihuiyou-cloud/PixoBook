@@ -246,8 +246,7 @@ void MainWindow::setupConnections()
     });
 
     connect(m_library, &LibraryController::dataChanged, this, [this]() {
-        m_statusCount->setText(
-            tr("%1 张图片").arg(m_gallery->totalAssetCount()));
+        updateStatusCounts(m_gallery->totalAssetCount());
     });
 
     connect(m_library, &LibraryController::tagsChanged, this, [this]() {
@@ -408,7 +407,7 @@ void MainWindow::setupConnections()
             if (fi.isDir())
                 m_library->scanFolder(path);
             else if (fi.isFile() && FileScanner::isSupportedFormat(path))
-                m_library->scanAndInsertFile(path);
+                (void)m_library->scanAndInsertFile(path);
         }
         // A dropped folder is added to the watched list by scanFolder().
         m_sidebar->setFolders(m_library->folders());
@@ -588,6 +587,10 @@ void MainWindow::setupShortcuts()
                      [this]() { m_undoStack->undo(); reloadAfterUndo(); }});
         cmds.append({tr("重做"), "Ctrl+Y",
                      [this]() { m_undoStack->redo(); reloadAfterUndo(); }});
+        cmds.append({tr("导出注释..."), "",
+                     [this]() { onExportAnnotations(); }});
+        cmds.append({tr("清理缺失记录..."), "",
+                     [this]() { onCleanupMissing(); }});
         m_commandPalette->show(cmds);
     });
 
@@ -620,6 +623,71 @@ void MainWindow::onImportFile()
             ? tr("已导入 1 张图片")
             : tr("未导入：图片已在库中或格式不支持"));
     }
+}
+
+void MainWindow::updateStatusCounts(int totalCount)
+{
+    const int missing = m_library->countMissingAssets();
+    if (missing > 0) {
+        m_statusCount->setText(tr("%1 张图片 · %2 个文件缺失").arg(totalCount).arg(missing));
+        m_statusCount->setToolTip(
+            tr("缺失文件的标签和收藏仍保留。重新扫描所在文件夹可恢复；\n"
+               "或在命令面板执行“清理缺失记录”永久删除这些记录。"));
+    } else {
+        m_statusCount->setText(tr("%1 张图片").arg(totalCount));
+        m_statusCount->setToolTip(QString());
+    }
+}
+
+void MainWindow::onExportAnnotations()
+{
+    if (m_library->countAssets() == 0) {
+        ToastNotification::show(this, tr("素材库为空"));
+        return;
+    }
+    const QString defaultPath =
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+        + QStringLiteral("/pixobook-annotations.json");
+    const QString path = QFileDialog::getSaveFileName(this, tr("导出注释"), defaultPath,
+                                                      tr("JSON (*.json)"));
+    if (path.isEmpty())
+        return;
+    QString error;
+    if (m_library->exportAnnotations(path, &error)) {
+        const int slash = qMax(path.lastIndexOf(QLatin1Char('/')),
+                               path.lastIndexOf(QLatin1Char('\\')));
+        const QString displayName = slash >= 0 ? path.mid(slash + 1) : path;
+        m_statusMsg->setText(tr("已导出注释到 %1").arg(displayName));
+        ToastNotification::show(this, tr("已导出注释"));
+    } else {
+        QMessageBox::warning(this, tr("导出失败"), error);
+    }
+}
+
+void MainWindow::onCleanupMissing()
+{
+    const int missing = m_library->countMissingAssets();
+    if (missing == 0) {
+        ToastNotification::show(this, tr("没有缺失记录"));
+        return;
+    }
+    const auto reply = QMessageBox::question(
+        this, tr("清理缺失记录"),
+        tr("将永久删除 %1 条缺失文件记录及其标签/收藏。\n确定继续？").arg(missing),
+        QMessageBox::Yes | QMessageBox::No);
+    if (reply != QMessageBox::Yes)
+        return;
+    if (!m_library->cleanupMissingAssets()) {
+        QMessageBox::warning(this, tr("清理失败"), tr("数据库删除失败，未修改任何记录。"));
+        return;
+    }
+    loadAssets();
+    const QString shown = m_detailPanel->currentAssetId();
+    if (!shown.isEmpty() && m_library->getAsset(shown).id.isEmpty()) {
+        m_detailPanel->clear();
+        m_detailPanel->setVisible(false);
+    }
+    ToastNotification::show(this, tr("已清理 %1 条记录").arg(missing));
 }
 
 MainWindow::AssetQuery MainWindow::currentAssetQuery() const
@@ -682,7 +750,7 @@ void MainWindow::applyAssets(bool preserveView)
         m_cachedTags = m_library->getAllTags();
     m_sidebar->setTags(m_cachedTags);
 
-    m_statusCount->setText(tr("%1 张图片").arg(totalCount));
+    updateStatusCounts(totalCount);
 
     QStringList summary;
     summary << tr("%1 张图片").arg(totalCount);

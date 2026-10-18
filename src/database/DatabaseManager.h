@@ -32,6 +32,17 @@ public:
     Asset findByPath(const QString &filePath) const override;
     Asset findByHash(const QString &hash) const override;
 
+    [[nodiscard]] bool markAssetMissing(const QString &filePath,
+                                        const QDateTime &when) override;
+    [[nodiscard]] bool markAssetPresent(const QString &assetId) override;
+    [[nodiscard]] int countMissingAssets() const override;
+    QVector<Asset> getMissingAssets() const override;
+    [[nodiscard]] bool deleteMissingAssets() override;
+
+    QVector<Asset> getAnnotatedAssets() const override;
+    QHash<QString, Metadata> getAllMetadata() const override;
+    QHash<QString, QVector<Tag>> getAllAssetTags() const override;
+
     [[nodiscard]] bool upsertMetadata(const Metadata &metadata) override;
     Metadata getMetadata(const QString &assetId) const override;
 
@@ -58,8 +69,12 @@ public:
 private:
     [[nodiscard]] bool createSchema();
     [[nodiscard]] bool migrate();
+    [[nodiscard]] bool hasAssetColumn(const QString &column) const;
+    void backupBeforeMigration(int fromVersion) const;
+
     QSqlDatabase m_db;
     QString m_connectionName;
+    QString m_dbPath;
     int m_txDepth = 0;
 };
 

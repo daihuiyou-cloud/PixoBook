@@ -8,10 +8,11 @@
 
 ### Goal
 - 对 PixoBook 项目进行多轮 C++ 性能优化评审与修复，涵盖数据库查询、I/O、paintEvent 堆分配、虚函数去虚化、数据局部性
+- 第 11 轮起转向第一性原理：先保数据（派生数据 vs 原生注释）、再立度量（benchmark）、后改架构（检索/抽取）
 
 ### Constraints & Preferences
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
-- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 37 个检查块在其中可用
+- 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 38 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
 - 第 8 轮及以前 8 个 commit；第 9 轮 c109f98 / 8f10210 / 1f1e835；第 10 轮 b2275b4 / a771806 / 3b2066c；滚动条 cdc4996 / 7568863；审计修复 26d9a8f；工作区干净
 
@@ -58,6 +59,17 @@
   - 测试：`tst_database` 改为每个用例独立数据库（可单独运行）；新增文件夹前缀筛选、已知 path 跳过、新子目录监听、commit 失败回滚、SDParser tEXt/zTXt、LRU 顺序与真实 UI 选择保持测试（`tst_ui`）
   - 构建 0 错 0 警告，37/37 扫描器 PASS，6/6 测试通过
 
+- **第 11 轮（工作区）— P0 数据生命周期 + 基准**：
+  - 数据分层：`assets` 新增 `missing_since`（schema v3 + 部分索引）。`FileWatcher::fileRemoved` 不再 `deleteAsset`，改为标记缺失；条目、标签、收藏全部保留。删除只由用户显式触发（清理缺失记录/删除素材）。
+  - 恢复路径：`fileAdded`/手动导入/文件夹重扫都会恢复同一行。`scanFolder` 的 `knownPaths` 只包含在线条目，缺失路径重新进入扫描器；`assetFound` 先查 `m_scanMissingAssets` 再查 known 集合，避免被当作"已导入"跳过；同 hash 改名由 `adoptRenamedAsset` 清除缺失标记。
+  - 迁移安全：`migrate()` 在升级前执行 `wal_checkpoint(FULL)` 并复制为 `*.bak-v{n}`；v3 的 `ALTER TABLE` 先用 `PRAGMA table_info` 判重，兼容已含新列的新库。
+  - 注释导出：命令面板"导出注释..."，`QSaveFile` 原子写 JSON；只导出有标签/收藏/metadata 的行，读取用 3 次批量查询（`getAnnotatedAssets` / `getAllMetadata` / `getAllAssetTags`），不做 N+1。
+  - 缺失可见：状态栏显示"N 张图片 · M 个文件缺失"；命令面板"清理缺失记录..."二次确认后批量删除，并关闭详情面板中已删除的条目。
+  - 基准：新增 `pixobook_bench`（合成库，可配 `--assets/--runs`）。10k：导入 0.65s、常用词搜索 p50 31ms、深页(offset 2000) 53ms；50k：常用词 p50 308ms、深页 501ms —— 证明 `LIKE '%kw%'` 全表扫描是核心瓶颈，FTS5 是下一轮。
+  - 工程：CMake 的 `GLOB_RECURSE` 加 `CONFIGURE_DEPENDS`；修复两处 `[[nodiscard]]` 返回值丢弃；本地 Qt 5.13.2 x64 与 CI 的 5.15.2 Win32 不一致的问题已记录（尚未统一）。
+  - 测试：`tst_database` 新增缺失状态保留/更新清除/只删缺失/导出批量查询/v2→v3 迁移+备份；`tst_librarycontroller` 新增"删除不丢标签且可恢复"、"重扫恢复回归文件"、"导出 JSON 内容"。
+  - 构建 0 错 0 警告，38/38 扫描器 PASS，6/6 测试通过。
+
 #### In Progress
 - 无
 
@@ -99,8 +111,20 @@
 - 文件重命名/移动的识别条件：同 hash、不同 path、旧 path 已不存在；此时 `updateAsset` 复用原 id 行（标签/元数据保留），不新建也不删除
 - FileWatcher 卸载按路径边界（`== root || startsWith(root + '/')`）判断，避免 `C:/Photos` 误伤 `C:/Photos2`
 - Sidebar 的 `setActiveFolder()` 会清除标签高亮，`setActiveTag()` 会清除文件夹高亮；选择标签时必须用后者
+- 数据分两层：路径/尺寸/hash/prompt 等是**派生数据**（重扫可重建），标签/收藏/备注是**原生数据**（只能显式删除）。`assets.missing_since` 表达"文件暂时不可达"，把"文件不在"与"用户要删"分开；清空标记只发生在文件重新可达时
+- `fileRemoved` 是状态事件而非删除意图：标记缺失 + `emit dataChanged`，绝不 `deleteAsset`；批量清理只走 `deleteMissingAssets()`（用户二次确认）
+- 恢复扫描必须让缺失路径重新进入 scanner：`scanFolder` 的 knownPaths 只放在线条目，`assetFound` 先查 `m_scanMissingAssets` 再查 known 集合，否则同 path 会被"已导入"跳过而永远无法恢复
+- 注释导出只包含有标签/收藏/metadata 的行，用 3 次批量查询 + `QSaveFile` 原子写；JSON 保留 `hash`/`filePath` 作为将来导入时的匹配键
+- 迁移前先 `wal_checkpoint(FULL)` 再复制 `*.bak-v{n}`；v3 的 `ALTER TABLE` 用 `PRAGMA table_info` 判重，避免新库（createSchema 已含列）重复加列失败
+- 性能工作以 `pixobook_bench` 的数字为准：没有 before/after 就不做"优化"；50k 常用词 p50 308ms 证明 LIKE 全表扫描是下一轮的主目标
 
 ### Next Steps
+- **检索架构（下一轮）**：先验证 Qt 5.13 自带 SQLite 的 `PRAGMA compile_options` 是否含 FTS5；建 external-content FTS5 表（prompt/negative_prompt/file_name），bm25 排序 + 前缀查询；CJK 视版本用 trigram tokenizer，否则保留 LIKE 分支。目标 50k 库 p95 < 200ms（当前 p50 308ms）。
+- 启动时/重扫后的存在性核对：应用关闭期间被删除的文件不会触发 watcher，重扫又因路径仍在 knownPaths 中而跳过，目前只能显示为"文件不存在"但 `missing_since` 为空。下一轮在 scanFolder 完成后对候选路径做一次 `exists()` 核对（只查已导入条目，代价 O(N) stat）。
+- 缺失条目的专用视图/手动"重新定位"对话框：当前依赖重扫同一文件夹恢复；跨盘移动需要用户重新扫描新位置（同 hash 会 adopt）。
+- 注释导入（合并策略：按 hash 匹配，冲突时跳过或保留导出值），让导出文件真正可用于迁移。
+- 备份保留策略：`*.bak-v{n}` 目前只增不删，后续只保留最近 N 个。
+- 把 `pixobook_bench` 纳入 CI 趋势记录（至少每轮记录 10k/50k 的 p50/p95 数字）。
 - 新增任何后台解码路径时，worker 只返回 `QImage`，`QPixmap` 必须在 GUI 线程构造（CHECK 37 会拦截）
 - 扫描期新增/删除文件的路径必须同步更新 `m_scanKnownPaths` / `m_scanKnownHashes`，否则去重快照会漂移
 - 可继续优化扫描的 metadata 写入：目前仍是每文件一次 prepared upsert，后续可批量/复用 QSqlQuery
@@ -117,6 +141,12 @@
 - ImageCache `finishThumbnail` 必须在同一把 `m_mutex` 下先 erase `m_pending` 再 `insertLocked`，emit 放到锁外
 - 扫描快照期间 FileWatcher 的 fileAdded/fileRemoved 必须同步维护集合；并发扫描通过 `m_scanDepth` / `m_scanTxDepth` 配对提交
 - `DELETE`/写操作失败后 `rollbackTransaction()` 也可能失败，调用方应以操作返回值为准，不能假定回滚成功
+- `assets.missing_since` 为空表示文件在线；`Asset::isMissing()` 是唯一判断入口。新增任何 `SELECT` 映射都要走 `readAssetRow()`，否则会漏掉该列
+- 迁移版本 3 的备份文件是 `<db>.bak-v2`（源版本号），只在 `version > 0 && version < 3` 时创建；新库不会产生备份
+- `FileWatcher::fileRemoved` → `markAssetMissing`；恢复由 `fileAdded`、手动导入或 `scanFolder` 触发。不要重新引入"文件消失即删行"
+- 扫描恢复时同时维护 `m_scanMissingAssets` / `m_scanKnownPaths` / `m_scanKnownHashes`，三者不一致会导致重复行或恢复失败
+- `pixobook_bench` 是控制台程序，运行时需要 Qt bin 在 PATH（`D:\Qt5.13.2\5.13.2\msvc2017_64\bin`），否则缺 DLL 静默退出
+- 本机 `build/` 的 CMake 缓存必须指向 64 位 Qt（msvc2017_64）；`Qt5_DIR` 若解析到 msvc2017（x86）会在链接期报 677 个未解析符号
 
 ### Relevant Files
 - `src/ui/TabBar.h/.cpp`：新增 `QFontMetrics m_tabFontMetrics{m_tabFont}` 成员，`tabRect`/`addButtonRect` 移除临时 QFontMetrics
@@ -162,7 +192,15 @@
 - `tests/tst_librarycontroller.cpp`：known path 跳过、新子目录监听、commit 失败回滚、导入返回值
 - `tests/tst_parsers.cpp`：真实 PNG tEXt/zTXt 解析
 - `tests/tst_ui.cpp`：GalleryWidget refresh 保持选择
-- `ci/scan-bug-patterns.ps1`：37 个检查块，自动扫描（新增 CHECK 36/37）
+- `ci/scan-bug-patterns.ps1`：38 个检查块，自动扫描（新增 CHECK 38 watcher-delete-instead-of-missing）
+- `src/models/Asset.h`：新增 `QDateTime missingSince` + `isMissing()`
+- `src/core/IDatabaseManager.h`：新增 missing 状态 API（`markAssetMissing`/`markAssetPresent`/`countMissingAssets`/`getMissingAssets`/`deleteMissingAssets`）与导出批量查询（`getAnnotatedAssets`/`getAllMetadata`/`getAllAssetTags`）
+- `src/database/DatabaseManager.h/.cpp`：schema v3（`missing_since` + 部分索引）、`readAssetRow()` 统一行映射、迁移前 checkpoint+备份、`hasAssetColumn()` 判重
+- `src/services/LibraryController.h/.cpp`：watcher 删除语义改为标记缺失、`restoreMissingAsset()`、`m_scanMissingAssets`、`exportAnnotations()`（QSaveFile JSON）、`cleanupMissingAssets()`
+- `src/ui/MainWindow.h/.cpp`：状态栏缺失计数、命令面板"导出注释/清理缺失记录"、导出后状态提示
+- `bench/bench_main.cpp` + `CMakeLists.txt`：`pixobook_bench` 目标、`CONFIGURE_DEPENDS`
+- `tests/tst_database.cpp`：缺失状态/更新清除/只删缺失/导出查询/v2→v3 迁移备份
+- `tests/tst_librarycontroller.cpp`：删除不丢标签并可恢复、重扫恢复、导出 JSON
 
 ---
 
@@ -240,6 +278,7 @@
 | 43 | 重命名/移动后先 added 后 removed，added 因同 hash 被跳过 | 随后 removed 删除旧行：素材、标签、元数据全部丢失 | 同 hash + 旧 path 不存在时 `adoptRenamedAsset()` 复用原行更新路径 |
 | 44 | 路径前缀 `startsWith(root)` 无分隔符边界 | 移除 `C:/Photos` 会误停 `C:/Photos2` 的监听 | 使用 `== root || startsWith(root + '/')` |
 | 45 | 互斥 setter 误用（`setActiveFolder("")` 清标签高亮） | 选中的标签在侧栏立即失去高亮 | 选标签用 `setActiveTag()`，其内部会清文件夹高亮 |
+| 46 | 监听器把"文件消失"直接 `deleteAsset` | 外置盘/网络盘/同步目录一次抖动就永久丢失标签与收藏（唯一不可恢复的失败） | 检查 `fileRemoved` 回调是否只标记 `missing_since`；删除必须由用户显式触发（CHECK 38 会拦截） |
 
 ## 已修复的实例
 
@@ -317,6 +356,9 @@
 | 卸载误伤兄弟目录 (模式 44) | FileWatcher.cpp | `pathIsSameOrUnder()` 按路径分隔符边界判断，覆盖 Windows/Unix 根路径 |
 | 标签选中后无高亮 (模式 45) | MainWindow.cpp | tagSelected 改用 `setActiveTag()`，不再调用会清标签的 `setActiveFolder("")` |
 | 拖拽文件夹侧栏不更新 | MainWindow.cpp | gallery filesDropped 后 `setFolders(m_library->folders())` |
+| 文件消失即删数据 (模式 46) | DatabaseManager.*, LibraryController.*, IDatabaseManager.h, Asset.h | schema v3 新增 `missing_since`；watcher 只标记缺失；恢复走 fileAdded/手动导入/重扫；清理缺失需用户二次确认 |
+| 迁移无备份/新库重复加列 | DatabaseManager.cpp | 升级前 `wal_checkpoint(FULL)` + `*.bak-v{n}`；`ALTER TABLE` 前用 `PRAGMA table_info` 判重 |
+| 缺失文件无法恢复 | LibraryController.cpp | `scanFolder` 的 knownPaths 排除缺失；`assetFound` 先查 `m_scanMissingAssets` 再查 known，`restoreMissingAsset()` 保留 id/标签/收藏 |
 
 ## 扫描器改进
 
@@ -349,6 +391,7 @@
 | CHECK 35（新增） | 检测 `get()`/`find()` 方法内的 `.removeAll()` — O(n) LRU touch，paint 热路径随缓存规模增长；应使用 `std::list` + iterator 哈希 O(1) splice |
 | CHECK 36（新增） | 检测 paintEvent 或 `draw*` 辅助方法内的 `.arg()` — 用"最近的前置函数定义行"回溯，避免被上一行的 `Namespace::call()` 误导（CHECK 21 的 `Get-NearestFunctionName` 存在该盲区） |
 | CHECK 37（新增） | 检测 `QtConcurrent::run` 工作线程段内的 `QPixmap` / `QPainter` / `generateThumbnail()` — 在 `QMetaObject::invokeMethod` 处截断以排除 GUI lambda，并剥离 `//` 注释避免文档字符串误报 |
+| CHECK 38（新增） | 检测 `fileRemoved` 回调 20 行内出现 `deleteAsset(` — 文件消失必须标记缺失而非删除；剥离 `//` 注释，遇 `});` 结束窗口，避免把后续函数误判 |
 
 ## 递归自我改进流程
 

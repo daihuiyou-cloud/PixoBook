@@ -2,8 +2,13 @@
 #include "services/FileScanner.h"
 #include "services/FileWatcher.h"
 #include "parsers/MetadataParser.h"
+#include <QDateTime>
 #include <QDebug>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
 
 LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
                                      FileScanner *scanner, FileWatcher *watcher,
@@ -25,11 +30,18 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
             // the scan is O(1) in memory instead of two SQL round-trips per file.
             m_scanKnownPaths.clear();
             m_scanKnownHashes.clear();
+            m_scanMissingAssets.clear();
             const auto existing = m_db->getAllAssets();
             m_scanKnownPaths.reserve(existing.size());
             m_scanKnownHashes.reserve(existing.size());
             for (const auto &a : existing) {
-                m_scanKnownPaths.insert(a.filePath);
+                if (a.isMissing()) {
+                    // Do not mark the path known: the scanner must visit it so
+                    // a file that came back can be restored (tags preserved).
+                    m_scanMissingAssets.insert(a.filePath, a);
+                } else {
+                    m_scanKnownPaths.insert(a.filePath);
+                }
                 if (!a.hash.isEmpty())
                     m_scanKnownHashes.insert(a.hash);
             }
@@ -39,6 +51,11 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
     connect(m_scanner, &FileScanner::assetFound, this, [this](const ScannedAsset &item) {
         const Asset &asset = item.asset;
         if (m_scanDepth > 0) {
+            const auto missing = m_scanMissingAssets.constFind(asset.filePath);
+            if (missing != m_scanMissingAssets.constEnd()) {
+                (void)restoreMissingAsset(missing.value(), asset, item.metadata);
+                return;
+            }
             if (m_scanKnownPaths.contains(asset.filePath))
                 return;
             if (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash)) {
@@ -83,6 +100,7 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
         if (m_scanDepth == 0) {
             m_scanKnownPaths.clear();
             m_scanKnownHashes.clear();
+            m_scanMissingAssets.clear();
         }
         emit assetCountChanged(m_db->countAssets());
         emit scanFinished();
@@ -97,12 +115,17 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
     });
 
     connect(m_watcher, &FileWatcher::fileRemoved, this, [this](const QString &path) {
-        Asset a = m_db->findByPath(path);
-        if (!a.id.isEmpty()) {
-            (void)m_db->deleteAsset(a.id);
-            m_scanKnownPaths.remove(path);
-            if (!a.hash.isEmpty())
-                m_scanKnownHashes.remove(a.hash);
+        // A disappearing file is a state change, not a delete request. The row
+        // and its annotations stay until the user cleans missing records up;
+        // a rescan or a rename brings the same row back.
+        const Asset a = m_db->findByPath(path);
+        if (a.id.isEmpty())
+            return;
+        if (m_db->markAssetMissing(path, QDateTime::currentDateTime())) {
+            if (m_scanDepth > 0) {
+                m_scanKnownPaths.remove(path);
+                m_scanMissingAssets.insert(path, a);
+            }
             emit dataChanged();
         }
     });
@@ -228,8 +251,12 @@ void LibraryController::scanFolder(const QString &dir)
     QSet<QString> knownPaths;
     const auto existing = m_db->getAllAssets();
     knownPaths.reserve(existing.size());
-    for (const auto &a : existing)
-        knownPaths.insert(a.filePath);
+    for (const auto &a : existing) {
+        // Missing paths are rescanned so a returning file is restored rather
+        // than skipped as "already imported".
+        if (!a.isMissing())
+            knownPaths.insert(a.filePath);
+    }
     m_scanner->scanDirectory(dir, true, knownPaths);
 }
 
@@ -246,6 +273,11 @@ bool LibraryController::scanAndInsertFile(const QString &path)
     Asset asset = FileScanner::scanSingleFile(path);
     if (asset.id.isEmpty()) return false;
     if (m_scanDepth > 0) {
+        const auto missing = m_scanMissingAssets.constFind(asset.filePath);
+        if (missing != m_scanMissingAssets.constEnd()) {
+            (void)restoreMissingAsset(missing.value(), asset, MetadataParser::parse(path));
+            return false;
+        }
         if (m_scanKnownPaths.contains(asset.filePath))
             return false;
         if (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash)) {
@@ -253,8 +285,12 @@ bool LibraryController::scanAndInsertFile(const QString &path)
             return false;
         }
     } else {
-        if (!m_db->findByPath(asset.filePath).id.isEmpty())
+        const Asset existing = m_db->findByPath(asset.filePath);
+        if (!existing.id.isEmpty()) {
+            if (existing.isMissing())
+                (void)restoreMissingAsset(existing, asset, MetadataParser::parse(path));
             return false;
+        }
         if (!m_db->findByHash(asset.hash).id.isEmpty()) {
             (void)adoptRenamedAsset(asset);
             return false;
@@ -304,8 +340,41 @@ bool LibraryController::adoptRenamedAsset(const Asset &scanned)
         return false;
     }
     if (m_scanDepth > 0) {
+        m_scanMissingAssets.remove(existing.filePath);
         m_scanKnownPaths.remove(existing.filePath);
         m_scanKnownPaths.insert(updated.filePath);
+    }
+    return true;
+}
+
+bool LibraryController::restoreMissingAsset(const Asset &existing, const Asset &scanned,
+                                            const Metadata &metadata)
+{
+    Asset updated = existing;
+    updated.filePath = scanned.filePath;
+    updated.fileName = scanned.fileName;
+    updated.fileSize = scanned.fileSize;
+    updated.width = scanned.width;
+    updated.height = scanned.height;
+    updated.format = scanned.format;
+    updated.hash = scanned.hash;
+    updated.folderId = scanned.folderId;
+    updated.updatedAt = QDateTime::currentDateTime();
+    updated.missingSince = QDateTime();
+    if (!m_db->updateAsset(updated)) {
+        qWarning() << "restoreMissingAsset: updateAsset failed for" << scanned.filePath;
+        return false;
+    }
+    if (!metadata.source.isEmpty()) {
+        Metadata meta = metadata;
+        meta.assetId = existing.id;
+        (void)m_db->upsertMetadata(meta);
+    }
+    if (m_scanDepth > 0) {
+        m_scanMissingAssets.remove(existing.filePath);
+        m_scanKnownPaths.insert(updated.filePath);
+        if (!updated.hash.isEmpty())
+            m_scanKnownHashes.insert(updated.hash);
     }
     return true;
 }
@@ -337,6 +406,93 @@ void LibraryController::toggleFavorite(const QString &assetId, bool isFavorite)
 {
     (void)m_db->updateAssetFavorite(assetId, isFavorite);
     emit dataChanged();
+}
+
+int LibraryController::countMissingAssets() const
+{
+    return m_db->countMissingAssets();
+}
+
+bool LibraryController::cleanupMissingAssets()
+{
+    if (!m_db->deleteMissingAssets())
+        return false;
+    m_scanMissingAssets.clear();
+    emit dataChanged();
+    return true;
+}
+
+bool LibraryController::exportAnnotations(const QString &filePath,
+                                          QString *errorMessage) const
+{
+    auto fail = [errorMessage](const QString &message) {
+        if (errorMessage)
+            *errorMessage = message;
+        return false;
+    };
+
+    const auto assets = m_db->getAnnotatedAssets();
+    const auto metadata = m_db->getAllMetadata();
+    const auto tags = m_db->getAllAssetTags();
+
+    QJsonArray assetArray;
+    for (const auto &a : assets) {
+        QJsonObject obj;
+        obj.insert(QStringLiteral("id"), a.id);
+        obj.insert(QStringLiteral("filePath"), a.filePath);
+        obj.insert(QStringLiteral("fileName"), a.fileName);
+        obj.insert(QStringLiteral("hash"), a.hash);
+        obj.insert(QStringLiteral("isFavorite"), a.isFavorite);
+        obj.insert(QStringLiteral("missingSince"),
+                   a.isMissing() ? a.missingSince.toString(Qt::ISODate) : QString());
+
+        QJsonArray tagArray;
+        const auto assetTags = tags.value(a.id);
+        for (const auto &t : assetTags) {
+            QJsonObject tagObj;
+            tagObj.insert(QStringLiteral("name"), t.name);
+            tagObj.insert(QStringLiteral("color"), t.color.name());
+            tagArray.append(tagObj);
+        }
+        obj.insert(QStringLiteral("tags"), tagArray);
+
+        const auto metaIt = metadata.constFind(a.id);
+        if (metaIt != metadata.constEnd()) {
+            const Metadata &m = metaIt.value();
+            QJsonObject metaObj;
+            metaObj.insert(QStringLiteral("source"), m.source);
+            metaObj.insert(QStringLiteral("prompt"), m.prompt);
+            metaObj.insert(QStringLiteral("negativePrompt"), m.negativePrompt);
+            metaObj.insert(QStringLiteral("seed"), static_cast<double>(m.seed));
+            metaObj.insert(QStringLiteral("steps"), m.steps);
+            metaObj.insert(QStringLiteral("cfgScale"), m.cfgScale);
+            metaObj.insert(QStringLiteral("modelName"), m.modelName);
+            metaObj.insert(QStringLiteral("sampler"), m.sampler);
+            metaObj.insert(QStringLiteral("rawJson"), m.rawJson);
+            obj.insert(QStringLiteral("metadata"), metaObj);
+        }
+        assetArray.append(obj);
+    }
+
+    QJsonObject root;
+    root.insert(QStringLiteral("format"), QStringLiteral("pixobook-annotations"));
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("exportedAt"),
+                QDateTime::currentDateTime().toString(Qt::ISODate));
+    root.insert(QStringLiteral("assets"), assetArray);
+
+    QSaveFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly))
+        return fail(file.errorString());
+    const QJsonDocument doc(root);
+    if (file.write(doc.toJson(QJsonDocument::Indented)) < 0) {
+        const QString error = file.errorString();
+        file.cancelWriting();
+        return fail(error);
+    }
+    if (!file.commit())
+        return fail(file.errorString());
+    return true;
 }
 
 int LibraryController::countAssets(const QString &keyword, const QString &source,

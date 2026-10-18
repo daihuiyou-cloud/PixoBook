@@ -4,8 +4,15 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+
+namespace {
+constexpr int kSchemaVersion = 3;
+}
 
 DatabaseManager::DatabaseManager(const QString &dbPath)
+    : m_dbPath(dbPath)
 {
     m_connectionName = QStringLiteral("pixobook_%1").arg(dbPath);
     m_db = QSqlDatabase::addDatabase("QSQLITE", m_connectionName);
@@ -50,6 +57,28 @@ QString escapeLikePattern(const QString &value)
     }
     return escaped;
 }
+
+Asset readAssetRow(const QSqlQuery &q)
+{
+    Asset a;
+    a.id = q.value("id").toString();
+    a.filePath = q.value("file_path").toString();
+    a.fileName = q.value("file_name").toString();
+    a.fileSize = q.value("file_size").toLongLong();
+    a.width = q.value("width").toInt();
+    a.height = q.value("height").toInt();
+    a.format = q.value("format").toString();
+    a.hash = q.value("hash").toString();
+    a.isFavorite = q.value("is_favorite").toInt() != 0;
+    a.folderId = q.value("folder_id").toString();
+    a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
+    a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
+    a.missingSince = parseIsoDt(q.value("missing_since").toString(), Qt::ISODate);
+    // Only present when the query joined metadata, as searchAssets() does.
+    a.metadataSource = q.value("metadata_source").toString();
+    a.metadataPrompt = q.value("metadata_prompt").toString();
+    return a;
+}
 }
 
 bool DatabaseManager::initialize()
@@ -92,7 +121,8 @@ bool DatabaseManager::createSchema()
         "  is_favorite INTEGER NOT NULL DEFAULT 0,"
         "  folder_id TEXT NOT NULL DEFAULT '',"
         "  created_at TEXT NOT NULL,"
-        "  updated_at TEXT NOT NULL"
+        "  updated_at TEXT NOT NULL,"
+        "  missing_since TEXT NOT NULL DEFAULT ''"
         ")"
     );
 
@@ -158,6 +188,9 @@ bool DatabaseManager::migrate()
     if (q.next())
         version = q.value(0).toInt();
 
+    if (version > 0 && version < kSchemaVersion)
+        backupBeforeMigration(version);
+
     auto setVersion = [&](int v) {
         QSqlQuery update(m_db);
         update.prepare("INSERT OR REPLACE INTO schema_version (version) VALUES (?)");
@@ -184,7 +217,65 @@ bool DatabaseManager::migrate()
             return false;
         version = 2;
     }
+
+    if (version < 3) {
+        // v3: a file that disappears is marked missing, not deleted. The
+        // column is also declared in createSchema(), so guard the ALTER for
+        // databases created after this version.
+        if (!hasAssetColumn(QStringLiteral("missing_since"))) {
+            QSqlQuery alter(m_db);
+            if (!alter.exec("ALTER TABLE assets ADD COLUMN missing_since TEXT NOT NULL DEFAULT ''")) {
+                qWarning() << "Migration v3 failed:" << alter.lastError().text();
+                return false;
+            }
+        }
+        // Partial index on the (usually tiny) missing set. Created here rather
+        // than in createSchema() because an old database only gains the column
+        // during this migration.
+        QSqlQuery index(m_db);
+        if (!index.exec("CREATE INDEX IF NOT EXISTS idx_assets_missing "
+                        "ON assets(missing_since) WHERE missing_since <> ''")) {
+            qWarning() << "Migration v3 index failed:" << index.lastError().text();
+            return false;
+        }
+        if (!setVersion(3))
+            return false;
+    }
     return true;
+}
+
+bool DatabaseManager::hasAssetColumn(const QString &column) const
+{
+    QSqlQuery q(m_db);
+    if (!q.exec(QStringLiteral("PRAGMA table_info(assets)"))) {
+        qWarning() << "PRAGMA table_info failed:" << q.lastError().text();
+        return false;
+    }
+    while (q.next()) {
+        if (q.value(1).toString() == column)
+            return true;
+    }
+    return false;
+}
+
+void DatabaseManager::backupBeforeMigration(int fromVersion) const
+{
+    if (m_dbPath.isEmpty() || !QFileInfo::exists(m_dbPath))
+        return;
+    // Fold the WAL back into the main file so the copy is self-contained.
+    QSqlQuery checkpoint(m_db);
+    if (!checkpoint.exec("PRAGMA wal_checkpoint(FULL)"))
+        qWarning() << "Pre-migration checkpoint failed:" << checkpoint.lastError().text();
+
+    QString backupPath = m_dbPath + QStringLiteral(".bak-v%1").arg(fromVersion);
+    if (QFileInfo::exists(backupPath)) {
+        backupPath += QLatin1Char('-')
+                      + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMddHHmmss"));
+    }
+    if (!QFile::copy(m_dbPath, backupPath))
+        qWarning() << "Could not back up database before migration:" << backupPath;
+    else
+        qInfo() << "Database backed up to" << backupPath;
 }
 
 bool DatabaseManager::insertAsset(const Asset &asset)
@@ -215,8 +306,10 @@ bool DatabaseManager::insertAsset(const Asset &asset)
 bool DatabaseManager::updateAsset(const Asset &asset)
 {
     QSqlQuery q(m_db);
+    // Any successful content update means the file is reachable again.
     q.prepare("UPDATE assets SET file_path=?, file_name=?, file_size=?, width=?, height=?, "
-              "format=?, hash=?, is_favorite=?, folder_id=?, updated_at=? WHERE id=?");
+              "format=?, hash=?, is_favorite=?, folder_id=?, updated_at=?, "
+              "missing_since='' WHERE id=?");
     q.addBindValue(asset.filePath);
     q.addBindValue(asset.fileName);
     q.addBindValue(asset.fileSize);
@@ -255,20 +348,8 @@ Asset DatabaseManager::getAsset(const QString &assetId) const
     QSqlQuery q(m_db);
     q.prepare("SELECT * FROM assets WHERE id=?");
     q.addBindValue(assetId);
-    if (q.exec() && q.next()) {
-        a.id = q.value("id").toString();
-        a.filePath = q.value("file_path").toString();
-        a.fileName = q.value("file_name").toString();
-        a.fileSize = q.value("file_size").toLongLong();
-        a.width = q.value("width").toInt();
-        a.height = q.value("height").toInt();
-        a.format = q.value("format").toString();
-        a.hash = q.value("hash").toString();
-        a.isFavorite = q.value("is_favorite").toInt() != 0;
-        a.folderId = q.value("folder_id").toString();
-        a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
-        a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
-    }
+    if (q.exec() && q.next())
+        a = readAssetRow(q);
     return a;
 }
 
@@ -277,22 +358,8 @@ QVector<Asset> DatabaseManager::getAllAssets() const
     QVector<Asset> assets;
     QSqlQuery q(m_db);
     if (q.exec("SELECT * FROM assets ORDER BY created_at DESC")) {
-        while (q.next()) {
-            Asset a;
-            a.id = q.value("id").toString();
-            a.filePath = q.value("file_path").toString();
-            a.fileName = q.value("file_name").toString();
-            a.fileSize = q.value("file_size").toLongLong();
-            a.width = q.value("width").toInt();
-            a.height = q.value("height").toInt();
-            a.format = q.value("format").toString();
-            a.hash = q.value("hash").toString();
-            a.isFavorite = q.value("is_favorite").toInt() != 0;
-            a.folderId = q.value("folder_id").toString();
-            a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
-            a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
-            assets.append(a);
-        }
+        while (q.next())
+            assets.append(readAssetRow(q));
     }
     return assets;
 }
@@ -372,22 +439,7 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
     if (q.exec()) {
         bool gotCount = false;
         while (q.next()) {
-            Asset a;
-            a.id = q.value("id").toString();
-            a.filePath = q.value("file_path").toString();
-            a.fileName = q.value("file_name").toString();
-            a.fileSize = q.value("file_size").toLongLong();
-            a.width = q.value("width").toInt();
-            a.height = q.value("height").toInt();
-            a.format = q.value("format").toString();
-            a.hash = q.value("hash").toString();
-            a.isFavorite = q.value("is_favorite").toInt() != 0;
-            a.folderId = q.value("folder_id").toString();
-            a.metadataSource = q.value("metadata_source").toString();
-            a.metadataPrompt = q.value("metadata_prompt").toString();
-            a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
-            a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
-            assets.append(a);
+            assets.append(readAssetRow(q));
             if (outTotalCount && !gotCount) {
                 *outTotalCount = q.value("_total_count").toInt();
                 gotCount = true;
@@ -453,20 +505,8 @@ Asset DatabaseManager::findByPath(const QString &filePath) const
     QSqlQuery q(m_db);
     q.prepare("SELECT * FROM assets WHERE file_path=?");
     q.addBindValue(filePath);
-    if (q.exec() && q.next()) {
-        a.id = q.value("id").toString();
-        a.filePath = q.value("file_path").toString();
-        a.fileName = q.value("file_name").toString();
-        a.fileSize = q.value("file_size").toLongLong();
-        a.width = q.value("width").toInt();
-        a.height = q.value("height").toInt();
-        a.format = q.value("format").toString();
-        a.hash = q.value("hash").toString();
-        a.isFavorite = q.value("is_favorite").toInt() != 0;
-        a.folderId = q.value("folder_id").toString();
-        a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
-        a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
-    }
+    if (q.exec() && q.next())
+        a = readAssetRow(q);
     return a;
 }
 
@@ -477,21 +517,121 @@ Asset DatabaseManager::findByHash(const QString &hash) const
     QSqlQuery q(m_db);
     q.prepare("SELECT * FROM assets WHERE hash=?");
     q.addBindValue(hash);
-    if (q.exec() && q.next()) {
-        a.id = q.value("id").toString();
-        a.filePath = q.value("file_path").toString();
-        a.fileName = q.value("file_name").toString();
-        a.fileSize = q.value("file_size").toLongLong();
-        a.width = q.value("width").toInt();
-        a.height = q.value("height").toInt();
-        a.format = q.value("format").toString();
-        a.hash = q.value("hash").toString();
-        a.isFavorite = q.value("is_favorite").toInt() != 0;
-        a.folderId = q.value("folder_id").toString();
-        a.createdAt = parseIsoDt(q.value("created_at").toString(), Qt::ISODate);
-        a.updatedAt = parseIsoDt(q.value("updated_at").toString(), Qt::ISODate);
-    }
+    if (q.exec() && q.next())
+        a = readAssetRow(q);
     return a;
+}
+
+bool DatabaseManager::markAssetMissing(const QString &filePath, const QDateTime &when)
+{
+    QSqlQuery q(m_db);
+    q.prepare("UPDATE assets SET missing_since=?, updated_at=? WHERE file_path=?");
+    q.addBindValue(when.toString(Qt::ISODate));
+    q.addBindValue(QDateTime::currentDateTime().toString(Qt::ISODate));
+    q.addBindValue(filePath);
+    if (!q.exec()) {
+        qWarning() << "markAssetMissing failed:" << q.lastError().text();
+        return false;
+    }
+    return q.numRowsAffected() > 0;
+}
+
+bool DatabaseManager::markAssetPresent(const QString &assetId)
+{
+    QSqlQuery q(m_db);
+    q.prepare("UPDATE assets SET missing_since='' WHERE id=?");
+    q.addBindValue(assetId);
+    if (!q.exec()) {
+        qWarning() << "markAssetPresent failed:" << q.lastError().text();
+        return false;
+    }
+    return q.numRowsAffected() > 0;
+}
+
+int DatabaseManager::countMissingAssets() const
+{
+    QSqlQuery q(m_db);
+    if (q.exec("SELECT COUNT(*) FROM assets WHERE missing_since <> ''") && q.next())
+        return q.value(0).toInt();
+    return 0;
+}
+
+QVector<Asset> DatabaseManager::getMissingAssets() const
+{
+    QVector<Asset> assets;
+    QSqlQuery q(m_db);
+    if (q.exec("SELECT * FROM assets WHERE missing_since <> '' ORDER BY missing_since ASC")) {
+        while (q.next())
+            assets.append(readAssetRow(q));
+    }
+    return assets;
+}
+
+bool DatabaseManager::deleteMissingAssets()
+{
+    QSqlQuery q(m_db);
+    if (!q.exec("DELETE FROM assets WHERE missing_since <> ''")) {
+        qWarning() << "deleteMissingAssets failed:" << q.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+QVector<Asset> DatabaseManager::getAnnotatedAssets() const
+{
+    QVector<Asset> assets;
+    QSqlQuery q(m_db);
+    const char *sql =
+        "SELECT a.* FROM assets a "
+        "WHERE a.is_favorite = 1 "
+        "   OR EXISTS (SELECT 1 FROM asset_tags at WHERE at.asset_id = a.id) "
+        "   OR EXISTS (SELECT 1 FROM metadata m WHERE m.asset_id = a.id) "
+        "ORDER BY a.created_at DESC, a.id ASC";
+    if (q.exec(QString::fromLatin1(sql))) {
+        while (q.next())
+            assets.append(readAssetRow(q));
+    }
+    return assets;
+}
+
+QHash<QString, Metadata> DatabaseManager::getAllMetadata() const
+{
+    QHash<QString, Metadata> metadata;
+    QSqlQuery q(m_db);
+    if (q.exec("SELECT * FROM metadata")) {
+        while (q.next()) {
+            Metadata m;
+            m.assetId = q.value("asset_id").toString();
+            m.source = q.value("source").toString();
+            m.prompt = q.value("prompt").toString();
+            m.negativePrompt = q.value("negative_prompt").toString();
+            m.seed = q.value("seed").toLongLong();
+            m.steps = q.value("steps").toInt();
+            m.cfgScale = q.value("cfg_scale").toDouble();
+            m.modelName = q.value("model_name").toString();
+            m.sampler = q.value("sampler").toString();
+            m.rawJson = q.value("raw_json").toString();
+            metadata.insert(m.assetId, m);
+        }
+    }
+    return metadata;
+}
+
+QHash<QString, QVector<Tag>> DatabaseManager::getAllAssetTags() const
+{
+    QHash<QString, QVector<Tag>> byAsset;
+    QSqlQuery q(m_db);
+    if (q.exec("SELECT at.asset_id, t.id, t.name, t.color FROM asset_tags at "
+               "JOIN tags t ON t.id = at.tag_id ORDER BY t.name")) {
+        while (q.next()) {
+            Tag t;
+            t.id = q.value("id").toInt();
+            t.name = q.value("name").toString();
+            t.color = QColor(q.value("color").toString());
+            byAsset[q.value("asset_id").toString()].append(t);
+        }
+    }
+    return byAsset;
 }
 
 bool DatabaseManager::upsertMetadata(const Metadata &metadata)
@@ -656,13 +796,8 @@ QVector<Asset> DatabaseManager::getAssetsByTag(int tagId) const
     q.prepare("SELECT a.* FROM assets a JOIN asset_tags at ON a.id = at.asset_id WHERE at.tag_id=?");
     q.addBindValue(tagId);
     if (q.exec()) {
-        while (q.next()) {
-            Asset a;
-            a.id = q.value("id").toString();
-            a.filePath = q.value("file_path").toString();
-            a.fileName = q.value("file_name").toString();
-            assets.append(a);
-        }
+        while (q.next())
+            assets.append(readAssetRow(q));
     }
     return assets;
 }

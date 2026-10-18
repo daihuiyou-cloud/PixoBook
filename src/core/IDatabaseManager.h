@@ -1,6 +1,7 @@
 #ifndef IDATABASEMANAGER_H
 #define IDATABASEMANAGER_H
 
+#include <QHash>
 #include <QString>
 #include <QVector>
 #include "models/Asset.h"
@@ -30,6 +31,23 @@ public:
                                         const QString &folderPath = QString()) const = 0;
     virtual Asset findByPath(const QString &filePath) const = 0;
     virtual Asset findByHash(const QString &hash) const = 0;
+
+    // File presence. A watched path that disappears is marked missing instead
+    // of being deleted, so tags/favorites survive a moved drive, a stale
+    // network share, or a temporarily missing folder.
+    [[nodiscard]] virtual bool markAssetMissing(const QString &filePath,
+                                                const QDateTime &when) = 0;
+    [[nodiscard]] virtual bool markAssetPresent(const QString &assetId) = 0;
+    [[nodiscard]] virtual int countMissingAssets() const = 0;
+    virtual QVector<Asset> getMissingAssets() const = 0;
+    [[nodiscard]] virtual bool deleteMissingAssets() = 0;
+
+    // Annotation export: only rows that carry user data (tag, favorite or
+    // parsed metadata) plus batch lookups so export stays a fixed number of
+    // queries instead of one per asset.
+    virtual QVector<Asset> getAnnotatedAssets() const = 0;
+    virtual QHash<QString, Metadata> getAllMetadata() const = 0;
+    virtual QHash<QString, QVector<Tag>> getAllAssetTags() const = 0;
 
     // Metadata
     [[nodiscard]] virtual bool upsertMetadata(const Metadata &metadata) = 0;

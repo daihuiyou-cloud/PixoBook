@@ -20,6 +20,12 @@ struct Asset {
     QString metadataPrompt;
     QDateTime createdAt;
     QDateTime updatedAt;
+    // Set when the file behind this row disappeared from disk. The row (and
+    // its tags/favorite) is kept: annotations are primary user data, the file
+    // path is only its current address.
+    QDateTime missingSince;
+
+    bool isMissing() const { return missingSince.isValid(); }
 
     bool operator==(const Asset &other) const { return id == other.id; }
     bool operator!=(const Asset &other) const { return id != other.id; }

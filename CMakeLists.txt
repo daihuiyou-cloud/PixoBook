@@ -25,9 +25,11 @@ if(RUN_CLANG_TIDY)
 endif()
 
 # ── Collect source files ──
-file(GLOB_RECURSE LIB_SOURCES src/*.cpp)
+# CONFIGURE_DEPENDS makes the build re-glob when files are added or removed,
+# instead of silently building a stale file list until the next manual cmake.
+file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 list(REMOVE_ITEM LIB_SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")
-file(GLOB_RECURSE LIB_HEADERS src/*.h)
+file(GLOB_RECURSE LIB_HEADERS CONFIGURE_DEPENDS src/*.h)
 
 add_library(pixobook_lib STATIC ${LIB_SOURCES})
 target_include_directories(pixobook_lib PUBLIC src)
@@ -36,6 +38,10 @@ target_link_libraries(pixobook_lib PUBLIC Qt5::Widgets Qt5::Sql Qt5::Concurrent)
 add_executable(pixobook src/main.cpp resources/resources.qrc)
 target_link_libraries(pixobook PRIVATE pixobook_lib)
 target_include_directories(pixobook PRIVATE src)
+
+# ── Benchmark (not part of ctest; run manually to compare commits) ──
+add_executable(pixobook_bench bench/bench_main.cpp)
+target_link_libraries(pixobook_bench PRIVATE pixobook_lib)
 
 # ── Tests ──
 if(BUILD_TESTING)
@@ -46,7 +52,7 @@ if(BUILD_TESTING)
         set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endfunction()
 
-    file(GLOB TEST_SOURCES tests/tst_*.cpp)
+    file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/tst_*.cpp)
     foreach(TEST_SOURCE ${TEST_SOURCES})
         get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
         add_qt_test(${TEST_NAME} ${TEST_SOURCE})

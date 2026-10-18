@@ -1,6 +1,7 @@
 #ifndef LIBRARYCONTROLLER_H
 #define LIBRARYCONTROLLER_H
 
+#include <QHash>
 #include <QObject>
 #include <QSet>
 #include <QStringList>
@@ -64,6 +65,16 @@ public:
                     const QVector<int> &tagIds = {}, bool onlyFavorites = false,
                     const QString &folderPath = QString()) const;
 
+    // These rows lost their file but keep tags/favorite until the user
+    // explicitly cleans them up.
+    int countMissingAssets() const;
+    [[nodiscard]] bool cleanupMissingAssets();
+
+    // Writes tags, favorites, presence state and parsed metadata as JSON.
+    // File bytes are not included: the filesystem stays the source of truth.
+    [[nodiscard]] bool exportAnnotations(const QString &filePath,
+                                         QString *errorMessage = nullptr) const;
+
 signals:
     void assetCountChanged(int count);
     void scanProgress(int current, int total);
@@ -75,6 +86,10 @@ private:
     // A moved/renamed file keeps its old DB row (and tags/metadata) when the
     // new path has the same content hash and the old path no longer exists.
     bool adoptRenamedAsset(const Asset &scanned);
+    // The file at `existing.filePath` is visible again: refresh its physical
+    // fields, clear the missing marker and keep tags/favorite intact.
+    bool restoreMissingAsset(const Asset &existing, const Asset &scanned,
+                             const Metadata &metadata);
 
     IDatabaseManager *m_db;
     IImageCache *m_cache;
@@ -90,6 +105,9 @@ private:
     int m_scanTxDepth = 0;
     QSet<QString> m_scanKnownPaths;
     QSet<QString> m_scanKnownHashes;
+    // Missing rows are rescanned (their paths are not "known") so a returning
+    // file can be restored instead of duplicated.
+    QHash<QString, Asset> m_scanMissingAssets;
 };
 
 #endif

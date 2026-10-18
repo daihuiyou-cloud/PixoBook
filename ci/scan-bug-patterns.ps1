@@ -1106,6 +1106,35 @@ if ($workerPixmapIssues.Count -eq 0) {
 }
 
 # ====================================================================
+# CHECK 38: A fileRemoved handler must not delete the asset row.
+#   Losing a file is a state change; the row keeps tags/favorite and is
+#   marked missing instead. Deleting it here silently destroys user data
+#   when a drive, network share or sync folder is temporarily unavailable.
+# ====================================================================
+$watcherDeleteIssues = @()
+Get-ChildItem $SrcDir -Recurse -Filter "*.cpp" | Select-String -Pattern "fileRemoved" | ForEach-Object {
+    $fileName = $_.Filename
+    $lineNum = $_.LineNumber
+    $content = Get-Content $_.Path
+    $start = $lineNum - 1
+    $end = [Math]::Min($content.Count - 1, $start + 20)
+    for ($i = $start; $i -le $end; $i++) {
+        # Ignore comments: they may mention the old behaviour while explaining it.
+        $code = $content[$i] -replace '//.*$', ''
+        if ($code -match 'deleteAsset\s*\(') {
+            $watcherDeleteIssues += "$($fileName):$($i + 1) — fileRemoved handler deletes the asset row; mark it missing instead (tags/favorites must survive)"
+            break
+        }
+        if ($i -gt $start -and $code -match '^\s*\}\);\s*$') { break }
+    }
+}
+if ($watcherDeleteIssues.Count -eq 0) {
+    $results += [PSCustomObject]@{ Check = "watcher-delete-instead-of-missing"; Status = "PASS"; Details = "" }
+} else {
+    $results += [PSCustomObject]@{ Check = "watcher-delete-instead-of-missing"; Status = "FAIL"; Details = ($watcherDeleteIssues -join "; ") }
+}
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 $passCount = ($results | Where-Object { $_.Status -eq "PASS" }).Count

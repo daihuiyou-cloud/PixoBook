@@ -1,8 +1,12 @@
 #include <QtTest/QtTest>
-#include <QTemporaryDir>
 #include <QDir>
+#include <QFile>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include "database/DatabaseManager.h"
 #include "services/ImageCache.h"
 #include "services/FileScanner.h"
@@ -146,7 +150,7 @@ private slots:
         // Watcher/manual import sees the new path as a duplicate hash; it must
         // adopt the existing row instead of creating a second one (and before
         // the subsequent fileRemoved event deletes the old row).
-        m_ctrl->scanAndInsertFile(newPath);
+        (void)m_ctrl->scanAndInsertFile(newPath);
 
         const Asset after = m_db->findByPath(newPath);
         QCOMPARE(after.id, before.id);
@@ -228,6 +232,119 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(addedSpy.count() >= 1, 5000);
         QTRY_COMPARE_WITH_TIMEOUT(m_db->countAssets(), before + 1, 5000);
         m_watcher->removeWatchPath(root);
+    }
+
+    // A removal event is a state change, not a delete: the row, its tags and
+    // favorite must survive so the user can restore the file later.
+    void testWatcherRemovalMarksMissingInsteadOfDeleting()
+    {
+        const QString path = m_dir->filePath("vanishing.png");
+        QImage img(24, 24, QImage::Format_RGB32);
+        img.fill(Qt::darkGreen);
+        QVERIFY(img.save(path));
+        QVERIFY(m_ctrl->scanAndInsertFile(path));
+
+        const Asset before = m_db->findByPath(path);
+        QVERIFY(!before.id.isEmpty());
+        QVERIFY(m_db->addTagToAsset(before.id, m_tagId));
+
+        QMetaObject::invokeMethod(m_watcher, "fileRemoved", Qt::DirectConnection,
+                                  Q_ARG(QString, path));
+
+        const Asset marked = m_db->findByPath(path);
+        QCOMPARE(marked.id, before.id);
+        QVERIFY(marked.isMissing());
+        QCOMPARE(m_db->getTagsForAsset(before.id).size(), 1);
+
+        // The file comes back: the same row is restored, not duplicated.
+        QVERIFY(!m_ctrl->scanAndInsertFile(path));
+        QVERIFY(!m_db->findByPath(path).isMissing());
+        QCOMPARE(m_db->findByPath(path).id, before.id);
+        QCOMPARE(m_db->getTagsForAsset(before.id).size(), 1);
+    }
+
+    // A folder rescan must revisit missing paths instead of skipping them as
+    // "already imported".
+    void testScanFolderRestoresReturningFile()
+    {
+        const QString dirPath = m_dir->filePath("restore-scan");
+        QVERIFY(QDir().mkpath(dirPath));
+        const QString path = dirPath + "/returns.png";
+        QImage img(20, 20, QImage::Format_RGB32);
+        img.fill(Qt::darkMagenta);
+        QVERIFY(img.save(path));
+
+        QSignalSpy finished(m_ctrl, &LibraryController::scanFinished);
+        m_ctrl->scanFolder(dirPath);
+        QTRY_VERIFY_WITH_TIMEOUT(finished.count() >= 1, 5000);
+        const Asset before = m_db->findByPath(path);
+        QVERIFY(!before.id.isEmpty());
+        QVERIFY(m_db->addTagToAsset(before.id, m_tagId));
+
+        QVERIFY(QFile::remove(path));
+        QMetaObject::invokeMethod(m_watcher, "fileRemoved", Qt::DirectConnection,
+                                  Q_ARG(QString, path));
+        QVERIFY(m_db->findByPath(path).isMissing());
+
+        QVERIFY(img.save(path));
+        m_ctrl->scanFolder(dirPath);
+        QTRY_VERIFY_WITH_TIMEOUT(finished.count() >= 2, 5000);
+
+        QTRY_VERIFY_WITH_TIMEOUT(!m_db->findByPath(path).isMissing(), 5000);
+        QCOMPARE(m_db->findByPath(path).id, before.id);
+        QCOMPARE(m_db->getTagsForAsset(before.id).size(), 1);
+    }
+
+    void testExportAnnotationsWritesTagsAndPrompt()
+    {
+        const QString path = m_dir->filePath("export-me.png");
+        QImage img(18, 18, QImage::Format_RGB32);
+        img.fill(Qt::darkCyan);
+        QVERIFY(img.save(path));
+        QVERIFY(m_ctrl->scanAndInsertFile(path));
+        const Asset asset = m_db->findByPath(path);
+        QVERIFY(!asset.id.isEmpty());
+        QVERIFY(m_db->addTagToAsset(asset.id, m_tagId));
+        QVERIFY(m_db->updateAssetFavorite(asset.id, true));
+
+        Metadata meta;
+        meta.assetId = asset.id;
+        meta.source = "stable-diffusion";
+        meta.prompt = "a lighthouse at dusk";
+        meta.seed = 123456;
+        QVERIFY(m_db->upsertMetadata(meta));
+
+        const QString jsonPath = m_dir->filePath("annotations.json");
+        QString error;
+        QVERIFY2(m_ctrl->exportAnnotations(jsonPath, &error), qPrintable(error));
+
+        QFile file(jsonPath);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        QVERIFY(doc.isObject());
+        const QJsonObject root = doc.object();
+        QCOMPARE(root.value(QStringLiteral("format")).toString(),
+                 QStringLiteral("pixobook-annotations"));
+        const QJsonArray assets = root.value(QStringLiteral("assets")).toArray();
+        // The fixture database is shared by all slots, so locate our row
+        // instead of assuming the export contains a single asset.
+        QJsonObject entry;
+        for (const auto &value : assets) {
+            const QJsonObject candidate = value.toObject();
+            if (candidate.value(QStringLiteral("id")).toString() == asset.id) {
+                entry = candidate;
+                break;
+            }
+        }
+        QVERIFY2(!entry.isEmpty(), "exported annotation for the test asset is missing");
+        QVERIFY(entry.value(QStringLiteral("isFavorite")).toBool());
+        const QJsonArray tags = entry.value(QStringLiteral("tags")).toArray();
+        QCOMPARE(tags.size(), 1);
+        QCOMPARE(tags.first().toObject().value(QStringLiteral("name")).toString(),
+                 QStringLiteral("portrait"));
+        QCOMPARE(entry.value(QStringLiteral("metadata")).toObject()
+                     .value(QStringLiteral("prompt")).toString(),
+                 QStringLiteral("a lighthouse at dusk"));
     }
 
     void testScanDirectoryImportsEachFileOnce()

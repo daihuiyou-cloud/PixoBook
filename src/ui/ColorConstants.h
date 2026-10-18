@@ -33,8 +33,16 @@ inline const QColor TEXT_DISABLED   = QColor(0x50, 0x50, 0x50);
 
 // Accent
 inline const QColor ACCENT          = QColor(0x00, 0x7a, 0xcc);
+inline const QColor ACCENT_HOVER    = QColor(0x1a, 0x8a, 0xd4);
+inline const QColor ACCENT_PRESSED  = QColor(0x00, 0x67, 0xad);
 inline const QColor HIGHLIGHT       = QColor(0x09, 0x47, 0x71);
 inline const QColor FOCUS_BORDER    = QColor(0x00, 0x7a, 0xcc);
+
+// States (amber = recoverable attention, teal = healthy)
+inline const QColor WARNING         = QColor(0xd7, 0xa0, 0x4a);
+inline const QColor WARNING_BG      = QColor(0xd7, 0xa0, 0x4a, 26);
+inline const QColor WARNING_BORDER  = QColor(0xd7, 0xa0, 0x4a, 92);
+inline const QColor SUCCESS         = QColor(0x4e, 0xc9, 0xb0);
 
 // Borders
 inline const QColor BORDER          = QColor(0x3c, 0x3c, 0x3c);

@@ -46,7 +46,10 @@ target_link_libraries(pixobook_bench PRIVATE pixobook_lib)
 # ── Tests ──
 if(BUILD_TESTING)
     function(add_qt_test TEST_NAME TEST_SOURCE)
-        add_executable(${TEST_NAME} ${TEST_SOURCE})
+        # The Codicon font lives in the resource bundle; tests that render UI
+        # need it compiled in as well as the app.
+        add_executable(${TEST_NAME} ${TEST_SOURCE}
+                       ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
         target_link_libraries(${TEST_NAME} PRIVATE pixobook_lib Qt5::Test)
         add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
         set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

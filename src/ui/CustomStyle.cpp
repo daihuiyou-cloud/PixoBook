@@ -174,14 +174,36 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         bool hasFocus = btnOpt->state & State_HasFocus;
         bool segmented = widget && widget->property("segmented").toBool();
         bool toolbarButton = widget && widget->property("toolbarButton").toBool();
+        bool primary = widget && widget->property("primary").toBool();
+        bool danger = widget && widget->property("danger").toBool();
 
         QColor bg;
-        if (checked) bg = toolbarButton ? Color::BG_BUTTON_SUBTLE : Color::BG_BUTTON_CHECKED;
-        else if (pressed) bg = Color::BG_BUTTON_HOVER;
-        else if (hovered) bg = Color::BG_BUTTON_HOVER;
-        else bg = toolbarButton ? Color::BG_DARK : Color::BG_BUTTON;
+        if (primary)
+            bg = pressed ? Color::ACCENT_PRESSED : (hovered ? Color::ACCENT_HOVER : Color::ACCENT);
+        else if (danger)
+            bg = hovered ? Color::ERROR_BG : Color::BG_BUTTON;
+        else if (checked)
+            bg = toolbarButton ? Color::BG_BUTTON_SUBTLE : Color::BG_BUTTON_CHECKED;
+        else if (pressed || hovered)
+            bg = Color::BG_BUTTON_HOVER;
+        else
+            bg = toolbarButton ? Color::BG_DARK : Color::BG_BUTTON;
 
-        QColor border = hasFocus ? Color::FOCUS_BORDER : (checked ? Color::ACCENT : Color::BORDER_SUBTLE);
+        QColor border;
+        if (primary)
+            border = Color::ACCENT;
+        else if (danger)
+            border = Color::ERROR_TEXT;
+        else
+            border = hasFocus ? Color::FOCUS_BORDER
+                              : (checked ? Color::ACCENT : Color::BORDER_SUBTLE);
+
+        // A disabled primary/danger button must not keep its saturated fill:
+        // it would look like the recommended action is still available.
+        if (!enabled) {
+            bg = Color::BG_BUTTON_SUBTLE;
+            border = Color::BORDER_MUTED;
+        }
 
         painter->setBrush(bg);
         painter->setPen(QPen(border, 1));
@@ -217,6 +239,8 @@ void CustomStyle::drawControl(ControlElement element, const QStyleOption *option
         }
 
         QColor contentColor = !enabled ? Color::TEXT_DISABLED
+                            : primary ? Color::TEXT_BRIGHT
+                            : danger ? Color::ERROR_TEXT
                             : (toolbarButton && checked) ? Color::FAVORITE_ON
                             : checked ? Color::TEXT_BRIGHT
                             : Color::TEXT_PRIMARY;

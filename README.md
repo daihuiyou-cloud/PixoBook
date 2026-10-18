@@ -72,6 +72,16 @@ update. Relevance ordering (BM25) costs about 1.5 ms / 12.8 ms for a selective
 term at 10k / 50k. Before FTS5, the same machine measured 31 ms / 308 ms for
 the common word and 53 ms / 501 ms for the deep page at 10k / 50k.
 
+## Recovery ledger
+
+![Missing files dialog](docs/images/missing-files-dark.png)
+
+When a file moves or a drive is unplugged, the record is kept as *missing*
+rather than deleted. The ledger groups those records, shows how long each has
+been gone, and lets you point one at a new file by picking it or dropping it
+onto the row. The record keeps its id, tags and favorite; the thumbnail slot
+turns back into a real preview after relinking.
+
 ## Project structure
 
 ```

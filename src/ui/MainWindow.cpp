@@ -231,6 +231,10 @@ void MainWindow::setupStatusBar()
     m_statusCount = new QLabel();
     m_statusCount->setPalette(sbPal);
     m_statusCount->setFont(sf);
+    m_statusCount->setTextFormat(Qt::RichText);
+    connect(m_statusCount, &QLabel::linkActivated, this, [this](const QString &) {
+        onShowMissingFiles();
+    });
     statusBar()->addPermanentWidget(m_statusCount);
 }
 
@@ -642,10 +646,13 @@ void MainWindow::updateStatusCounts(int totalCount)
 {
     const int missing = m_library->countMissingAssets();
     if (missing > 0) {
-        m_statusCount->setText(tr("%1 张图片 · %2 个文件缺失").arg(totalCount).arg(missing));
+        m_statusCount->setText(
+            tr("%1 张图片 · <a style=\"color:#ffffff;\" href=\"missing\">%2 个文件缺失</a>")
+                .arg(totalCount)
+                .arg(missing));
         m_statusCount->setToolTip(
-            tr("缺失文件的标签和收藏仍保留。重新扫描所在文件夹可恢复；\n"
-               "或在命令面板执行“清理缺失记录”永久删除这些记录。"));
+            tr("点击查看并重新定位缺失文件。标签和收藏仍保留；\n"
+               "重新扫描所在文件夹也可恢复。"));
     } else {
         m_statusCount->setText(tr("%1 张图片").arg(totalCount));
         m_statusCount->setToolTip(QString());

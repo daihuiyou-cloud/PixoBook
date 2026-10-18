@@ -55,6 +55,14 @@
   - iTXt：SDParser 支持 PNG iTXt（keyword/压缩标志/语言/翻译关键字/UTF-8 文本），含 zlib 压缩（flag=1, method=0）；`containsSdMetadata` 与 tEXt/zTXt 共用关键字探测。
   - 测试新增 3 项：BM25 短文档优先、缺失记录重定位保留标签、iTXt 未压缩（中文）+ 压缩解析。构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_database 22、tst_librarycontroller 17、tst_parsers 10）。
 
+- **第 15 轮（工作区）— 缺失恢复的视觉设计**：
+  - `MissingFilesDialog` 重做：无边框圆角深色面板、可拖动标题区；琥珀色（需关注）与青绿色（健康）状态语言；标题/副标题/数量徽章/关闭按钮；筛选行；自绘行（52px 缩略图占位、琥珀状态点、文件名/路径、相对时间、收藏星标、标签数 chip）；空状态（绿色对勾 / 搜索图标）；底部提示 + 主/危险/次按钮。
+  - 交互：从资源管理器拖文件到条目直接重定位；Enter 重定位、Delete 移除、Ctrl+F 聚焦筛选、Esc 关闭；内联通知条替代弹窗错误；重新定位后列表即时刷新；窗口高度按缺失数量 400–560px 自适应。
+  - 设计系统：`CustomStyle` 增加 `primary`/`danger` 按钮变体，并修复禁用态仍保留饱和填充的问题；新增 `ACCENT_HOVER/PRESSED`、`WARNING/WARNING_BG/WARNING_BORDER`、`SUCCESS`；修正 Codicon codepoint（`image`/`file-media` = 0xeaea，`warning` = 0xea6c）。
+  - 状态栏缺失计数改为可点击链接，直接打开恢复面板。
+  - 测试：`tst_ui` 用临时库渲染“有缺失/无缺失”两张参考图到 `build/shots`；测试目标编译 `resources.qrc` 以加载 Codicon。
+  - 构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过。
+
 #### In Progress
 - 无
 
@@ -119,6 +127,13 @@
 - 重定位复用原 id：`scanSingleFile` 重新计算物理字段，`findByPath` 排除自身后判重，再 `updateAsset` 清 `missing_since`。标签/收藏天然保留；本地 metadata 为空时才解析新文件。
 - 重定位的新路径不会自动加入监听列表：隐式扩大监听范围会让用户意外暴露新的目录；需要监听应由用户显式添加。
 - iTXt 的 keyword 与 tEXt/zTXt 相同，因此 `containsSdMetadata` 只需识别 chunk 类型；`tryParseFromData` 额外跳过压缩标志/语言/翻译关键字，flag=1 且 method=0 时 `qUncompress`。
+- 缺失恢复的视觉语言：琥珀 = 可恢复的关注（不是错误），青绿 = 一切在线，蓝色 = 主操作；危险操作只用红色描边，不使用红色实底。
+- 恢复面板的行由 delegate 自绘：缩略图占位 + 状态点 + 相对时间 + 收藏/标签 chip；相对时间在插入条目时预计算（RoleAgeText），paint 内不做字符串分配。
+- 拖放是首选重定位手势：文件直接落到某一行；按钮打开文件选择器作为可达性兜底；错误用内联通知条，不打断列表。
+- 禁用态的主/危险按钮必须退回中性底色，否则用户会以为操作仍可用（CustomStyle 统一处理）。
+- Codicon codepoint 必须对照 `resources/codicon.css`；`image`/`file-media` 是 0xeaea，0xeada 是摄像头。
+- 无边框半透明 QDialog 在 Windows 上无需阴影也可读：1px BORDER + 10px 圆角即可；拖动只绑定标题区，避免与列表拖放冲突。
+- 测试渲染截图需 `QT_QPA_PLATFORM=windows`（offscreen 无字体），且测试目标必须编译 `resources.qrc` 才能加载 Codicon。
 
 ### Next Steps
 - 批量重定位：选择新文件夹后按 hash 自动匹配所有缺失记录（当前一次只能重定位一条）；同 hash 命中时复用 `relinkAsset` 的单条逻辑。
@@ -227,6 +242,14 @@
 - `tests/tst_database.cpp`：BM25 短文档优先（22 项）
 - `tests/tst_parsers.cpp`：iTXt 未压缩中文 + 压缩（10 项）
 - `bench/bench_main.cpp`：新增 relevance 查询用例
+- `src/ui/MissingFilesDialog.h/.cpp`：恢复面板重设计（自绘 delegate、拖放、筛选、空状态、内联通知）
+- `src/ui/CustomStyle.cpp`：`primary`/`danger` 按钮变体 + 禁用态中性化
+- `src/ui/ColorConstants.h`：`ACCENT_HOVER/PRESSED`、`WARNING*`、`SUCCESS`
+- `src/ui/Codicon.h`：`image`/`file-media`/`warning` 映射修正
+- `src/ui/MainWindow.cpp`：状态栏缺失计数改为可点击链接
+- `tests/tst_ui.cpp`：临时库渲染两张恢复面板参考图到 `build/shots`
+- `CMakeLists.txt`：测试目标编译 `resources.qrc`
+- `docs/images/missing-files-dark.png` / `missing-files-empty.png`：设计参考图
 
 ---
 
@@ -308,6 +331,7 @@
 | 47 | 分页总数用 `DISTINCT` + `COUNT(*) OVER()` | 迫使 SQLite 物化并统计全部命中，深页随库线性变慢（50k 501ms），LIMIT 无法提前结束 | 总数单独查询；标签过滤用 `EXISTS` 消除重复行（CHECK 39 会拦截） |
 | 48 | 只依赖 watcher 发现文件删除 | 应用关闭期间的删除永远不标记缺失，状态栏与筛选长期失真 | 扫描结束后对监听目录做一次存在性核对（后台 stat，只覆盖 watched folders） |
 | 49 | 重定位只改路径、未校验目标已被占用 | 两条记录指向同一文件，派生字段与标签归属错乱 | 先 `scanSingleFile` 取绝对路径，再用 `findByPath` 排除自身后判重 |
+| 50 | 禁用态主/危险按钮仍保留饱和填充 | 用户以为操作可用，点击无响应；空状态尤其误导 | 在 `CE_PushButton` 中对 `!enabled` 覆盖 bg/border 为中性色 |
 
 ## 已修复的实例
 
@@ -395,6 +419,9 @@
 | 缺失记录无法重定位 (模式 49) | LibraryController.h/.cpp, MissingFilesDialog.* | 复用原 id 更新物理字段并清缺失；路径冲突拒绝；标签/收藏保留 |
 | 搜索只有时间序 | DatabaseManager.cpp, SearchBar.cpp | 新增"相关度"排序，强制 FTS + `bm25`，1.5ms/12.8ms（10k/50k） |
 | iTXt 元数据不可见 | SDParser.cpp | 支持 UTF-8 与 zlib 压缩的 iTXt，含中文 prompt |
+| 禁用按钮看似可用 (模式 50) | CustomStyle.cpp | `!enabled` 时主/危险按钮统一退回 `BG_BUTTON_SUBTLE` + `BORDER_MUTED` |
+| 图标字形错误 | Codicon.h | `image`/`file-media` 修正为 0xeaea，新增 `warning` 0xea6c / `error` 0xea87 |
+| 恢复面板视觉与交互 | MissingFilesDialog.*, CustomStyle.cpp, ColorConstants.h | 无边框深色面板、自绘行、拖放重定位、筛选、空状态、内联通知；主/危险按钮变体 |
 
 ## 扫描器改进
 

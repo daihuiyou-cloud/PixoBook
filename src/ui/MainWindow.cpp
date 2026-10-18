@@ -286,6 +286,9 @@ void MainWindow::setupConnections()
         }
     });
     connect(m_sidebar, &SidebarWidget::folderSelected, this, [this](const QString &path) {
+        // Selecting a folder leaves the tag view; otherwise the scan result is
+        // still filtered by the previously active tag.
+        m_activeTagId = -1;
         m_library->scanFolder(path);
     });
     connect(m_sidebar, &SidebarWidget::addFolderClicked, this, [this]() {
@@ -393,17 +396,8 @@ void MainWindow::setupConnections()
 
     // Gallery lazy pagination
     connect(m_gallery, &GalleryWidget::loadMoreRequested, this, [this](int offset, int limit) {
-        QString keyword = m_searchBar->keyword();
-        QString source = m_searchBar->sourceFilter();
-        bool onlyFavs = m_searchBar->onlyFavorites();
-        QString sortField = m_searchBar->sortField();
-        bool sortAsc = m_searchBar->sortAscending();
-        int tabIdx = m_tabBar->currentIndex();
-        if (tabIdx == 1) onlyFavs = true;
-        QVector<int> tagIds;
-        if (m_activeTagId >= 0) tagIds.append(m_activeTagId);
-        auto assets = m_library->loadAssets(keyword, source, tagIds, onlyFavs,
-                                            sortField, sortAsc, offset, limit);
+        const AssetQuery query = currentAssetQuery();
+        const auto assets = queryAssets(query, offset, limit);
         m_gallery->appendPage(assets, m_gallery->totalAssetCount());
     });
 
@@ -550,11 +544,7 @@ void MainWindow::setupShortcuts()
     connect(cpShortcut, &QShortcut::activated, this, [this]() {
         QVector<CommandPalette::Command> cmds;
         cmds.append({tr("导入文件夹..."), "Ctrl+O",
-                     [this]() {
-                         QString dir = QFileDialog::getExistingDirectory(this,
-                             tr("选择素材文件夹"));
-                         if (!dir.isEmpty()) m_library->scanFolder(dir);
-                     }});
+                     [this]() { onImportFolder(); }});
         cmds.append({tr("导入图片..."), "Ctrl+I",
                      [this]() { MainWindow::onImportFile(); }});
         cmds.append({tr("搜索..."), "Ctrl+F",
@@ -567,9 +557,9 @@ void MainWindow::setupShortcuts()
         cmds.append({tr("仅显示收藏"), "",
                      [this]() { m_searchBar->setFavFilter(!m_searchBar->onlyFavorites()); }});
         cmds.append({tr("撤销"), "Ctrl+Z",
-                     [this]() { m_undoStack->undo(); }});
+                     [this]() { m_undoStack->undo(); reloadAfterUndo(); }});
         cmds.append({tr("重做"), "Ctrl+Y",
-                     [this]() { m_undoStack->redo(); }});
+                     [this]() { m_undoStack->redo(); reloadAfterUndo(); }});
         m_commandPalette->show(cmds);
     });
 
@@ -602,51 +592,64 @@ void MainWindow::onImportFile()
     }
 }
 
-void MainWindow::loadAssets()
+MainWindow::AssetQuery MainWindow::currentAssetQuery() const
 {
-    QString keyword = m_searchBar->keyword();
-    QString source = m_searchBar->sourceFilter();
-    bool onlyFavs = m_searchBar->onlyFavorites();
-    QString sortField = m_searchBar->sortField();
-    bool sortAsc = m_searchBar->sortAscending();
+    AssetQuery query;
+    query.keyword = m_searchBar->keyword();
+    query.source = m_searchBar->sourceFilter();
+    query.onlyFavorites = m_searchBar->onlyFavorites();
+    query.sortField = m_searchBar->sortField();
+    query.sortAscending = m_searchBar->sortAscending();
+    query.tabIndex = m_tabBar->currentIndex();
 
-    // Apply tab-driven filters on top of search bar state
-    int tabIdx = m_tabBar->currentIndex();
-    if (tabIdx == 1) {
-        onlyFavs = true;
-    } else if (tabIdx == 2) {
-        sortField = QStringLiteral("created_at");
-        sortAsc = false;
+    // Apply tab-driven filters on top of search bar state. Keep this in one
+    // place: pagination must use exactly the same query as the initial load.
+    if (query.tabIndex == 1) {
+        query.onlyFavorites = true;
+    } else if (query.tabIndex == 2) {
+        query.sortField = QStringLiteral("created_at");
+        query.sortAscending = false;
     }
 
-    QVector<int> tagIds;
     if (m_activeTagId >= 0)
-        tagIds.append(m_activeTagId);
+        query.tagIds.append(m_activeTagId);
+    return query;
+}
+
+QVector<Asset> MainWindow::queryAssets(const AssetQuery &query, int offset, int limit,
+                                       int *outTotalCount) const
+{
+    return m_library->loadAssets(query.keyword, query.source, query.tagIds,
+                                 query.onlyFavorites, query.sortField,
+                                 query.sortAscending, offset, limit, outTotalCount);
+}
+
+void MainWindow::loadAssets()
+{
+    const AssetQuery query = currentAssetQuery();
 
     int totalCount = 0;
-    auto assets = m_library->loadAssets(keyword, source, tagIds, onlyFavs,
-                                        sortField, sortAsc, 0, 200, &totalCount);
+    auto assets = queryAssets(query, 0, 200, &totalCount);
     m_gallery->setAssets(assets, totalCount);
-    m_gallery->setSearchKeyword(keyword);
+    m_gallery->setSearchKeyword(query.keyword);
     if (m_cachedTags.isEmpty())
         m_cachedTags = m_library->getAllTags();
     m_sidebar->setTags(m_cachedTags);
 
-    m_statusCount->setText(
-        tr("%1 张图片").arg(totalCount));
+    m_statusCount->setText(tr("%1 张图片").arg(totalCount));
 
     QStringList summary;
     summary << tr("%1 张图片").arg(totalCount);
-    if (tabIdx == 1)
+    if (query.tabIndex == 1)
         summary << tr("收藏夹");
-    else if (tabIdx == 2)
+    else if (query.tabIndex == 2)
         summary << tr("最近导入");
     else
         summary << tr("所有素材");
 
-    if (!source.isEmpty())
-        summary << UIUtils::displayNameForSource(source);
-    if (onlyFavs)
+    if (!query.source.isEmpty())
+        summary << UIUtils::displayNameForSource(query.source);
+    if (query.onlyFavorites)
         summary << tr("仅收藏");
     if (m_activeTagId >= 0)
         summary << tr("标签筛选");

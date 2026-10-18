@@ -54,8 +54,8 @@ public:
                                     const QVector<int> &tagIds = {}, bool onlyFavorites = false) const override;
 
 private:
-    void createSchema();
-    void migrate();
+    [[nodiscard]] bool createSchema();
+    [[nodiscard]] bool migrate();
     QSqlDatabase m_db;
     QString m_connectionName;
     int m_txDepth = 0;

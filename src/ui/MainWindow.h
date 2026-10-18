@@ -47,6 +47,21 @@ private:
     void onTagEditRequested(int tagId);
     int pickTagId(const QVector<QString> &assetIds);
 
+    // Snapshot of the active filters. Kept in one place so the initial load and
+    // lazy pagination always query with identical filters and ordering.
+    struct AssetQuery {
+        QString keyword;
+        QString source;
+        QVector<int> tagIds;
+        bool onlyFavorites = false;
+        QString sortField = QStringLiteral("created_at");
+        bool sortAscending = false;
+        int tabIndex = 0;
+    };
+    AssetQuery currentAssetQuery() const;
+    QVector<Asset> queryAssets(const AssetQuery &query, int offset, int limit,
+                               int *outTotalCount = nullptr) const;
+
     // UI
     ActivityBar *m_activityBar;
     QSplitter *m_mainSplitter;

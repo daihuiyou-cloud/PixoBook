@@ -42,7 +42,16 @@ QPixmap ImageCache::get(const QString &filePath, const QSize &size) const
 void ImageCache::insert(const QString &filePath, const QSize &size, const QPixmap &pixmap)
 {
     QMutexLocker lock(&m_mutex);
-    CacheKey key{filePath, size};
+    insertLocked(CacheKey{filePath, size}, pixmap);
+}
+
+void ImageCache::insertLocked(const CacheKey &key, const QPixmap &pixmap)
+{
+    // Never cache a null pixmap: get() treats it as a miss, so it would both
+    // skew m_currentBytes and cause endless re-decodes of unreadable files.
+    if (pixmap.isNull())
+        return;
+
     qint64 newBytes = pixmapBytes(pixmap);
     if (m_cache.contains(key)) {
         m_currentBytes -= pixmapBytes(m_cache[key]);
@@ -116,34 +125,54 @@ void ImageCache::requestThumbnail(const QString &filePath, const QSize &size)
         return;
     }
 
+    const CacheKey key{filePath, size};
+    {
+        QMutexLocker lock(&m_mutex);
+        if (m_pending.find(key) != m_pending.end())
+            return; // a decode for this key is already running
+        m_pending.insert(key);
+    }
+
     QPointer<ImageCache> guard(this);
     QtConcurrent::run([guard, filePath, size]() {
-        {
+        const QImage img = renderThumbnail(filePath, size);
+        ImageCache *self = guard.data();
+        if (!self) return;
+        QMetaObject::invokeMethod(self, [guard, filePath, size, img]() {
             ImageCache *self = guard.data();
             if (!self) return;
-            QPixmap thumb = self->generateThumbnail(filePath, size);
-            self = guard.data();
-            if (!self) return;
-            self->insert(filePath, size, thumb);
-        }
-        ImageCache *self = guard.data();
-        if (self)
-            QMetaObject::invokeMethod(self, [guard, filePath, size]() {
-                ImageCache *self = guard.data();
-                if (!self) return;
-                emit self->thumbnailReady(filePath, size, self->get(filePath, size));
-            }, Qt::QueuedConnection);
+            // QPixmap is created on the GUI thread; only the QImage decode ran
+            // in the worker.
+            self->finishThumbnail(filePath, size, QPixmap::fromImage(img));
+        }, Qt::QueuedConnection);
     });
+}
+
+void ImageCache::finishThumbnail(const QString &filePath, const QSize &size,
+                                 const QPixmap &pixmap)
+{
+    const CacheKey key{filePath, size};
+    {
+        QMutexLocker lock(&m_mutex);
+        m_pending.erase(key);
+        insertLocked(key, pixmap);
+    }
+    emit thumbnailReady(filePath, size, pixmap);
 }
 
 QPixmap ImageCache::generateThumbnail(const QString &filePath, const QSize &size) const
 {
+    return QPixmap::fromImage(renderThumbnail(filePath, size));
+}
+
+QImage ImageCache::renderThumbnail(const QString &filePath, const QSize &size)
+{
     QImageReader reader(filePath);
-    QSize imgSize = reader.size();
-    if (!imgSize.isValid())
+    const QSize imgSize = reader.size();
+    if (!imgSize.isValid() || size.isEmpty())
         return {};
 
-    QSize fitSize = imgSize.scaled(size, Qt::KeepAspectRatio);
+    const QSize fitSize = imgSize.scaled(size, Qt::KeepAspectRatio);
     if (fitSize != imgSize)
         reader.setScaledSize(fitSize);
 
@@ -154,11 +183,11 @@ QPixmap ImageCache::generateThumbnail(const QString &filePath, const QSize &size
     if (img.size() != fitSize)
         img = img.scaled(fitSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-    QPixmap result(size);
+    QImage result(size, QImage::Format_ARGB32_Premultiplied);
     result.fill(Qt::transparent);
     QPainter p(&result);
-    int x = (size.width() - img.width()) / 2;
-    int y = (size.height() - img.height()) / 2;
+    const int x = (size.width() - img.width()) / 2;
+    const int y = (size.height() - img.height()) / 2;
     p.drawImage(x, y, img);
     p.end();
 

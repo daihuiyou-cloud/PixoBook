@@ -1,6 +1,7 @@
 #include "LightboxWidget.h"
 #include <QCursor>
 #include <QFileInfo>
+#include <QImage>
 #include <QImageReader>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -109,14 +110,15 @@ void LightboxWidget::loadCurrentImage()
             if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
                 reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
         }
-        QPixmap px = QPixmap::fromImage(reader.read());
+        // Decode off the GUI thread; QPixmap itself must be created on it.
+        const QImage img = reader.read();
         LightboxWidget *self = guard.data();
         if (!self) return;
-        QMetaObject::invokeMethod(self, [guard, gen, px]() {
+        QMetaObject::invokeMethod(self, [guard, gen, img]() {
             LightboxWidget *self = guard.data();
             if (!self) return;
             if (gen != self->m_loadGeneration) return;
-            self->m_currentPixmap = px;
+            self->m_currentPixmap = QPixmap::fromImage(img);
             self->update();
         }, Qt::QueuedConnection);
     });

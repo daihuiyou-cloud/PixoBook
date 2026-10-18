@@ -34,7 +34,7 @@ public:
 
     void setThumbnailSize(int size);
     int thumbnailSize() const { return m_thumbSize; }
-    void setSearchKeyword(const QString &keyword) { m_searchKeyword = keyword; update(); }
+    void setSearchKeyword(const QString &keyword);
     QString searchKeyword() const { return m_searchKeyword; }
 
 public slots:
@@ -83,6 +83,7 @@ private:
     void pruneRequestedThumbnails(const QVector<Asset> &assets);
     void drawRubberBand(QPainter &p) const;
     void updateRubberBandSelection(const QRect &oldBand);
+    void refreshBatchSummary(int count);
     void rebuildMetaLines();
     void rebuildThumbClipPath();
     void drawScrollIndicator(QPainter &p) const;
@@ -110,6 +111,9 @@ private:
     bool m_isDragOver = false;
     int m_emptyHoveredButton = -1;
     QStringList m_metaLines;
+    QString m_emptySearchTitle;
+    QString m_batchSummaryText;
+    int m_batchSummaryCount = 0;
     QVector<bool> m_hasPrompt;
     QSet<QString> m_requestedThumbnails;
     QHash<QString, bool> m_fileExistsCache;

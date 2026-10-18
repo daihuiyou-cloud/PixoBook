@@ -2,6 +2,7 @@
 #include "services/FileScanner.h"
 #include "services/FileWatcher.h"
 #include "parsers/MetadataParser.h"
+#include <QDebug>
 
 LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
                                      FileScanner *scanner, FileWatcher *watcher,
@@ -13,28 +14,68 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
     , m_watcher(watcher)
 {
     connect(m_scanner, &FileScanner::scanStarted, this, [this]() {
-        if (!m_db->beginTransaction())
+        ++m_scanDepth;
+        if (m_db->beginTransaction())
+            ++m_scanTxDepth;
+        else
             qWarning("scan: beginTransaction failed");
+        if (m_scanDepth == 1) {
+            // Snapshot existing paths/hashes once so duplicate detection during
+            // the scan is O(1) in memory instead of two SQL round-trips per file.
+            m_scanKnownPaths.clear();
+            m_scanKnownHashes.clear();
+            const auto existing = m_db->getAllAssets();
+            m_scanKnownPaths.reserve(existing.size());
+            m_scanKnownHashes.reserve(existing.size());
+            for (const auto &a : existing) {
+                m_scanKnownPaths.insert(a.filePath);
+                if (!a.hash.isEmpty())
+                    m_scanKnownHashes.insert(a.hash);
+            }
+        }
     });
 
     connect(m_scanner, &FileScanner::assetFound, this, [this](const ScannedAsset &item) {
         const Asset &asset = item.asset;
-        Asset existing = m_db->findByPath(asset.filePath);
-        if (existing.id.isEmpty() && m_db->findByHash(asset.hash).id.isEmpty()) {
-            (void)m_db->insertAsset(asset);
-            if (!item.metadata.source.isEmpty()) {
-                Metadata meta = item.metadata;
-                meta.assetId = asset.id;
-                (void)m_db->upsertMetadata(meta);
-            }
+        if (m_scanDepth > 0) {
+            if (m_scanKnownPaths.contains(asset.filePath))
+                return;
+            if (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash))
+                return;
+        } else if (!m_db->findByPath(asset.filePath).id.isEmpty()
+                   || !m_db->findByHash(asset.hash).id.isEmpty()) {
+            return;
+        }
+        if (!m_db->insertAsset(asset)) {
+            qWarning() << "scan: insertAsset failed for" << asset.filePath;
+            return;
+        }
+        if (m_scanDepth > 0) {
+            m_scanKnownPaths.insert(asset.filePath);
+            if (!asset.hash.isEmpty())
+                m_scanKnownHashes.insert(asset.hash);
+        }
+        if (!item.metadata.source.isEmpty()) {
+            Metadata meta = item.metadata;
+            meta.assetId = asset.id;
+            (void)m_db->upsertMetadata(meta);
         }
     });
 
     connect(m_scanner, &FileScanner::scanProgress, this, &LibraryController::scanProgress);
     connect(m_scanner, &FileScanner::scanFinished, this, [this]() {
-        if (!m_db->commitTransaction()) {
-            qWarning("scan: commitTransaction failed");
-            (void)m_db->rollbackTransaction();
+        if (m_scanTxDepth > 0) {
+            if (!m_db->commitTransaction()) {
+                qWarning("scan: commitTransaction failed");
+                (void)m_db->rollbackTransaction();
+            }
+            --m_scanTxDepth;
+        }
+        if (m_scanDepth > 0)
+            --m_scanDepth;
+        if (m_scanDepth == 0) {
+            m_scanKnownPaths.clear();
+            m_scanKnownHashes.clear();
         }
         emit assetCountChanged(m_db->countAssets());
         emit scanFinished();
@@ -52,6 +93,9 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
         Asset a = m_db->findByPath(path);
         if (!a.id.isEmpty()) {
             (void)m_db->deleteAsset(a.id);
+            m_scanKnownPaths.remove(path);
+            if (!a.hash.isEmpty())
+                m_scanKnownHashes.remove(a.hash);
             emit dataChanged();
         }
     });
@@ -185,9 +229,21 @@ void LibraryController::scanAndInsertFile(const QString &path)
 {
     Asset asset = FileScanner::scanSingleFile(path);
     if (asset.id.isEmpty()) return;
+    if (m_scanDepth > 0 && (m_scanKnownPaths.contains(asset.filePath)
+                            || (!asset.hash.isEmpty() && m_scanKnownHashes.contains(asset.hash)))) {
+        return;
+    }
     if (!m_db->findByHash(asset.hash).id.isEmpty()) return;
 
-    (void)m_db->insertAsset(asset);
+    if (!m_db->insertAsset(asset)) {
+        qWarning() << "scanAndInsertFile: insertAsset failed for" << asset.filePath;
+        return;
+    }
+    if (m_scanDepth > 0) {
+        m_scanKnownPaths.insert(asset.filePath);
+        if (!asset.hash.isEmpty())
+            m_scanKnownHashes.insert(asset.hash);
+    }
     Metadata meta = MetadataParser::parse(asset.filePath);
     if (!meta.source.isEmpty()) {
         meta.assetId = asset.id;
@@ -211,6 +267,8 @@ bool LibraryController::deleteAssets(const QVector<Asset> &assets)
     if (!m_db->commitTransaction()) {
         qWarning("deleteAssets: commitTransaction failed");
         (void)m_db->rollbackTransaction();
+        emit dataChanged();
+        return false;
     }
     emit dataChanged();
     return true;

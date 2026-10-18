@@ -91,6 +91,21 @@ GalleryWidget::GalleryWidget(IImageCache *cache, QWidget *parent)
     rebuildThumbClipPath();
 }
 
+void GalleryWidget::setSearchKeyword(const QString &keyword)
+{
+    m_searchKeyword = keyword;
+    // Built once per search instead of on every paint.
+    m_emptySearchTitle = keyword.isEmpty()
+        ? QString()
+        : tr("没有找到匹配“%1”的素材").arg(keyword);
+    update();
+}
+
+void GalleryWidget::refreshBatchSummary(int count)
+{
+    m_batchSummaryText = tr("已选择 %1 项").arg(count);
+}
+
 void GalleryWidget::onThumbnailReady(const QString &filePath, const QSize &, const QPixmap &pixmap)
 {
     if (!pixmap.isNull())
@@ -141,6 +156,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets)
     m_selectedAsset = {};
     m_selectedIndices.clear();
     m_scrollOffset = 0;
+    m_fileExistsCache.clear();
     pruneRequestedThumbnails(assets);
     rebuildMetaLines();
     layoutItems();
@@ -157,6 +173,7 @@ void GalleryWidget::setAssets(const QVector<Asset> &assets, int totalCount)
     m_selectedAsset = {};
     m_selectedIndices.clear();
     m_scrollOffset = 0;
+    m_fileExistsCache.clear();
     pruneRequestedThumbnails(assets);
     rebuildMetaLines();
     layoutItems();
@@ -355,7 +372,7 @@ void GalleryWidget::drawEmptyState(QPainter &p) const
     p.setPen(Color::TEXT_PRIMARY);
     p.drawText(center.adjusted(0, -44, 0, 0), Qt::AlignCenter,
                searching
-                   ? tr("没有找到匹配“%1”的素材").arg(m_searchKeyword)
+                   ? m_emptySearchTitle
                    : tr("把 AI 素材放进来，开始整理"));
 
     p.setFont(m_emptyBodyFont);
@@ -410,8 +427,12 @@ void GalleryWidget::drawBatchToolbar(QPainter &p)
 
     p.setFont(m_controlFont);
     p.setPen(Color::TEXT_PRIMARY);
+    if (m_selectedIndices.size() != m_batchSummaryCount) {
+        m_batchSummaryCount = m_selectedIndices.size();
+        refreshBatchSummary(m_batchSummaryCount);
+    }
     p.drawText(bar.adjusted(14, 0, -260, 0), Qt::AlignVCenter | Qt::AlignLeft,
-               tr("已选择 %1 项").arg(m_selectedIndices.size()));
+               m_batchSummaryText);
 
     auto drawAction = [&](QRect &target, int x, int w, const QString &icon, const QString &text, const QColor &color) {
         target = QRect(x, bar.top() + 5, w, 26);
@@ -841,6 +862,24 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
         }
     }
 
+    if (idx < 0) {
+        // Empty area: start a rubber band. Modifier flags are captured here so
+        // Ctrl/Shift/Alt selection modes work; they used to be unreachable
+        // because the modifier branches above only handled clicks on an item.
+        m_isRubberBanding = true;
+        m_rubberBandStart = event->pos();
+        m_rubberBandEnd = event->pos();
+        m_rubberBandOrigSelection = m_selectedIndices;
+        m_rubberBandAdditive = event->modifiers() & Qt::ShiftModifier;
+        m_rubberBandToggle = event->modifiers() & Qt::ControlModifier;
+        m_rubberBandSubtract = event->modifiers() & Qt::AltModifier;
+        if (!m_rubberBandAdditive && !m_rubberBandToggle && !m_rubberBandSubtract) {
+            m_selectedIndices.clear();
+            m_selectedAsset = {};
+        }
+        return;
+    }
+
     if (event->modifiers() & Qt::ControlModifier) {
         if (idx >= 0) {
             m_lastClickedIndex = idx;
@@ -877,18 +916,6 @@ void GalleryWidget::mousePressEvent(QMouseEvent *event)
             m_selectedAsset = m_assets[idx];
             update();
             emit assetSelected(m_selectedAsset);
-        }
-    } else if (idx < 0) {
-        m_isRubberBanding = true;
-        m_rubberBandStart = event->pos();
-        m_rubberBandEnd = event->pos();
-        m_rubberBandOrigSelection = m_selectedIndices;
-        m_rubberBandAdditive = event->modifiers() & Qt::ShiftModifier;
-        m_rubberBandToggle = event->modifiers() & Qt::ControlModifier;
-        m_rubberBandSubtract = event->modifiers() & Qt::AltModifier;
-        if (!m_rubberBandAdditive && !m_rubberBandToggle && !m_rubberBandSubtract) {
-            m_selectedIndices.clear();
-            m_selectedAsset = {};
         }
     } else {
         m_selectedIndices.clear();
@@ -1024,6 +1051,17 @@ void GalleryWidget::contextMenuEvent(QContextMenuEvent *event)
 {
     int idx = indexAt(event->pos());
     if (idx < 0 && m_selectedIndices.isEmpty() && m_selectedAsset.id.isEmpty()) return;
+
+    // Right-clicking an unselected item must act on that item, not on whatever
+    // was selected before.
+    if (idx >= 0 && !m_selectedIndices.contains(idx)) {
+        m_selectedIndices.clear();
+        m_selectedIndices.insert(idx);
+        m_selectedAsset = m_assets[idx];
+        m_lastClickedIndex = idx;
+        update();
+        emit assetSelected(m_selectedAsset);
+    }
 
     QMenu menu(this);
     UIUtils::setupMenuPalette(menu);

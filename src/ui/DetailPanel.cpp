@@ -79,6 +79,7 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
     m_seedText = metadata.seed > 0 ? QString::number(metadata.seed) : QString();
     m_stepsText = metadata.steps > 0 ? QString::number(metadata.steps) : QString();
     m_cfgText = metadata.cfgScale > 0.0 ? QString::number(metadata.cfgScale, 'f', 1) : QString();
+    m_tagCountText = tr("%1 个标签").arg(tags.size());
 
     {
         QStringList metaParts;
@@ -102,14 +103,16 @@ void DetailPanel::showAsset(const Asset &asset, const Metadata &metadata, const 
             if (imgSize.width() > maxSize.width() || imgSize.height() > maxSize.height())
                 reader.setScaledSize(imgSize.scaled(maxSize, Qt::KeepAspectRatio));
         }
-        QPixmap px = QPixmap::fromImage(reader.read());
+        // Decode off the GUI thread, but construct the QPixmap on the GUI
+        // thread: QPixmap is not safe to create outside it.
+        const QImage img = reader.read();
         DetailPanel *self = guard.data();
         if (!self) return;
-        QMetaObject::invokeMethod(self, [guard, gen, px]() {
+        QMetaObject::invokeMethod(self, [guard, gen, img]() {
             DetailPanel *self = guard.data();
             if (!self) return;
             if (gen != self->m_loadGeneration) return;
-            self->m_fullImage = px;
+            self->m_fullImage = QPixmap::fromImage(img);
             self->update();
         }, Qt::QueuedConnection);
     });
@@ -122,6 +125,9 @@ void DetailPanel::clear()
         m_isEditingPrompt = false;
         m_promptEditor->setVisible(false);
     }
+    // Invalidate any in-flight decode so its result cannot repopulate a
+    // cleared panel.
+    ++m_loadGeneration;
     m_asset = {};
     m_metadata = {};
     m_tags.clear();
@@ -136,6 +142,8 @@ void DetailPanel::clear()
     m_seedText.clear();
     m_stepsText.clear();
     m_cfgText.clear();
+    m_tagCountText.clear();
+    m_favStarRect = QRect();
     m_closeBtnRect = QRect();
     m_copyPromptRect = QRect();
     m_promptContentRect = QRect();
@@ -210,6 +218,7 @@ int DetailPanel::drawImage(QPainter &p)
     QRect imgRect = imageArea();
     p.fillRect(imgRect, Color::BG_PREVIEW);
 
+    m_favStarRect = QRect();
     if (m_fullImage.isNull()) {
         p.setPen(Color::TEXT_SECONDARY);
         p.drawText(imgRect, Qt::AlignCenter, tr("无法加载图片"));
@@ -280,7 +289,7 @@ int DetailPanel::drawAssetSummary(QPainter &p, int y)
     drawChip(m_metadata.prompt.isEmpty() ? tr("无 Prompt") : tr("Prompt"),
              m_metadata.prompt.isEmpty() ? Color::TEXT_SECONDARY : QColor(0x3d, 0xa3, 0x5d));
     if (!m_tags.isEmpty())
-        drawChip(tr("%1 个标签").arg(m_tags.size()), QColor(0xa9, 0x70, 0xff));
+        drawChip(m_tagCountText, QColor(0xa9, 0x70, 0xff));
 
     const int actionsY = y + 74;
     const int actionH = 26;

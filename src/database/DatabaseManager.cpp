@@ -15,6 +15,9 @@ DatabaseManager::~DatabaseManager()
 {
     if (m_db.isOpen())
         m_db.close();
+    // Drop our reference before removeDatabase(); otherwise Qt warns that the
+    // connection is still in use and may leave the driver registered.
+    m_db = QSqlDatabase();
     if (QSqlDatabase::connectionNames().contains(m_connectionName))
         QSqlDatabase::removeDatabase(m_connectionName);
 }
@@ -33,12 +36,12 @@ bool DatabaseManager::initialize()
         qWarning() << "Failed to open database:" << m_db.lastError().text();
         return false;
     }
-    createSchema();
-    migrate();
-    return true;
+    if (!createSchema())
+        return false;
+    return migrate();
 }
 
-void DatabaseManager::createSchema()
+bool DatabaseManager::createSchema()
 {
     QSqlQuery q(m_db);
     if (!q.exec("PRAGMA journal_mode=WAL"))
@@ -46,7 +49,15 @@ void DatabaseManager::createSchema()
     if (!q.exec("PRAGMA foreign_keys=ON"))
         qWarning("Failed to enable foreign keys: %s", qPrintable(q.lastError().text()));
 
-    q.exec(
+    bool ok = true;
+    auto execSchema = [&](const char *sql) {
+        if (!q.exec(QString::fromLatin1(sql))) {
+            qWarning() << "Schema statement failed:" << q.lastError().text();
+            ok = false;
+        }
+    };
+
+    execSchema(
         "CREATE TABLE IF NOT EXISTS assets ("
         "  id TEXT PRIMARY KEY,"
         "  file_path TEXT UNIQUE NOT NULL,"
@@ -63,7 +74,7 @@ void DatabaseManager::createSchema()
         ")"
     );
 
-    q.exec(
+    execSchema(
         "CREATE TABLE IF NOT EXISTS metadata ("
         "  asset_id TEXT PRIMARY KEY,"
         "  source TEXT NOT NULL DEFAULT '',"
@@ -79,7 +90,7 @@ void DatabaseManager::createSchema()
         ")"
     );
 
-    q.exec(
+    execSchema(
         "CREATE TABLE IF NOT EXISTS tags ("
         "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "  name TEXT UNIQUE NOT NULL,"
@@ -87,7 +98,7 @@ void DatabaseManager::createSchema()
         ")"
     );
 
-    q.exec(
+    execSchema(
         "CREATE TABLE IF NOT EXISTS asset_tags ("
         "  asset_id TEXT NOT NULL,"
         "  tag_id INTEGER NOT NULL,"
@@ -97,41 +108,61 @@ void DatabaseManager::createSchema()
         ")"
     );
 
-    q.exec("CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(hash)");
-    q.exec("CREATE INDEX IF NOT EXISTS idx_assets_folder ON assets(folder_id)");
-    q.exec("CREATE INDEX IF NOT EXISTS idx_assets_favorite ON assets(is_favorite)");
-    q.exec("CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at)");
-    q.exec("CREATE INDEX IF NOT EXISTS idx_metadata_source ON metadata(source)");
-    q.exec("CREATE INDEX IF NOT EXISTS idx_asset_tags_tag ON asset_tags(tag_id)");
-    q.exec("CREATE INDEX IF NOT EXISTS idx_metadata_asset_id ON metadata(asset_id)");
+    execSchema("CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(hash)");
+    execSchema("CREATE INDEX IF NOT EXISTS idx_assets_folder ON assets(folder_id)");
+    execSchema("CREATE INDEX IF NOT EXISTS idx_assets_favorite ON assets(is_favorite)");
+    execSchema("CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at)");
+    execSchema("CREATE INDEX IF NOT EXISTS idx_metadata_source ON metadata(source)");
+    execSchema("CREATE INDEX IF NOT EXISTS idx_asset_tags_tag ON asset_tags(tag_id)");
+    execSchema("CREATE INDEX IF NOT EXISTS idx_metadata_asset_id ON metadata(asset_id)");
 
-    q.exec(
+    execSchema(
         "CREATE TABLE IF NOT EXISTS schema_version ("
         "  version INTEGER PRIMARY KEY"
         ")"
     );
+
+    return ok;
 }
 
-void DatabaseManager::migrate()
+bool DatabaseManager::migrate()
 {
     QSqlQuery q(m_db);
-    q.exec("SELECT MAX(version) FROM schema_version");
+    if (!q.exec("SELECT MAX(version) FROM schema_version")) {
+        qWarning() << "Failed to read schema version:" << q.lastError().text();
+        return false;
+    }
     int version = 0;
     if (q.next())
         version = q.value(0).toInt();
 
+    auto setVersion = [&](int v) {
+        QSqlQuery update(m_db);
+        update.prepare("INSERT OR REPLACE INTO schema_version (version) VALUES (?)");
+        update.addBindValue(v);
+        if (!update.exec()) {
+            qWarning() << "Failed to persist schema version" << v << ":"
+                       << update.lastError().text();
+            return false;
+        }
+        return true;
+    };
+
     if (version < 1) {
         // v1: initial schema
-        q.exec("INSERT OR REPLACE INTO schema_version (version) VALUES (1)");
+        if (!setVersion(1))
+            return false;
         version = 1;
     }
 
     if (version < 2) {
         // v2: future migration placeholder
         // q.exec("ALTER TABLE assets ADD COLUMN ...");
-        q.exec("INSERT OR REPLACE INTO schema_version (version) VALUES (2)");
+        if (!setVersion(2))
+            return false;
         version = 2;
     }
+    return true;
 }
 
 bool DatabaseManager::insertAsset(const Asset &asset)
@@ -283,13 +314,17 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
     if (sortField == QLatin1String("file_name")) sortCol = "a.file_name";
     else if (sortField == QLatin1String("file_size")) sortCol = "a.file_size";
 
+    // id is a stable tie-breaker: without it, rows sharing the same sort key
+    // (e.g. identical created_at) can move between LIMIT/OFFSET pages.
     if (outTotalCount) {
         int dot = sortCol.indexOf('.');
         QString sortColOuter = dot >= 0 ? sortCol.mid(dot + 1) : sortCol;
         sql = "SELECT *, COUNT(*) OVER() AS _total_count FROM (" + sql + ") AS _inner "
-              "ORDER BY " + sortColOuter + " " + (sortAscending ? "ASC" : "DESC");
+              "ORDER BY " + sortColOuter + " " + (sortAscending ? "ASC" : "DESC")
+              + ", id ASC";
     } else {
-        sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC");
+        sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC")
+               + ", a.id ASC";
     }
 
     if (limit > 0) {

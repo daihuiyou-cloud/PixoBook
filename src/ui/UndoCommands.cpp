@@ -87,12 +87,17 @@ AddTagToAssetsCommand::AddTagToAssetsCommand(LibraryController *ctrl,
     , m_tagId(tagId)
 {
     setText(QObject::tr("添加标签"));
+    m_newlyTaggedAssetIds.reserve(assetIds.size());
+    for (const auto &aid : assetIds) {
+        if (!ctrl->db()->getTagIdsForAsset(aid).contains(tagId))
+            m_newlyTaggedAssetIds.append(aid);
+    }
 }
 
 void AddTagToAssetsCommand::undo()
 {
     IDatabaseManager *db = m_ctrl->db();
-    for (const auto &aid : qAsConst(m_assetIds))
+    for (const auto &aid : qAsConst(m_newlyTaggedAssetIds))
         (void)db->removeTagFromAsset(aid, m_tagId);
     emit m_ctrl->dataChanged();
 }

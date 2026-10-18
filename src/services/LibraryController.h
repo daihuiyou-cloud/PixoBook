@@ -2,6 +2,7 @@
 #define LIBRARYCONTROLLER_H
 
 #include <QObject>
+#include <QSet>
 #include <QStringList>
 #include "core/IDatabaseManager.h"
 #include "core/IImageCache.h"
@@ -74,6 +75,15 @@ private:
     FileScanner *m_scanner;
     FileWatcher *m_watcher;
     QStringList m_folders;
+
+    // While a scan transaction is open, duplicate detection uses these
+    // in-memory snapshots instead of two SQL queries per scanned file.
+    // Scans can overlap (user imports several folders quickly), so depth is
+    // counted and the outer transaction commits only when the last one ends.
+    int m_scanDepth = 0;
+    int m_scanTxDepth = 0;
+    QSet<QString> m_scanKnownPaths;
+    QSet<QString> m_scanKnownHashes;
 };
 
 #endif

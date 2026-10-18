@@ -53,6 +53,9 @@ public:
 private:
     LibraryController *m_ctrl;
     QVector<QString> m_assetIds;
+    // Assets that did not already carry the tag when the command was created.
+    // Undo only removes the tag from these, so pre-existing assignments survive.
+    QVector<QString> m_newlyTaggedAssetIds;
     int m_tagId;
 };
 

@@ -99,6 +99,7 @@ private:
     QString m_stepsText;
     QString m_cfgText;
     QString m_zoomText;
+    QString m_tagCountText;
 
     QFont m_fontBody;
     QFont m_fontMeta;

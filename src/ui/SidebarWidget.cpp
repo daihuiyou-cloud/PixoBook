@@ -290,6 +290,12 @@ void SidebarWidget::mousePressEvent(QMouseEvent *event)
         m_focusSection = FocusTags;
         m_focusIndex = 0;
         m_tagsExpanded = !m_tagsExpanded;
+        if (!m_tagsExpanded) {
+            // The add-tag button is only painted while expanded; drop its stale
+            // hit rect so clicks in the collapsed area cannot create a tag.
+            m_addTagRect = QRect();
+            m_hoveredAddTagButton = false;
+        }
         updateLayout();
         update();
         return;
@@ -370,7 +376,11 @@ void SidebarWidget::keyPressEvent(QKeyEvent *event)
         if (m_focusSection == FocusFolders && m_foldersExpanded) {
             m_foldersExpanded = false; updateLayout(); update();
         } else if (m_focusSection == FocusTags && m_tagsExpanded) {
-            m_tagsExpanded = false; updateLayout(); update();
+            m_tagsExpanded = false;
+            m_addTagRect = QRect();
+            m_hoveredAddTagButton = false;
+            updateLayout();
+            update();
         }
     } else if (event->key() == Qt::Key_Home) {
         if (folderCount > 0) { m_focusSection = FocusFolders; m_focusIndex = 0; }

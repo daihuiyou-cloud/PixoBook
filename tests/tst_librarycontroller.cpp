@@ -10,6 +10,15 @@
 #include "services/LibraryController.h"
 #include "ui/UndoCommands.h"
 
+// Simulates a commit failure (disk full, lock timeout, ...) without a full
+// IDatabaseManager mock.
+class CommitFailingDatabase : public DatabaseManager
+{
+public:
+    using DatabaseManager::DatabaseManager;
+    [[nodiscard]] bool commitTransaction() override { return false; }
+};
+
 class TestLibraryController : public QObject
 {
     Q_OBJECT
@@ -120,6 +129,24 @@ private slots:
         QCOMPARE(m_db->getTagsForAsset(asset.id).size(), 1);
     }
 
+    void testDeleteAssetsCommitFailureReturnsFalse()
+    {
+        QTemporaryDir dbDir;
+        CommitFailingDatabase failingDb(dbDir.filePath("failing.db"));
+        QVERIFY(failingDb.initialize());
+        const Asset asset = makeAsset("commit-fail");
+        QVERIFY(failingDb.insertAsset(asset));
+
+        ImageCache cache(1024 * 1024);
+        FileScanner scanner;
+        FileWatcher watcher;
+        LibraryController controller(&failingDb, &cache, &scanner, &watcher);
+
+        QVERIFY(!controller.deleteAssets({asset}));
+        // The failed commit must roll back the delete.
+        QVERIFY(!failingDb.getAsset(asset.id).id.isEmpty());
+    }
+
     void testScanAndInsertFileIsIdempotent()
     {
         const QString path = m_dir->filePath("imported.png");
@@ -128,10 +155,54 @@ private slots:
         QVERIFY(img.save(path));
 
         const int before = m_db->countAssets();
-        m_ctrl->scanAndInsertFile(path);
-        m_ctrl->scanAndInsertFile(path);
+        QVERIFY(m_ctrl->scanAndInsertFile(path));
+        QVERIFY(!m_ctrl->scanAndInsertFile(path));
         QCOMPARE(m_db->findByPath(path).id.isEmpty(), false);
         QCOMPARE(m_db->countAssets(), before + 1);
+    }
+
+    void testScanDirectorySkipsKnownPaths()
+    {
+        const QString scanDir = m_dir->filePath("known");
+        QVERIFY(QDir().mkpath(scanDir));
+        QStringList paths;
+        for (int i = 0; i < 3; ++i) {
+            QImage img(20, 20, QImage::Format_RGB32);
+            img.fill(QColor(0, 0, 40 + i * 40));
+            paths << scanDir + QStringLiteral("/known-%1.png").arg(i);
+            QVERIFY(img.save(paths.last()));
+        }
+
+        const int before = m_db->countAssets();
+        QSignalSpy finishedSpy(m_ctrl, &LibraryController::scanFinished);
+        m_scanner->scanDirectory(scanDir, false, QSet<QString>{paths.first()});
+        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 5000);
+
+        // The pre-known path is filtered before any hash/metadata work and must
+        // not reach the database; the other two are imported normally.
+        QCOMPARE(m_db->countAssets(), before + 2);
+        QVERIFY(m_db->findByPath(paths.first()).id.isEmpty());
+        QVERIFY(!m_db->findByPath(paths[1]).id.isEmpty());
+        QVERIFY(!m_db->findByPath(paths[2]).id.isEmpty());
+    }
+
+    void testWatcherImportsFilesInNewSubdirectory()
+    {
+        const QString root = m_dir->filePath("watch-root");
+        QVERIFY(QDir().mkpath(root));
+        m_watcher->addWatchPath(root);
+
+        const int before = m_db->countAssets();
+        QSignalSpy addedSpy(m_watcher, &FileWatcher::fileAdded);
+        const QString subDir = root + "/new-sub";
+        QVERIFY(QDir().mkpath(subDir));
+        QImage img(16, 16, QImage::Format_RGB32);
+        img.fill(Qt::magenta);
+        QVERIFY(img.save(subDir + "/inside.png"));
+
+        QTRY_VERIFY_WITH_TIMEOUT(addedSpy.count() >= 1, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(m_db->countAssets(), before + 1, 5000);
+        m_watcher->removeWatchPath(root);
     }
 
     void testScanDirectoryImportsEachFileOnce()

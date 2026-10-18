@@ -11,6 +11,26 @@ class TestParsers : public QObject
 {
     Q_OBJECT
 
+    // Builds signature + one tEXt/zTXt chunk + IEND. The parser does not
+    // validate CRCs, so a zero CRC keeps the fixture small.
+    static QByteArray makePngWithChunk(const QByteArray &type, const QByteArray &payload)
+    {
+        QByteArray png("\x89PNG\r\n\x1a\n", 8);
+        auto appendChunk = [&png](const QByteArray &chunkType, const QByteArray &data) {
+            const quint32 len = static_cast<quint32>(data.size());
+            png.append(static_cast<char>((len >> 24) & 0xff));
+            png.append(static_cast<char>((len >> 16) & 0xff));
+            png.append(static_cast<char>((len >> 8) & 0xff));
+            png.append(static_cast<char>(len & 0xff));
+            png.append(chunkType);
+            png.append(data);
+            png.append(4, '\0');
+        };
+        appendChunk(type, payload);
+        appendChunk("IEND", {});
+        return png;
+    }
+
 private slots:
     void initTestCase()
     {
@@ -65,6 +85,45 @@ private slots:
     {
         SDParser parser;
         QCOMPARE(parser.sourceName(), "stable-diffusion");
+    }
+
+    void testSDParserTextChunk()
+    {
+        const QByteArray payload = QByteArray("parameters\0", 11)
+            + "a cat\nSteps: 20, Seed: 42, CFG scale: 7, Sampler: Euler, Model: test-model";
+
+        Metadata meta;
+        QVERIFY(SDParser::tryParseFromData(makePngWithChunk("tEXt", payload), meta));
+        QCOMPARE(meta.source, QStringLiteral("stable-diffusion"));
+        QCOMPARE(meta.prompt, QStringLiteral("a cat"));
+        QCOMPARE(meta.steps, 20);
+        QCOMPARE(meta.seed, qint64(42));
+        QCOMPARE(meta.cfgScale, 7.0);
+        QCOMPARE(meta.sampler, QStringLiteral("Euler"));
+        QCOMPARE(meta.modelName, QStringLiteral("test-model"));
+    }
+
+    void testSDParserCompressedTextChunk()
+    {
+        const QString value = QStringLiteral(
+            "a dog\nSteps: 30, Seed: 7, CFG scale: 5.5, Sampler: DPM++ 2M");
+        QByteArray payload("parameters\0", 11);
+        payload.append('\0'); // zTXt compression method: deflate
+        payload.append(qCompress(value.toUtf8()));
+
+        Metadata meta;
+        QVERIFY(SDParser::tryParseFromData(makePngWithChunk("zTXt", payload), meta));
+        QCOMPARE(meta.prompt, QStringLiteral("a dog"));
+        QCOMPARE(meta.steps, 30);
+        QCOMPARE(meta.seed, qint64(7));
+        QCOMPARE(meta.cfgScale, 5.5);
+        QCOMPARE(meta.sampler, QStringLiteral("DPM++ 2M"));
+    }
+
+    void testSDParserRejectsNonPng()
+    {
+        Metadata meta;
+        QVERIFY(!SDParser::tryParseFromData(QByteArray("not a png"), meta));
     }
 
     void testMJParserSourceName()

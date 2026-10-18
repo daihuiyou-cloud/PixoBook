@@ -1,48 +1,66 @@
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
+#include <QFileInfo>
+#include <QStringList>
 #include "database/DatabaseManager.h"
 
 class TestDatabase : public QObject
 {
     Q_OBJECT
 
-    DatabaseManager *db = nullptr;
     QTemporaryDir *tmpDir = nullptr;
+    DatabaseManager *db = nullptr;
+    int dbCounter = 0;
+
+    Asset makeAsset(const QString &id, const QString &path) const
+    {
+        Asset a;
+        a.id = id;
+        a.filePath = path;
+        a.fileName = QFileInfo(path).fileName();
+        a.format = QFileInfo(path).suffix();
+        a.hash = "hash-" + id;
+        a.folderId = QFileInfo(path).absolutePath();
+        a.createdAt = QDateTime::currentDateTime();
+        a.updatedAt = a.createdAt;
+        return a;
+    }
 
 private slots:
     void initTestCase()
     {
         tmpDir = new QTemporaryDir();
-        db = new DatabaseManager(tmpDir->filePath("test.db"));
+        QVERIFY2(tmpDir->isValid(), qPrintable(tmpDir->errorString()));
+    }
+
+    // Every test gets its own database, so slots can run independently
+    // (including `tst_database <single-test>`).
+    void init()
+    {
+        db = new DatabaseManager(tmpDir->filePath(QStringLiteral("test_%1.db").arg(++dbCounter)));
         QVERIFY(db->initialize());
+    }
+
+    void cleanup()
+    {
+        delete db;
+        db = nullptr;
     }
 
     void cleanupTestCase()
     {
-        delete db;
         delete tmpDir;
     }
 
     void testInsertAndGetAsset()
     {
-        Asset a;
-        a.id = "test-id-1";
-        a.filePath = "C:/test/test.png";
-        a.fileName = "test.png";
-        a.fileSize = 1024;
-        a.width = 512;
-        a.height = 512;
-        a.format = "png";
-        a.hash = "abc123";
-        a.folderId = "C:/test";
-        a.createdAt = QDateTime::currentDateTime();
-        a.updatedAt = a.createdAt;
+        const Asset a = makeAsset("test-id-1", "C:/test/test.png");
         QVERIFY(db->insertAsset(a));
 
-        Asset retrieved = db->getAsset("test-id-1");
+        const Asset retrieved = db->getAsset("test-id-1");
         QCOMPARE(retrieved.id, a.id);
         QCOMPARE(retrieved.filePath, a.filePath);
-        QCOMPARE(retrieved.width, 512);
+        QCOMPARE(retrieved.fileName, a.fileName);
     }
 
     void testInsertTag()
@@ -50,37 +68,39 @@ private slots:
         Tag t;
         t.name = "portrait";
         t.color = QColor("#ff0000");
-        int id = db->insertTag(t);
+        const int id = db->insertTag(t);
         QVERIFY(id >= 0);
 
         Tag t2;
         t2.name = "landscape";
         t2.color = QColor("#00ff00");
-        int id2 = db->insertTag(t2);
-        QVERIFY(id2 >= 0);
+        QVERIFY(db->insertTag(t2) >= 0);
 
-        auto tags = db->getAllTags();
-        QVERIFY(tags.size() >= 2);
+        QCOMPARE(db->getAllTags().size(), 2);
     }
 
     void testAssetTagRelation()
     {
-        auto tags = db->getAllTags();
-        QVERIFY(!tags.isEmpty());
-        QVERIFY(db->addTagToAsset("test-id-1", tags[0].id));
+        const Asset a = makeAsset("asset-tag", "C:/test/asset-tag.png");
+        QVERIFY(db->insertAsset(a));
+        Tag t;
+        t.name = "relation";
+        const int tagId = db->insertTag(t);
+        QVERIFY(tagId >= 0);
+        QVERIFY(db->addTagToAsset(a.id, tagId));
 
-        auto assetTags = db->getTagsForAsset("test-id-1");
-        bool found = false;
-        for (const auto &t : assetTags) {
-            if (t.id == tags[0].id) found = true;
-        }
-        QVERIFY(found);
+        const auto assetTags = db->getTagsForAsset(a.id);
+        QCOMPARE(assetTags.size(), 1);
+        QCOMPARE(assetTags.first().id, tagId);
     }
 
     void testMetadata()
     {
+        const Asset a = makeAsset("metadata", "C:/test/metadata.png");
+        QVERIFY(db->insertAsset(a));
+
         Metadata m;
-        m.assetId = "test-id-1";
+        m.assetId = a.id;
         m.source = "stable-diffusion";
         m.prompt = "a cat";
         m.seed = 42;
@@ -88,7 +108,7 @@ private slots:
         m.cfgScale = 7.0;
         QVERIFY(db->upsertMetadata(m));
 
-        Metadata retrieved = db->getMetadata("test-id-1");
+        const Metadata retrieved = db->getMetadata(a.id);
         QCOMPARE(retrieved.prompt, "a cat");
         QCOMPARE(retrieved.seed, 42);
         QCOMPARE(retrieved.cfgScale, 7.0);
@@ -96,14 +116,17 @@ private slots:
 
     void testSearch()
     {
-        auto results = db->searchAssets("test", "", {}, false);
-        QVERIFY(!results.isEmpty());
+        QVERIFY(db->insertAsset(makeAsset("search", "C:/test/search-me.png")));
+        const auto results = db->searchAssets("search", "", {}, false);
+        QCOMPARE(results.size(), 1);
     }
 
     void testFindByPath()
     {
-        Asset a = db->findByPath("C:/test/test.png");
-        QCOMPARE(a.fileName, "test.png");
+        const Asset a = makeAsset("find", "C:/test/find-me.png");
+        QVERIFY(db->insertAsset(a));
+        const Asset found = db->findByPath(a.filePath);
+        QCOMPARE(found.id, a.id);
     }
 
     // Rows with identical sort keys must not move between LIMIT/OFFSET pages.
@@ -118,11 +141,8 @@ private slots:
         QVERIFY(tagId >= 0);
 
         for (int i = 0; i < 9; ++i) {
-            Asset a;
-            a.id = QStringLiteral("page-id-%1").arg(i);
-            a.filePath = QStringLiteral("C:/pagination/page-%1.png").arg(i);
-            a.fileName = QStringLiteral("page-%1.png").arg(i);
-            a.hash = QStringLiteral("page-hash-%1").arg(i);
+            Asset a = makeAsset(QStringLiteral("page-id-%1").arg(i),
+                                QStringLiteral("C:/pagination/page-%1.png").arg(i));
             a.createdAt = stamp;
             a.updatedAt = stamp;
             QVERIFY2(db->insertAsset(a), qPrintable(a.filePath));
@@ -144,11 +164,38 @@ private slots:
         QCOMPARE(seen.size(), 9);
     }
 
+    void testFolderFilterIncludesSubfolders()
+    {
+        const QString root = "C:/folderfilter";
+        const Asset rootAsset = makeAsset("folder-root", root + "/root.png");
+        const Asset nestedAsset = makeAsset("folder-nested", root + "/sub/nested.png");
+        const Asset otherAsset = makeAsset("folder-other", "C:/folderfilter-other/x.png");
+        QVERIFY(db->insertAsset(rootAsset));
+        QVERIFY(db->insertAsset(nestedAsset));
+        QVERIFY(db->insertAsset(otherAsset));
+
+        int total = -1;
+        const auto assets = db->searchAssets("", "", {}, false, "created_at", true, 0, -1,
+                                             &total, root);
+        QCOMPARE(total, 2);
+        QCOMPARE(assets.size(), 2);
+        QStringList ids;
+        for (const auto &a : assets)
+            ids << a.id;
+        QVERIFY(ids.contains("folder-root"));
+        QVERIFY(ids.contains("folder-nested"));
+        QVERIFY(!ids.contains("folder-other"));
+
+        // Native separators are normalized before matching.
+        QCOMPARE(db->countAssets("", "", {}, false, "C:\\folderfilter"), 2);
+    }
+
     void testDeleteAsset()
     {
-        QVERIFY(db->deleteAsset("test-id-1"));
-        Asset a = db->getAsset("test-id-1");
-        QVERIFY(a.id.isEmpty());
+        const Asset a = makeAsset("delete-me", "C:/test/delete-me.png");
+        QVERIFY(db->insertAsset(a));
+        QVERIFY(db->deleteAsset(a.id));
+        QVERIFY(db->getAsset(a.id).id.isEmpty());
     }
 };
 

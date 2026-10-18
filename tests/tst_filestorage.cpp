@@ -296,9 +296,34 @@ private slots:
         QVERIFY(!thumb2.isNull());
         cache.insert(path2, QSize(200, 200), thumb2);
 
-        QPixmap cached1 = cache.get(path1, QSize(200, 200));
-        QPixmap cached2 = cache.get(path2, QSize(200, 200));
-        QVERIFY(cached2.isNull() || cached1.isNull());
+        // The newly inserted item survives; the evicted one is a miss.
+        QVERIFY(cache.get(path1, QSize(200, 200)).isNull());
+        QVERIFY(!cache.get(path2, QSize(200, 200)).isNull());
+    }
+
+    void testImageCacheLruTouch()
+    {
+        ImageCache probe(1024 * 1024);
+        const QString path1 = createTestImage("lru1.png", 100, 100);
+        const QString path2 = createTestImage("lru2.png", 100, 100);
+        const QString path3 = createTestImage("lru3.png", 100, 100);
+        const QSize size(100, 100);
+        const QPixmap thumb1 = probe.generateThumbnail(path1, size);
+        QVERIFY(!thumb1.isNull());
+        const qint64 oneThumb = thumb1.toImage().sizeInBytes();
+
+        // Holds two thumbnails, so the third insert must evict exactly one.
+        ImageCache cache(oneThumb * 2 + oneThumb / 2);
+        const QPixmap thumb2 = probe.generateThumbnail(path2, size);
+        const QPixmap thumb3 = probe.generateThumbnail(path3, size);
+        cache.insert(path1, size, thumb1);
+        cache.insert(path2, size, thumb2);
+        QVERIFY(!cache.get(path1, size).isNull()); // touch path1: path2 becomes LRU
+        cache.insert(path3, size, thumb3);
+
+        QVERIFY(!cache.get(path1, size).isNull());
+        QVERIFY(cache.get(path2, size).isNull());
+        QVERIFY(!cache.get(path3, size).isNull());
     }
 
     void testImageCacheClear()

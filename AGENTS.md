@@ -233,6 +233,7 @@
 | 39 | 数据变更后重新 `setAssets()` | 收藏/加标签后滚动位置与选择丢失，列表跳回顶部 | 刷新路径用 `refreshAssets()` 按 id 恢复选择并保留 scroll |
 | 40 | 批量删除后只检查第一项是否在详情面板 | 详情面板可能继续显示已删除素材 | 遍历所有被删 id 判断 `currentAssetId()` |
 | 41 | FileSystemWatcher 只 `addPath` 新子目录、不补扫 | watcher 注册前已存在的文件永远不会导入 | 新子目录同时加入待扫描队列，触发 `checkForNewFiles()` |
+| 42 | 滚轮/拖动后把 scrollOffset 吸附到整行 | 单格滚轮（15px）被四舍五入回原行，滚动看起来完全无效 | 滚动位置保持像素精度；仅键盘导航按 item 对齐 |
 
 ## 已修复的实例
 
@@ -304,6 +305,8 @@
 | 新子目录文件漏导入 (模式 41) | FileWatcher.cpp | 新子目录加入 pending 队列补扫 |
 | 导入成功提示不准确 | LibraryController.*, MainWindow.cpp | `scanAndInsertFile` 返回 bool，Toast 区分成功/重复 |
 | 测试用例相互依赖 | tests/tst_database.cpp | 每个用例独立数据库文件，支持单测运行 |
+| 滚动条滚轮失效 (模式 42) | GalleryWidget.cpp | 移除 scrollToPos/wheelEvent 的行吸附；滚轮步长 angleDelta/2；轨道点击按 thumb 居中；thumb 命中区覆盖整条轨道 |
+| 详情面板滚轮过慢 | DetailPanel.cpp | angleDelta/8 → /2，与画廊一致 |
 
 ## 扫描器改进
 

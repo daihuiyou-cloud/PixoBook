@@ -216,11 +216,13 @@ int main(int argc, char *argv[])
     const struct QueryCase {
         const char *label;
         const char *keyword;
+        const char *sortField = "created_at";
     } cases[] = {
         {"search common word (\"portrait\")", "portrait"},
         {"search selective word (\"needle\")", "needle"},
         {"search miss (\"zzzzzz\")", "zzzzzz"},
         {"search CJK (\"月光\")", "月光"},
+        {"search needle (relevance)", "needle", "relevance"},
     };
 
     for (const auto &c : cases) {
@@ -229,13 +231,14 @@ int main(int argc, char *argv[])
         for (int i = 0; i < 3; ++i) {
             int total = 0;
             (void)db.searchAssets(QString::fromLatin1(c.keyword), {}, {}, false,
-                                  QStringLiteral("created_at"), false, 0, 200, &total);
+                                  QString::fromLatin1(c.sortField), false, 0, 200, &total);
         }
         for (int i = 0; i < runs; ++i) {
             int total = 0;
             samples.append(measureMs([&]() {
                 (void)db.searchAssets(QString::fromLatin1(c.keyword), {}, {}, false,
-                                      QStringLiteral("created_at"), false, 0, 200, &total);
+                                      QString::fromLatin1(c.sortField), false, 0, 200,
+                                      &total);
             }));
         }
         printStats(out, QString::fromLatin1(c.label), summarize(samples));

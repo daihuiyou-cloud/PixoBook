@@ -8,15 +8,15 @@ A desktop application for managing, browsing, searching, and organizing AI-gener
 
 - **Smart import** — Scan directories for images; automatic duplicate detection via SHA-256 hashing
 - **AI metadata parsing** — Automatically detects source tool and extracts generation parameters:
-  - **Stable Diffusion** — Parses prompt, negative prompt, seed, steps, CFG scale, model, sampler from PNG `tEXt`/`zTXt` chunks
+  - **Stable Diffusion** — Parses prompt, negative prompt, seed, steps, CFG scale, model, sampler from PNG `tEXt`/`zTXt`/`iTXt` chunks (including UTF-8 and zlib-compressed iTXt)
   - **Midjourney** — Extracts seed and model name from filename patterns
   - **DALL-E** — Extracts prompt from filename patterns
 - **Database** — SQLite-backed storage with tags, favorites, and metadata querying
-- **Full-text search** — FTS5 index over prompts and filenames. ASCII terms match word prefixes; CJK text is indexed per character so a substring such as "月光" matches inside a longer prompt. Falls back to `LIKE` when the SQLite build has no FTS5.
+- **Full-text search** — FTS5 index over prompts and filenames. ASCII terms match word prefixes; CJK text is indexed per character so a substring such as "月光" matches inside a longer prompt. A **相关度** sort orders results by BM25 instead of time. Falls back to `LIKE` when the SQLite build has no FTS5.
 - **Image gallery** — Grid-based thumbnail view with lazy loading, keyboard navigation, multi-select, and drag-and-drop import
 - **Lightbox viewer** — Full-screen image viewer with zoom/pan and navigation
 - **Detail panel** — Slide-out panel showing full image preview, metadata, and tag management
-- **File watching** — Real-time monitoring of watched folders. New files are imported; a disappeared file is marked **missing** instead of being deleted, so tags and favorites survive an unplugged drive, a stale network share, or a temporarily unavailable folder. After every scan a background pass also catches files deleted while the app was closed. Rescanning the folder restores the row.
+- **File watching** — Real-time monitoring of watched folders. New files are imported; a disappeared file is marked **missing** instead of being deleted, so tags and favorites survive an unplugged drive, a stale network share, or a temporarily unavailable folder. After every scan a background pass also catches files deleted while the app was closed. Rescanning the folder restores the row; the **查看缺失文件...** dialog can also relink one record to a moved file without losing its tags.
 - **Annotation export / import** — Writes tags, favorites and parsed metadata as JSON (`pixobook-annotations.json`) and merges them back on another machine or database. Import matches by content hash first, then by path; tags are unioned, favorites only turned on, metadata fills rows that have none.
 - **Custom dark theme** — Fully custom-painted UI with VS Code Codicon icon font
 - **Command palette** — `Ctrl+Shift+P` quick action menu
@@ -68,8 +68,9 @@ Reference run with the FTS5 index (development machine):
 The import figure includes building the search index. During a folder scan the
 index is built once after the scan transaction commits, so import stays close
 to the pre-FTS baseline (0.65 s / 5.2 s) instead of paying a per-file index
-update. Before FTS5, the same machine measured 31 ms / 308 ms for the common
-word and 53 ms / 501 ms for the deep page at 10k / 50k.
+update. Relevance ordering (BM25) costs about 1.5 ms / 12.8 ms for a selective
+term at 10k / 50k. Before FTS5, the same machine measured 31 ms / 308 ms for
+the common word and 53 ms / 501 ms for the deep page at 10k / 50k.
 
 ## Project structure
 

@@ -618,6 +618,9 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
     QVector<Asset> assets;
     const QString ftsQuery = m_ftsAvailable ? buildFtsMatchQuery(keyword) : QString();
     const bool hasFtsQuery = !ftsQuery.isEmpty();
+    // bm25 needs the FTS table in FROM, so relevance forces the FTS path even
+    // for dense terms where the ordered LIKE scan would normally be faster.
+    const bool wantsRelevance = sortField == QLatin1String("relevance");
 
     // Choose how to retrieve the page. FTS materializes and sorts all matches,
     // which wins for selective terms. For a common word, walking the
@@ -639,7 +642,8 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
 
         // Less than ~5% of the library: index the candidates. Otherwise let
         // the ordered LIKE scan stop after the requested page.
-        retrieveWithFts = totalAssets <= 0 || matches * 20 <= totalAssets;
+        retrieveWithFts = wantsRelevance || totalAssets <= 0
+                          || matches * 20 <= totalAssets;
     }
 
     QString from = "FROM assets a LEFT JOIN metadata m ON a.id = m.asset_id ";
@@ -694,8 +698,11 @@ QVector<Asset> DatabaseManager::searchAssets(const QString &keyword, const QStri
 
     // id is a stable tie-breaker: without it, rows sharing the same sort key
     // (e.g. identical created_at) can move between LIMIT/OFFSET pages.
-    sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC")
-           + ", a.id ASC";
+    if (wantsRelevance && retrieveWithFts)
+        sql += "ORDER BY bm25(asset_search) ASC, a.id ASC";
+    else
+        sql += "ORDER BY " + sortCol + " " + (sortAscending ? "ASC" : "DESC")
+               + ", a.id ASC";
 
     if (limit > 0) {
         sql += " LIMIT ? OFFSET ?";

@@ -504,6 +504,60 @@ void LibraryController::reconcileMissingFiles()
     });
 }
 
+QVector<Asset> LibraryController::getMissingAssets() const
+{
+    return m_db->getMissingAssets();
+}
+
+bool LibraryController::relinkAsset(const QString &assetId, const QString &newPath,
+                                    QString *errorMessage)
+{
+    auto fail = [errorMessage](const QString &message) {
+        if (errorMessage)
+            *errorMessage = message;
+        return false;
+    };
+
+    if (!FileScanner::isSupportedFormat(newPath))
+        return fail(tr("unsupported image format"));
+
+    const Asset existing = m_db->getAsset(assetId);
+    if (existing.id.isEmpty())
+        return fail(tr("asset no longer exists"));
+
+    const Asset scanned = FileScanner::scanSingleFile(newPath);
+    if (scanned.id.isEmpty())
+        return fail(tr("could not read the selected file"));
+
+    const Asset occupied = m_db->findByPath(scanned.filePath);
+    if (!occupied.id.isEmpty() && occupied.id != assetId)
+        return fail(tr("another asset already uses this path"));
+
+    Asset updated = existing;
+    updated.filePath = scanned.filePath;
+    updated.fileName = scanned.fileName;
+    updated.fileSize = scanned.fileSize;
+    updated.width = scanned.width;
+    updated.height = scanned.height;
+    updated.format = scanned.format;
+    updated.hash = scanned.hash;
+    updated.folderId = scanned.folderId;
+    updated.updatedAt = QDateTime::currentDateTime();
+    updated.missingSince = QDateTime();
+    if (!m_db->updateAsset(updated))
+        return fail(tr("could not update the database"));
+
+    if (m_db->getMetadata(assetId).source.isEmpty()) {
+        Metadata meta = MetadataParser::parse(updated.filePath);
+        if (!meta.source.isEmpty()) {
+            meta.assetId = assetId;
+            (void)m_db->upsertMetadata(meta);
+        }
+    }
+    emit dataChanged();
+    return true;
+}
+
 int LibraryController::countMissingAssets() const
 {
     return m_db->countMissingAssets();

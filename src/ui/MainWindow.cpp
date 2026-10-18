@@ -21,6 +21,7 @@
 #include <QMenu>
 #include "ui/ToastNotification.h"
 #include "ui/TagPickerDialog.h"
+#include "ui/MissingFilesDialog.h"
 #include "ui/Codicon.h"
 #include "ui/ColorConstants.h"
 #include "ui/VisualConstants.h"
@@ -599,6 +600,8 @@ void MainWindow::setupShortcuts()
                      [this]() { onExportAnnotations(); }});
         cmds.append({tr("导入注释..."), "",
                      [this]() { onImportAnnotations(); }});
+        cmds.append({tr("查看缺失文件..."), "",
+                     [this]() { onShowMissingFiles(); }});
         cmds.append({tr("清理缺失记录..."), "",
                      [this]() { onCleanupMissing(); }});
         m_commandPalette->show(cmds);
@@ -697,6 +700,14 @@ void MainWindow::onImportAnnotations()
             .arg(summary.favoritesSet)
             .arg(summary.metadataFilled));
     ToastNotification::show(this, tr("已合并注释"));
+}
+
+void MainWindow::onShowMissingFiles()
+{
+    MissingFilesDialog dialog(m_library, this);
+    dialog.exec();
+    loadAssets();
+    updateStatusCounts(m_gallery->totalAssetCount());
 }
 
 void MainWindow::onCleanupMissing()

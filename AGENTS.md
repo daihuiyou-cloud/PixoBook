@@ -19,46 +19,9 @@
 ### Progress
 
 #### Done
-- **ddd08ee** — paintEvent 热路径零分配 + 10 处性能优化（GalleryWidget/DetailPanel/SidebarWidget 预计算）
-- **7d322af** — CacheKey::operator== 短路（size 先于 filePath）、renameTag SQL 化（`getTag()` 替代 `getAllTags()` 全表扫描）、qPrintable 替换、扫描器新增 CHECK 31-33（paintevent-trimmed / qstring-byvalue / qfileinfo-string-only）
-- **bda1aeb** — `searchAssets` 窗口函数合并 count+search（`COUNT(*) OVER()` 子查询）、`MainWindow` tags 缓存 + `LibraryController::tagsChanged` 信号、`SDParser::tryParseFromData` 消除二次 PNG 文件读取、20 个类加 `final` 关键字、`Asset.h` 字段重排（QString 连续）
-- 全部构建 0 错 0 警告，33/33 扫描器 PASS（2 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
-- **本轮（第 4 轮）**：
-  - TabBar/TitleBar QFontMetrics 成员缓存，消除每帧临时 QFontMetrics（~6-8 次分配/帧）
-  - DetailPanel + LightboxWidget 异步图片加载（`m_loadGeneration` 计数器 + `QtConcurrent::run` 后台解码 + `QPointer` guard）
-  - DetailPanel `clampScrollOffset()` 从 paintEvent 移到 resizeEvent（已在 wheelEvent 内联）
-  - GalleryWidget 惰性 `QFileInfo::exists()`：删除 `prefetchFileExistence`，paintEvent 中对可见项按需 stat + 缓存
-- **71009ed** — 第 4 轮汇总：TabBar/TitleBar QFontMetrics 缓存、DetailPanel/LightboxWidget 异步图片加载、DetailPanel clampScrollOffset 移出 paintEvent、GalleryWidget 惰性 fileExists
-- **a7f92bf** — 第 5 轮：DetailPanel/SidebarWidget/GalleryWidget QFontMetrics 成员缓存（~25+ 临时对象/帧 → 0）、DetailPanel `m_zoomText` 预计算、drawEmptyState 静态 QVector、FileScanner/SidebarWidget QFileInfo → 纯字符串操作（CHECK 33 消除）
-- 全部构建 0 错 0 警告，32/33 扫描器 PASS（1 个预存 QString by-value 接口问题），3/4 测试通过（tst_filestorage 预存问题）
-- **2164ce5** — 第 6 轮：FileWatcher 按目录已知集合隔离（`m_knownByDir`，消除跨目录误删/数据丢失）、undo/redo 后 gallery/detail 刷新（`reloadAfterUndo`）、TabBar/TitleBar/DetailPanel/SidebarWidget QFontMetrics 头文件初始化失效修复（COW 快照）、LibraryController 事务提交失败回滚、GalleryWidget indexAt O(1)、TabBar setCurrentIndex 越界钳制、扫描器 CHECK 32 正则修正（仅参数位置）+ 新增 CHECK 34（QFontMetrics stale member）
-- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
-- **dd7b53e** — 第 8 轮：扫描导入事务批处理（DatabaseManager SAVEPOINT 嵌套事务 + LibraryController scanStarted/scanFinished 括起整个扫描）、FileScanner 元数据解析下放后台线程（ScannedAsset 携带 Asset+Metadata，消除主线程逐文件 readAll）、ImageCache LRU O(1)（std::list + iterator 哈希替代 O(n) removeAll）、generateThumbnail 单次打开文件（移除 m_dimCache）、LightboxWidget COW detach 规避（qAsConst 只读访问）、扫描器新增 CHECK 35（cache-lru-oln-touch）
-- 全部构建 0 错 0 警告，35/35 扫描器 PASS，4/4 测试通过（tst_filestorage 已修复：testScanSingleFile 路径分隔符断言错误；新增 4 个 FileWatcher 测试）
-- **dcc5b14** — 第 7 轮：GalleryWidget paintEvent 脏区域窄化（`event->rect()` + `paintRegion = dirty.adjusted(-2,-2,2,12)`，覆盖圆角抗锯齿 + hover 阴影下溢 10px；项循环按 `itemRect(i).adjusted(...).intersects(paintRegion)` 跳过无关卡片；背景仅填充 paintRegion）
-- 全部构建 0 错 0 警告，34/34 扫描器 PASS，4/4 测试通过
-- **第 9 轮（工作区）**：
-  - 正确性：收藏图标 `star` 误用 `star-empty` 字形（0xea6a → 0xeb59）；undo "添加标签"会移除操作前已存在的标签（构造时记录 `m_newlyTaggedAssetIds`）；`deleteAssets` commit 失败仍返回 true；CommandPalette 的 undo/redo 不刷新界面、导入文件夹不更新侧栏；点击文件夹后旧标签筛选仍生效；右键菜单作用于旧选区；Ctrl/Shift/Alt 橡皮筋分支不可达；Sidebar 折叠标签区后 `m_addTagRect` 命中区残留；DetailPanel `clear()` 未使异步解码失效
-  - 查询/扫描：首屏与懒加载共用 `MainWindow::AssetQuery` + `queryAssets()`（修复"最近导入"tab 翻页排序丢失）；`searchAssets` 追加 `id ASC` 稳定排序；扫描去重从每文件 2 次 SQL 改为 `getAllAssets()` 一次性 path/hash 快照 + 内存集合（`m_scanDepth` / `m_scanTxDepth` 支持并发扫描）；Schema/migrate 失败时初始化直接失败
-  - 线程/缓存：QtConcurrent worker 只解码 `QImage`，`QPixmap::fromImage` 统一回到 GUI 线程（DetailPanel/Lightbox/ImageCache）；ImageCache `m_pending` 去重 in-flight 解码、拒绝缓存空 pixmap；Gallery 清空 `m_fileExistsCache`
-  - paintEvent：DetailPanel 标签数文本、Gallery 空搜索标题与批量工具栏文本预计算，消除每帧 `.arg()`
-  - 扫描器新增 CHECK 36（paintevent-helper-arg-alloc）与 CHECK 37（qtconcurrent-qpixmap-worker）
-  - 构建 0 错 0 警告，37/37 扫描器 PASS，5/5 测试通过（新增 tst_librarycontroller：undo 标签/删除恢复/扫描幂等；数据库分页稳定性；异步缩略图）
-
-- **第 10 轮（工作区）— P0 交互 + P1 扫描/测试**：
-  - 文件夹筛选：`searchAssets/countAssets` 新增 `folderPath` 参数，按 `file_path = 前缀 OR file_path LIKE 前缀/%` 匹配根目录与子目录；`MainWindow::m_activeFolderPath` 接入查询与分页，点击侧栏文件夹真正过滤列表
-  - 文件夹移除语义：菜单改为"停止监听此文件夹"，操作前确认并说明素材保留；不再暗示删除数据
-  - 收藏/加标签/Prompt/删除/undo 后改用 `GalleryWidget::refreshAssets()`：按 asset id 恢复选择、保留滚动位置，并按已加载页数重新查询
-  - 删除时若详情面板显示的是任意一个被删项（不只看第一项）则关闭详情
-  - "最近导入"tab 切换时通过 `SearchBar::setSortSelection()` 同步排序下拉，移除查询层静默覆盖排序
-  - Lightbox 点击顶栏/底栏（文件名、计数、空白工具区）不再误关闭
-  - 扫描性能：`FileScanner::scanDirectory` 接收已知 path 集合，重扫时在 hash/metadata 之前跳过已导入文件；`birthTime` 无效时回退 `lastModified`
-  - PNG 解析先读 8 字节签名，非 PNG（JPEG/WEBP）不再整文件 `readAll`
-  - FileWatcher 发现新子目录时把子目录加入待扫描队列，补扫 watcher 注册前已存在的文件
-  - `scanAndInsertFile` 返回 bool，手动导入按实际结果提示"已导入/未导入"
-  - 测试：`tst_database` 改为每个用例独立数据库（可单独运行）；新增文件夹前缀筛选、已知 path 跳过、新子目录监听、commit 失败回滚、SDParser tEXt/zTXt、LRU 顺序与真实 UI 选择保持测试（`tst_ui`）
-  - 构建 0 错 0 警告，37/37 扫描器 PASS，6/6 测试通过
-
+- 第 1-8 轮：paintEvent 零分配、QFontMetrics 缓存、异步图片解码、脏区域重绘、LRU O(1)、扫描事务批处理、元数据解析下放、FileWatcher 目录隔离。详见 git log 与 Key Decisions。
+- 第 9 轮（c109f98/8f10210/1f1e835）：收藏图标、undo 标签、右键选区、异步代际、查询统一、扫描去重快照等 20+ 正确性修复。
+- 第 10 轮（b2275b4/a771806/3b2066c）：文件夹前缀筛选、refreshAssets 保选择、已知路径跳过、新子目录补扫；tst_database 每用例独立库；37/37 扫描器、6/6 测试。
 - **第 11 轮（工作区）— P0 数据生命周期 + 基准**：
   - 数据分层：`assets` 新增 `missing_since`（schema v3 + 部分索引）。`FileWatcher::fileRemoved` 不再 `deleteAsset`，改为标记缺失；条目、标签、收藏全部保留。删除只由用户显式触发（清理缺失记录/删除素材）。
   - 恢复路径：`fileAdded`/手动导入/文件夹重扫都会恢复同一行。`scanFolder` 的 `knownPaths` 只包含在线条目，缺失路径重新进入扫描器；`assetFound` 先查 `m_scanMissingAssets` 再查 known 集合，避免被当作"已导入"跳过；同 hash 改名由 `adoptRenamedAsset` 清除缺失标记。
@@ -85,6 +48,12 @@
   - 注释回灌：`importAnnotations()` 读取导出的 JSON（format/version 校验，64MB 上限），按 hash 优先、path 兜底匹配；收藏只置真、标签按名字并集（缺标签自动创建）、metadata 只在本地为空时填充。单事务提交，返回 matched/unmatched/tagsCreated/favoritesSet/metadataFilled 统计；命令面板"导入注释..."展示合并摘要。
   - 测试新增 2 项：关闭期间删除的文件被核对标记缺失且标签保留；注释 JSON 按 hash 合并、未知素材计 unmatched、标签/收藏/metadata 生效。
   - 构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_librarycontroller 16 项）。
+
+- **第 14 轮（工作区）— 相关度排序 + 缺失重定位 + iTXt**：
+  - 相关度排序：`searchAssets(..., sortField="relevance")` 强制走 FTS 路径，`ORDER BY bm25(asset_search) ASC, a.id ASC`；无关键词或 FTS5 不可用时回退 created_at。搜索栏新增"相关度"选项。基准：选择性词 1.5ms（10k）/12.8ms（50k）。
+  - 缺失重定位：新增"查看缺失文件..."对话框（列表 + 重新定位 + 移除记录）。`LibraryController::relinkAsset()` 用 `scanSingleFile` 读取新文件，校验目标路径未被其他记录占用，复用原 id 更新路径/尺寸/格式/hash/文件夹并清除 `missing_since`；标签与收藏保留，本地 metadata 为空时解析新文件。新路径不会自动加入监听列表（避免隐式扩大监听范围）。
+  - iTXt：SDParser 支持 PNG iTXt（keyword/压缩标志/语言/翻译关键字/UTF-8 文本），含 zlib 压缩（flag=1, method=0）；`containsSdMetadata` 与 tEXt/zTXt 共用关键字探测。
+  - 测试新增 3 项：BM25 短文档优先、缺失记录重定位保留标签、iTXt 未压缩（中文）+ 压缩解析。构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_database 22、tst_librarycontroller 17、tst_parsers 10）。
 
 #### In Progress
 - 无
@@ -146,10 +115,13 @@
 - 扫描结束后的核对延迟 1000ms 去抖，让 watcher 先送达删除事件；`m_reconcileRunning` 防止重叠，重复调用直接返回。
 - 注释导入是**合并**而不是覆盖：收藏只置真、标签并集、metadata 仅在本地 `source` 为空时写入。没有文件字节时无法新建素材，匹配不到的条目计入 `unmatched` 并跳过。
 - 导入按 hash 优先匹配（内容身份），path 兜底（文件移动但未重扫）；同一 hash 多行时 `findByHash` 返回第一行，属于已知限制。
+- 相关度排序必须强制走 FTS：`bm25()` 只能引用 FROM 中的 `asset_search`，而密集词默认走 LIKE。排序为 `bm25 ASC, a.id ASC`（bm25 越小越相关），无关键词时回退 created_at。
+- 重定位复用原 id：`scanSingleFile` 重新计算物理字段，`findByPath` 排除自身后判重，再 `updateAsset` 清 `missing_since`。标签/收藏天然保留；本地 metadata 为空时才解析新文件。
+- 重定位的新路径不会自动加入监听列表：隐式扩大监听范围会让用户意外暴露新的目录；需要监听应由用户显式添加。
+- iTXt 的 keyword 与 tEXt/zTXt 相同，因此 `containsSdMetadata` 只需识别 chunk 类型；`tryParseFromData` 额外跳过压缩标志/语言/翻译关键字，flag=1 且 method=0 时 `qUncompress`。
 
 ### Next Steps
-- **相关度排序**：搜索目前仍按 created_at；FTS5 可用 `bm25(asset_search)`，但需要 UI 增加"相关度"排序项，并确保与分页稳定排序 (`id ASC`) 兼容。
-- 缺失条目的专用视图/手动"重新定位"对话框：核对已能发现缺失，但恢复仍依赖重扫同一文件夹；跨盘移动需要用户重新扫描新位置（同 hash 会 adopt）。
+- 批量重定位：选择新文件夹后按 hash 自动匹配所有缺失记录（当前一次只能重定位一条）；同 hash 命中时复用 `relinkAsset` 的单条逻辑。
 - 注释导入的冲突预览：当前静默合并，后续可在导入前展示 matched/unmatched/将新建标签列表供确认。
 - 备份保留策略：`*.bak-v{n}` 目前只增不删，后续只保留最近 N 个。
 - 把 `pixobook_bench` 纳入 CI 趋势记录（至少每轮记录 10k/50k 的 p50/p95 数字）。
@@ -183,6 +155,9 @@
 - FTS 同步期间不要对该库执行 `VACUUM`：VACUUM 会重写 rowid，破坏 `asset_search.rowid = assets.rowid` 的约定；若必须 VACUUM，先 `DROP TABLE asset_search` 再重开应用重建
 - 缺失核对自动触发的时机是 `scanFinished` 后 1000ms；若用户在这 1s 内又启动扫描，定时器会重置（单次），最终只核对一次
 - 注释导入上限 64MB；JSON 顶层必须是 `format: "pixobook-annotations"`。导入失败会回滚整个事务，不会留下半合并状态
+- 相关度排序需要关键词 + FTS5；无关键词时即使选"相关度"也按 created_at 返回，不会报错
+- 重定位不改变素材 id，因此标签/收藏/撤销栈都仍指向同一行；新路径若已被另一条记录占用会被拒绝
+- iTXt 只支持压缩方法 0（zlib）；其他方法跳过该 chunk，不会误读文本
 
 ### Relevant Files
 - `src/ui/TabBar.h/.cpp`：新增 `QFontMetrics m_tabFontMetrics{m_tabFont}` 成员，`tabRect`/`addButtonRect` 移除临时 QFontMetrics
@@ -243,7 +218,15 @@
 - `bench/bench_main.cpp`：新增 CJK 查询用例与 search backend 输出
 - `src/services/LibraryController.h/.cpp`：`reconcileMissingFiles()`（后台 stat + 1s 去抖）、`missingCheckFinished` 信号、`importAnnotations()`（hash/path 匹配、合并策略、统计）
 - `src/ui/MainWindow.h/.cpp`：缺失核对 Toast/状态、命令面板"导入注释..."与合并摘要
-- `tests/tst_librarycontroller.cpp`：关闭期间删除的核对测试、注释导入合并测试（16 项）
+- `tests/tst_librarycontroller.cpp`：关闭期间删除的核对测试、注释导入合并测试、缺失重定位（17 项）
+- `src/database/DatabaseManager.cpp`：相关度排序强制 FTS + `bm25(asset_search)`（含 `id` 稳定次序）
+- `src/ui/MissingFilesDialog.h/.cpp`：缺失文件列表、重新定位、移除记录
+- `src/services/LibraryController.h/.cpp`：`relinkAsset()`（scanSingleFile + 路径冲突检查 + 清缺失 + 空 metadata 补解析）
+- `src/parsers/SDParser.cpp`：iTXt（UTF-8 / zlib）解析；`containsSdMetadata` 识别 iTXt
+- `src/ui/SearchBar.cpp`：排序下拉新增"相关度"
+- `tests/tst_database.cpp`：BM25 短文档优先（22 项）
+- `tests/tst_parsers.cpp`：iTXt 未压缩中文 + 压缩（10 项）
+- `bench/bench_main.cpp`：新增 relevance 查询用例
 
 ---
 
@@ -324,6 +307,7 @@
 | 46 | 监听器把"文件消失"直接 `deleteAsset` | 外置盘/网络盘/同步目录一次抖动就永久丢失标签与收藏（唯一不可恢复的失败） | 检查 `fileRemoved` 回调是否只标记 `missing_since`；删除必须由用户显式触发（CHECK 38 会拦截） |
 | 47 | 分页总数用 `DISTINCT` + `COUNT(*) OVER()` | 迫使 SQLite 物化并统计全部命中，深页随库线性变慢（50k 501ms），LIMIT 无法提前结束 | 总数单独查询；标签过滤用 `EXISTS` 消除重复行（CHECK 39 会拦截） |
 | 48 | 只依赖 watcher 发现文件删除 | 应用关闭期间的删除永远不标记缺失，状态栏与筛选长期失真 | 扫描结束后对监听目录做一次存在性核对（后台 stat，只覆盖 watched folders） |
+| 49 | 重定位只改路径、未校验目标已被占用 | 两条记录指向同一文件，派生字段与标签归属错乱 | 先 `scanSingleFile` 取绝对路径，再用 `findByPath` 排除自身后判重 |
 
 ## 已修复的实例
 
@@ -408,6 +392,9 @@
 | 全文检索全表扫描 | DatabaseManager.h/.cpp | FTS5 `asset_search` + 混合检索（选择性词走 FTS，密集词走索引序 LIKE）+ CJK 逐字短语 |
 | 关闭期间删除的文件未标缺失 (模式 48) | LibraryController.h/.cpp | `reconcileMissingFiles()` 后台 stat 监听目录，scanFinished 后 1s 去抖触发，GUI 线程批量标记；只覆盖 watched folders |
 | 注释无法回灌 | LibraryController.h/.cpp, MainWindow.h/.cpp | `importAnnotations()` 按 hash→path 匹配，标签并集/收藏置真/metadata 仅在空时填充，单事务 + 统计摘要 |
+| 缺失记录无法重定位 (模式 49) | LibraryController.h/.cpp, MissingFilesDialog.* | 复用原 id 更新物理字段并清缺失；路径冲突拒绝；标签/收藏保留 |
+| 搜索只有时间序 | DatabaseManager.cpp, SearchBar.cpp | 新增"相关度"排序，强制 FTS + `bm25`，1.5ms/12.8ms（10k/50k） |
+| iTXt 元数据不可见 | SDParser.cpp | 支持 UTF-8 与 zlib 压缩的 iTXt，含中文 prompt |
 
 ## 扫描器改进
 

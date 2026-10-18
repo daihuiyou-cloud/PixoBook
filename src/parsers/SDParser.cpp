@@ -27,11 +27,14 @@ bool SDParser::containsSdMetadata(const QByteArray &data)
         const char *ct = raw + pos + 4;
         bool isTExt = (ct[0] == 't' && ct[1] == 'E' && ct[2] == 'X' && ct[3] == 't');
         bool isZTXt = (ct[0] == 'z' && ct[1] == 'T' && ct[2] == 'X' && ct[3] == 't');
+        bool isITXt = (ct[0] == 'i' && ct[1] == 'T' && ct[2] == 'X' && ct[3] == 't');
 
-        if (isTExt || isZTXt) {
+        if (isTExt || isZTXt || isITXt) {
             int dataStart = pos + 8;
             int dataEnd = dataStart + chunkLen;
             if (dataEnd > rawSize) break;
+            // The keyword is the first NUL-terminated field for all three
+            // chunk types (iTXt then adds compression/language fields).
             int nullPos = data.indexOf('\0', dataStart);
             if (nullPos < 0 || nullPos >= dataEnd) {
                 pos += 12 + static_cast<int>(chunkLen);
@@ -71,15 +74,55 @@ bool SDParser::tryParseFromData(const QByteArray &data, Metadata &outMeta)
         const char *ct = raw + pos + 4;
         bool isTExt = (ct[0] == 't' && ct[1] == 'E' && ct[2] == 'X' && ct[3] == 't');
         bool isZTXt = (ct[0] == 'z' && ct[1] == 'T' && ct[2] == 'X' && ct[3] == 't');
+        bool isITXt = (ct[0] == 'i' && ct[1] == 'T' && ct[2] == 'X' && ct[3] == 't');
 
-        if (isTExt || isZTXt) {
+        if (isTExt || isZTXt || isITXt) {
             int dataStart = pos + 8;
             int dataEnd = dataStart + static_cast<int>(chunkLen);
             if (dataEnd > rawSize) break;
 
             QString key, value;
 
-            if (isZTXt) {
+            if (isITXt) {
+                // keyword NUL, compression flag/method, language NUL,
+                // translated keyword NUL, then UTF-8 text (zlib if flag=1).
+                QByteArray chunkData = data.mid(dataStart, static_cast<int>(chunkLen));
+                const int kwEnd = chunkData.indexOf('\0');
+                if (kwEnd < 0 || kwEnd + 3 > chunkData.size()) {
+                    pos += 12 + static_cast<int>(chunkLen);
+                    continue;
+                }
+                key = QString::fromUtf8(chunkData.left(kwEnd));
+                const int compressionFlag =
+                    static_cast<unsigned char>(chunkData.at(kwEnd + 1));
+                const int compressionMethod =
+                    static_cast<unsigned char>(chunkData.at(kwEnd + 2));
+                int cursor = kwEnd + 3;
+                const int langEnd = chunkData.indexOf('\0', cursor);
+                if (langEnd < 0) {
+                    pos += 12 + static_cast<int>(chunkLen);
+                    continue;
+                }
+                cursor = langEnd + 1;
+                const int translatedEnd = chunkData.indexOf('\0', cursor);
+                if (translatedEnd < 0) {
+                    pos += 12 + static_cast<int>(chunkLen);
+                    continue;
+                }
+                QByteArray textBytes = chunkData.mid(translatedEnd + 1);
+                if (compressionFlag == 1) {
+                    if (compressionMethod != 0) {
+                        pos += 12 + static_cast<int>(chunkLen);
+                        continue;
+                    }
+                    textBytes = qUncompress(textBytes);
+                    if (textBytes.isEmpty()) {
+                        pos += 12 + static_cast<int>(chunkLen);
+                        continue;
+                    }
+                }
+                value = QString::fromUtf8(textBytes);
+            } else if (isZTXt) {
                 QByteArray chunkData = data.mid(dataStart, chunkLen);
                 int nullPos = chunkData.indexOf('\0');
                 if (nullPos < 0) { pos += 12 + static_cast<int>(chunkLen); continue; }

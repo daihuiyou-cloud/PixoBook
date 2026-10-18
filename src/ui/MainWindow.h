@@ -52,6 +52,7 @@ private:
     void onExportAnnotations();
     void onImportAnnotations();
     void onCleanupMissing();
+    void onShowMissingFiles();
 
     // Snapshot of the active filters. Kept in one place so the initial load and
     // lazy pagination always query with identical filters and ordering.

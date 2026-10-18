@@ -96,6 +96,13 @@ public:
     // scan (debounced) and can be called explicitly.
     void reconcileMissingFiles();
 
+    QVector<Asset> getMissingAssets() const;
+    // Points an existing row (usually one marked missing) at a new file while
+    // keeping its id, tags and favorite; refreshes physical fields and, when
+    // the row had no metadata, parses the new file's prompt.
+    [[nodiscard]] bool relinkAsset(const QString &assetId, const QString &newPath,
+                                   QString *errorMessage = nullptr);
+
 signals:
     void assetCountChanged(int count);
     void scanProgress(int current, int total);

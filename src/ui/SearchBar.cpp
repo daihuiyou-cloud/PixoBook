@@ -96,6 +96,7 @@ SearchBar::SearchBar(QWidget *parent)
     m_sortCombo->setPalette(comboPal);
     m_sortCombo->addItem(tr("时间↓"), "created_at|DESC");
     m_sortCombo->addItem(tr("时间↑"), "created_at|ASC");
+    m_sortCombo->addItem(tr("相关度"), "relevance|DESC");
     m_sortCombo->addItem(tr("名称 A-Z"), "file_name|ASC");
     m_sortCombo->addItem(tr("名称 Z-A"), "file_name|DESC");
     m_sortCombo->addItem(tr("大小↑"), "file_size|ASC");

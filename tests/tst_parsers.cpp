@@ -120,6 +120,39 @@ private slots:
         QCOMPARE(meta.sampler, QStringLiteral("DPM++ 2M"));
     }
 
+    // iTXt carries UTF-8 (and optionally zlib-compressed) text. ComfyUI and
+    // newer exporters use it instead of the Latin-1 tEXt chunk.
+    void testSDParserItxtChunk()
+    {
+        QByteArray payload("parameters\0", 11);
+        payload.append('\0'); // compression flag: uncompressed
+        payload.append('\0'); // compression method
+        payload.append('\0'); // language tag
+        payload.append('\0'); // translated keyword
+        payload.append(QStringLiteral("纹身猫\nSteps: 25, Seed: 77, Sampler: Euler a").toUtf8());
+
+        const QByteArray png = makePngWithChunk("iTXt", payload);
+        QVERIFY(SDParser::containsSdMetadata(png));
+        Metadata meta;
+        QVERIFY(SDParser::tryParseFromData(png, meta));
+        QCOMPARE(meta.prompt, QStringLiteral("纹身猫"));
+        QCOMPARE(meta.steps, 25);
+        QCOMPARE(meta.seed, qint64(77));
+        QCOMPARE(meta.sampler, QStringLiteral("Euler a"));
+
+        // Compressed iTXt: flag=1, method=0 (zlib).
+        QByteArray compressed("prompt\0", 7);
+        compressed.append('\1');
+        compressed.append('\0');
+        compressed.append('\0');
+        compressed.append('\0');
+        compressed.append(qCompress(QStringLiteral("compressed prompt\nSteps: 12").toUtf8()));
+        Metadata compressedMeta;
+        QVERIFY(SDParser::tryParseFromData(makePngWithChunk("iTXt", compressed), compressedMeta));
+        QCOMPARE(compressedMeta.prompt, QStringLiteral("compressed prompt"));
+        QCOMPARE(compressedMeta.steps, 12);
+    }
+
     void testSDParserRejectsNonPng()
     {
         Metadata meta;

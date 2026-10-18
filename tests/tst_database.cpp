@@ -413,6 +413,41 @@ private slots:
         db->setDeferSearchIndexing(false);
     }
 
+    // Relevance ordering must put the shortest, most focused match first.
+    void testRelevanceSort()
+    {
+        if (!db->isFullTextSearchEnabled())
+            QSKIP("SQLite build has no FTS5");
+
+        Asset exact = makeAsset("rel-exact", "C:/rel/exact.png");
+        QVERIFY(db->insertAsset(exact));
+        Metadata exactMeta;
+        exactMeta.assetId = exact.id;
+        exactMeta.source = "stable-diffusion";
+        exactMeta.prompt = "needle";
+        QVERIFY(db->upsertMetadata(exactMeta));
+
+        Asset longDoc = makeAsset("rel-long", "C:/rel/long.png");
+        QVERIFY(db->insertAsset(longDoc));
+        Metadata longMeta;
+        longMeta.assetId = longDoc.id;
+        longMeta.source = "stable-diffusion";
+        longMeta.prompt = "needle " + QStringLiteral("forest city portrait neon watercolor "
+                                                     "cinematic studio macro sunset fog detail "
+                                                     "wide angle architecture minimal");
+        QVERIFY(db->upsertMetadata(longMeta));
+
+        const auto results = db->searchAssets(QStringLiteral("needle"), QString(), {}, false,
+                                              QStringLiteral("relevance"), false, 0, 10);
+        QCOMPARE(results.size(), 2);
+        QCOMPARE(results.first().id, exact.id);
+
+        // Without FTS the fallback is still a valid page (created_at order).
+        const auto fallback = db->searchAssets(QString(), QString(), {}, false,
+                                               QStringLiteral("relevance"), false, 0, 10);
+        QCOMPARE(fallback.size(), 2);
+    }
+
     // The index is derived data: dropping it must be repaired on next open.
     void testSearchIndexRebuilds()
     {

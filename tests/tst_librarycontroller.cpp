@@ -1,6 +1,7 @@
 #include <QtTest/QtTest>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -327,6 +328,30 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(m_db->findByPath(gonePath).isMissing(), 5000);
         QVERIFY(!m_db->findByPath(keepPath).isMissing());
         QCOMPARE(m_db->getTagsForAsset(gone.id).size(), 1);
+    }
+
+    void testRelinkMissingAssetKeepsAnnotations()
+    {
+        Asset old = makeAsset("relink-old");
+        QVERIFY(m_db->insertAsset(old));
+        QVERIFY(m_db->addTagToAsset(old.id, m_tagId));
+        QVERIFY(m_db->markAssetMissing(old.filePath, QDateTime::currentDateTime()));
+        QVERIFY(m_db->getAsset(old.id).isMissing());
+
+        const QString newPath = m_dir->filePath("relink-new.png");
+        QImage img(20, 20, QImage::Format_RGB32);
+        img.fill(Qt::yellow);
+        QVERIFY(img.save(newPath));
+
+        QString error;
+        QVERIFY2(m_ctrl->relinkAsset(old.id, newPath, &error), qPrintable(error));
+
+        const Asset updated = m_db->getAsset(old.id);
+        QCOMPARE(updated.filePath, QFileInfo(newPath).absoluteFilePath());
+        QVERIFY(!updated.isMissing());
+        QVERIFY(!updated.hash.isEmpty());
+        QCOMPARE(m_db->findByPath(updated.filePath).id, old.id);
+        QCOMPARE(m_db->getTagsForAsset(old.id).size(), 1);
     }
 
     void testImportAnnotationsMergesByHash()

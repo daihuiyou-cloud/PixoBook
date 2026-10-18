@@ -13,7 +13,7 @@
 - 使用 C++17 + Qt5，需兼容 MSVC 编译器
 - 扫描器 ci/scan-bug-patterns.ps1 是零依赖 PowerShell 脚本，全部 37 个检查块在其中可用
 - 源码修复必须在 src/ 目录下，遵循现有代码风格（m_ 前缀成员、Allman 大括号）
-- 已提交 8 个 perf/fix commit (ddd08ee, 7d322af, bda1aeb, 71009ed, a7f92bf, 2164ce5, dcc5b14, dd7b53e)；第 9 轮已完成（工作区变更，尚未提交）
+- 第 8 轮及以前提交 8 个 commit；第 9 轮已提交 c109f98 / 8f10210 / 1f1e835；第 10 轮已完成（工作区变更，待提交）
 
 ### Progress
 
@@ -43,6 +43,20 @@
   - paintEvent：DetailPanel 标签数文本、Gallery 空搜索标题与批量工具栏文本预计算，消除每帧 `.arg()`
   - 扫描器新增 CHECK 36（paintevent-helper-arg-alloc）与 CHECK 37（qtconcurrent-qpixmap-worker）
   - 构建 0 错 0 警告，37/37 扫描器 PASS，5/5 测试通过（新增 tst_librarycontroller：undo 标签/删除恢复/扫描幂等；数据库分页稳定性；异步缩略图）
+
+- **第 10 轮（工作区）— P0 交互 + P1 扫描/测试**：
+  - 文件夹筛选：`searchAssets/countAssets` 新增 `folderPath` 参数，按 `file_path = 前缀 OR file_path LIKE 前缀/%` 匹配根目录与子目录；`MainWindow::m_activeFolderPath` 接入查询与分页，点击侧栏文件夹真正过滤列表
+  - 文件夹移除语义：菜单改为"停止监听此文件夹"，操作前确认并说明素材保留；不再暗示删除数据
+  - 收藏/加标签/Prompt/删除/undo 后改用 `GalleryWidget::refreshAssets()`：按 asset id 恢复选择、保留滚动位置，并按已加载页数重新查询
+  - 删除时若详情面板显示的是任意一个被删项（不只看第一项）则关闭详情
+  - "最近导入"tab 切换时通过 `SearchBar::setSortSelection()` 同步排序下拉，移除查询层静默覆盖排序
+  - Lightbox 点击顶栏/底栏（文件名、计数、空白工具区）不再误关闭
+  - 扫描性能：`FileScanner::scanDirectory` 接收已知 path 集合，重扫时在 hash/metadata 之前跳过已导入文件；`birthTime` 无效时回退 `lastModified`
+  - PNG 解析先读 8 字节签名，非 PNG（JPEG/WEBP）不再整文件 `readAll`
+  - FileWatcher 发现新子目录时把子目录加入待扫描队列，补扫 watcher 注册前已存在的文件
+  - `scanAndInsertFile` 返回 bool，手动导入按实际结果提示"已导入/未导入"
+  - 测试：`tst_database` 改为每个用例独立数据库（可单独运行）；新增文件夹前缀筛选、已知 path 跳过、新子目录监听、commit 失败回滚、SDParser tEXt/zTXt、LRU 顺序与真实 UI 选择保持测试（`tst_ui`）
+  - 构建 0 错 0 警告，37/37 扫描器 PASS，6/6 测试通过
 
 #### In Progress
 - 无
@@ -76,11 +90,20 @@
 - `AddTagToAssetsCommand` 构造时记录 `m_newlyTaggedAssetIds`（原本没有该标签的 asset），undo 只撤销这些，保护操作前已有的标签关联
 - `createSchema()` / `migrate()` 返回 bool：DDL 或 schema_version 写入失败时 `initialize()` 直接失败，避免在空表上静默运行
 - 图标字体中 `star` 必须映射 `star-full`（0xeb59），`star-empty` 是 0xea6a；两者混用会让收藏状态视觉上不可区分
+- 文件夹筛选按 `file_path` 前缀匹配（`= prefix OR LIKE prefix/% ESCAPE '\'`），因为 `Asset.folderId` 是文件所在目录，递归扫描后子目录文件不属于根目录；`%`/`_` 必须转义
+- 数据变更后的刷新用 `GalleryWidget::refreshAssets()`：按 asset id 恢复选择、保留 scroll，并按 `max(200, 已加载数)` 重新查询，避免收藏/标签操作把列表跳回顶部或截断已加载页
+- 文件夹"移除"定义为停止监听而非删除数据，菜单文案与确认框显式说明素材保留；真正删数据只走素材删除流程
+- "最近导入"tab 通过 `SearchBar::setSortSelection()` 同步排序控件，查询层不再静默覆盖用户排序
+- 重扫时 `FileScanner` 接收已知 path 集合，在尺寸/哈希/元数据解析之前跳过已导入文件；scanStarted 的全量 path/hash 快照仍负责跨路径的内容去重
+- `tst_database` 每个用例使用独立数据库文件，保证 `tst_database <single-test>` 也能通过
 
 ### Next Steps
 - 新增任何后台解码路径时，worker 只返回 `QImage`，`QPixmap` 必须在 GUI 线程构造（CHECK 37 会拦截）
 - 扫描期新增/删除文件的路径必须同步更新 `m_scanKnownPaths` / `m_scanKnownHashes`，否则去重快照会漂移
 - 可继续优化扫描的 metadata 写入：目前仍是每文件一次 prepared upsert，后续可批量/复用 QSqlQuery
+- `scanFolder` 仍用 `getAllAssets()` 建 known 集合，可加只查 `file_path` 的轻量接口，减少重扫前的整行读取
+- AddTag undo 构造仍是每 asset 一次查询，后续加批量"已有该标签的 asset 集合"接口
+- UI 测试目前只覆盖 Gallery 的 refresh/selection，Lightbox 点击区域、DetailPanel 编辑、MainWindow 文件夹筛选仍缺 widget 级测试
 - 若再发现局部 update(QRect) 但 paintEvent 全量重绘的自绘控件，复用第 7 轮脏区域窄化模式（如 LightboxWidget/SidebarWidget 的热区变化）
 
 ### Critical Context
@@ -124,6 +147,18 @@
 - `tests/tst_librarycontroller.cpp`：新增 undo 标签/删除恢复/扫描幂等测试
 - `tests/tst_database.cpp`：新增相同时间戳分页稳定性测试
 - `tests/tst_filestorage.cpp`：新增空 pixmap 不缓存、异步缩略图测试；initTestCase 校验临时目录
+- `src/core/IDatabaseManager.h` / `src/database/DatabaseManager.*`：`searchAssets`/`countAssets` 增加 `folderPath`，前缀 LIKE + 转义
+- `src/ui/MainWindow.h/.cpp`：`m_activeFolderPath`、`refreshAssets()`/`applyAssets(bool)`、文件夹筛选/停止监听确认、导入结果提示、删除详情判断
+- `src/ui/GalleryWidget.*`：`refreshAssets()` 按 id 恢复选择并保留滚动
+- `src/ui/SearchBar.*`：`setSortSelection()` 同步排序下拉（不触发 filterChanged）
+- `src/services/FileScanner.*`：`scanDirectory(..., knownPaths)` 在昂贵 I/O 前跳过已导入文件；birthTime 回退
+- `src/services/FileWatcher.cpp`：新子目录加入待扫描队列
+- `src/parsers/SDParser.cpp`：PNG 签名前置检查
+- `src/ui/LightboxWidget.cpp`：顶/底 overlay 栏点击不再关闭
+- `tests/tst_database.cpp`：每用例独立数据库 + 文件夹前缀筛选测试
+- `tests/tst_librarycontroller.cpp`：known path 跳过、新子目录监听、commit 失败回滚、导入返回值
+- `tests/tst_parsers.cpp`：真实 PNG tEXt/zTXt 解析
+- `tests/tst_ui.cpp`：GalleryWidget refresh 保持选择
 - `ci/scan-bug-patterns.ps1`：37 个检查块，自动扫描（新增 CHECK 36/37）
 
 ---
@@ -195,6 +230,9 @@
 | 36 | `QtConcurrent::run` 工作线程内创建 `QPixmap` / `QPainter` | QPixmap 绑定 GUI 线程，可能崩溃或渲染异常 | worker 只解码 `QImage`；`QPixmap::fromImage` 放在 `QMetaObject::invokeMethod` 的 GUI lambda 中 |
 | 37 | 缓存 `insert()` 存入空 pixmap / 同一 key 并发重复解码 | 空值永久占位（get 永远 miss）+ 每帧重复派发解码 | `insert` 拒绝 null；用 `m_pending` 集合去重 in-flight 请求 |
 | 38 | 带修饰键的鼠标操作分支位于"空白区"分支之前 | 修饰键+橡皮筋等组合功能不可达（死代码） | 检查 `modifiers()` 分支是否先于 `idx < 0` / 空白区处理 |
+| 39 | 数据变更后重新 `setAssets()` | 收藏/加标签后滚动位置与选择丢失，列表跳回顶部 | 刷新路径用 `refreshAssets()` 按 id 恢复选择并保留 scroll |
+| 40 | 批量删除后只检查第一项是否在详情面板 | 详情面板可能继续显示已删除素材 | 遍历所有被删 id 判断 `currentAssetId()` |
+| 41 | FileSystemWatcher 只 `addPath` 新子目录、不补扫 | watcher 注册前已存在的文件永远不会导入 | 新子目录同时加入待扫描队列，触发 `checkForNewFiles()` |
 
 ## 已修复的实例
 
@@ -255,6 +293,17 @@
 | Schema DDL 静默失败 (模式 7) | DatabaseManager.h/.cpp | `createSchema`/`migrate` 返回 bool，任一步失败则 `initialize()` 失败 |
 | 数据库连接析构告警 | DatabaseManager.cpp | close 后 `m_db = QSqlDatabase()` 再 removeDatabase，避免连接仍在使用告警 |
 | paintEvent `.arg()` 漏检 | GalleryWidget.h/.cpp, DetailPanel.h/.cpp | 预计算 `m_emptySearchTitle` / `m_batchSummaryText` / `m_tagCountText` |
+| 文件夹点击不筛选 | IDatabaseManager.h, DatabaseManager.*, LibraryController.*, MainWindow.* | `folderPath` 前缀匹配（根 + 子目录），`m_activeFolderPath` 接入首屏/分页 |
+| 停止监听文案与行为不符 | SidebarWidget.cpp, MainWindow.cpp | 菜单改"停止监听此文件夹"，确认框说明素材保留 |
+| 刷新跳顶/丢选择 (模式 39) | GalleryWidget.*, MainWindow.cpp | `refreshAssets()` 按 id 恢复选择、保留 scroll、保留已加载页数 |
+| 批量删除详情残留 (模式 40) | MainWindow.cpp | 遍历全部被删 id 而非只比较第一项 |
+| 最近导入排序控件无效 | MainWindow.cpp, SearchBar.* | tab 切换同步排序下拉，移除查询层静默覆盖 |
+| Lightbox 顶/底栏误关闭 | LightboxWidget.cpp | overlay 栏点击直接忽略，不进入"点击外部关闭" |
+| 重扫重复哈希/解析 | FileScanner.*, LibraryController.cpp | knownPaths 在尺寸/哈希/元数据前跳过；birthTime 无效回退 |
+| 非 PNG 整文件 readAll | SDParser.cpp | 先读 8 字节签名，失败立即返回 |
+| 新子目录文件漏导入 (模式 41) | FileWatcher.cpp | 新子目录加入 pending 队列补扫 |
+| 导入成功提示不准确 | LibraryController.*, MainWindow.cpp | `scanAndInsertFile` 返回 bool，Toast 区分成功/重复 |
+| 测试用例相互依赖 | tests/tst_database.cpp | 每个用例独立数据库文件，支持单测运行 |
 
 ## 扫描器改进
 

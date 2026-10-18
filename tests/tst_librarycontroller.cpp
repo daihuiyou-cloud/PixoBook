@@ -363,6 +363,9 @@ private slots:
         m_scanner->scanDirectory(scanDir, false);
         QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 5000);
         QCOMPARE(m_db->countAssets(), before + 3);
+        // Indexing is deferred during the scan and flushed on scanFinished.
+        if (m_db->isFullTextSearchEnabled())
+            QCOMPARE(m_db->searchAssets(QStringLiteral("item-0"), QString(), {}, false).size(), 1);
 
         // Rescanning the same folder must not duplicate rows.
         m_scanner->scanDirectory(scanDir, false);

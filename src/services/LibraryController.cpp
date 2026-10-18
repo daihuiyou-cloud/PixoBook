@@ -26,6 +26,9 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
         else
             qWarning("scan: beginTransaction failed");
         if (m_scanDepth == 1) {
+            // Build the search index once at the end of the scan instead of
+            // updating it per inserted row.
+            m_db->setDeferSearchIndexing(true);
             // Snapshot existing paths/hashes once so duplicate detection during
             // the scan is O(1) in memory instead of two SQL round-trips per file.
             m_scanKnownPaths.clear();
@@ -101,6 +104,9 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
             m_scanKnownPaths.clear();
             m_scanKnownHashes.clear();
             m_scanMissingAssets.clear();
+            m_db->setDeferSearchIndexing(false);
+            if (!m_db->indexPendingAssets())
+                qWarning("scan: search index flush failed");
         }
         emit assetCountChanged(m_db->countAssets());
         emit scanFinished();
@@ -109,7 +115,7 @@ LibraryController::LibraryController(IDatabaseManager *db, IImageCache *cache,
 
     connect(m_watcher, &FileWatcher::fileAdded, this, [this](const QString &path) {
         if (FileScanner::isSupportedFormat(path)) {
-            scanAndInsertFile(path);
+            (void)scanAndInsertFile(path);
             emit dataChanged();
         }
     });

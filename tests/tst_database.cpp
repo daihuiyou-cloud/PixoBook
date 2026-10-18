@@ -378,6 +378,41 @@ private slots:
         QCOMPARE(search("lighthouse").first().id, keep.id);
     }
 
+    // Deferring indexing must only skip rows inserted during the scan;
+    // edits to existing rows stay searchable immediately.
+    void testDeferredIndexingOnlySkipsNewRows()
+    {
+        if (!db->isFullTextSearchEnabled())
+            QSKIP("SQLite build has no FTS5");
+
+        const auto search = [this](const QString &keyword) {
+            return db->searchAssets(keyword, QString(), {}, false);
+        };
+
+        Asset existing = makeAsset("defer-existing", "C:/fts/existing.png");
+        QVERIFY(db->insertAsset(existing));
+        Metadata m;
+        m.assetId = existing.id;
+        m.prompt = "old word";
+        QVERIFY(db->upsertMetadata(m));
+
+        db->setDeferSearchIndexing(true);
+        Asset added = makeAsset("defer-new", "C:/fts/defer-new.png");
+        QVERIFY(db->insertAsset(added));
+
+        // Editing an existing row is indexed immediately even while deferred.
+        m.prompt = "fresh word";
+        QVERIFY(db->upsertMetadata(m));
+        QCOMPARE(search("fresh").size(), 1);
+
+        // The newly inserted row waits for the batch flush.
+        QCOMPARE(search("defer").size(), 0);
+        QVERIFY(db->indexPendingAssets());
+        QCOMPARE(search("defer").size(), 1);
+        QCOMPARE(search("fresh").size(), 1);
+        db->setDeferSearchIndexing(false);
+    }
+
     // The index is derived data: dropping it must be repaired on next open.
     void testSearchIndexRebuilds()
     {

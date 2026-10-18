@@ -62,11 +62,13 @@ Reference run with the FTS5 index (development machine):
 
 | assets | import | common | selective | miss | CJK | deep page |
 |--------|--------|--------|-----------|------|-----|-----------|
-| 10k    | 2.4 s  | 3.0 ms | 1.1 ms    | 0.1 ms | 0.8 ms | 5.0 ms |
-| 50k    | 21.5 s | 9.9 ms | 19.4 ms   | 0.5 ms | 8.8 ms | 8.1 ms |
+| 10k    | 0.7 s  | 3.0 ms | 1.3 ms    | 0.1 ms | 1.0 ms | 4.2 ms |
+| 50k    | 5.4 s  | 11.2 ms| 17.2 ms   | 0.2 ms | 8.9 ms | 9.8 ms |
 
-The import figure includes building the search index (roughly 2.3k assets/s at
-50k). Before FTS5, the same machine measured 31 ms / 308 ms for the common
+The import figure includes building the search index. During a folder scan the
+index is built once after the scan transaction commits, so import stays close
+to the pre-FTS baseline (0.65 s / 5.2 s) instead of paying a per-file index
+update. Before FTS5, the same machine measured 31 ms / 308 ms for the common
 word and 53 ms / 501 ms for the deep page at 10k / 50k.
 
 ## Project structure

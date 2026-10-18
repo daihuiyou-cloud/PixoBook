@@ -388,24 +388,70 @@ bool DatabaseManager::ensureSearchIndex()
         qWarning() << "FTS prune failed:" << prune.lastError().text();
 
     // Index anything that has no search row yet: first run after the upgrade,
-    // or rows that were inserted while the index was unavailable.
-    QVector<QString> pending;
-    QSqlQuery missing(m_db);
-    if (missing.exec("SELECT a.id FROM assets a LEFT JOIN asset_search s "
-                     "ON s.asset_id = a.id WHERE s.rowid IS NULL")) {
-        while (missing.next())
-            pending.append(missing.value(0).toString());
+    // rows inserted while indexing was deferred, or rows written while the
+    // index was unavailable.
+    return indexPendingAssets();
+}
+
+bool DatabaseManager::indexPendingAssets()
+{
+    m_deferredNewAssets.clear();
+    if (!m_ftsAvailable)
+        return true;
+
+    struct PendingRow {
+        qint64 rowid = 0;
+        QString id;
+        QString fileName;
+        QString prompt;
+        QString negative;
+    };
+    QVector<PendingRow> pending;
+    {
+        QSqlQuery missing(m_db);
+        if (!missing.exec("SELECT a.rowid, a.id, a.file_name, COALESCE(m.prompt, ''), "
+                          "COALESCE(m.negative_prompt, '') FROM assets a "
+                          "LEFT JOIN metadata m ON m.asset_id = a.id "
+                          "LEFT JOIN asset_search s ON s.asset_id = a.id "
+                          "WHERE s.rowid IS NULL")) {
+            qWarning() << "FTS pending query failed:" << missing.lastError().text();
+            return false;
+        }
+        while (missing.next()) {
+            PendingRow row;
+            row.rowid = missing.value(0).toLongLong();
+            row.id = missing.value(1).toString();
+            row.fileName = normalizeForFts(missing.value(2).toString());
+            row.prompt = normalizeForFts(missing.value(3).toString());
+            row.negative = normalizeForFts(missing.value(4).toString());
+            pending.append(row);
+        }
     }
     if (pending.isEmpty())
         return true;
 
     if (!beginTransaction())
-        return true;
-    for (const auto &id : pending)
-        reindexAsset(id);
+        return false;
+    QSqlQuery insert(m_db);
+    insert.prepare("INSERT INTO asset_search "
+                   "(rowid, asset_id, file_name, prompt, negative_prompt) "
+                   "VALUES (?, ?, ?, ?, ?)");
+    for (const auto &row : pending) {
+        insert.bindValue(0, row.rowid);
+        insert.bindValue(1, row.id);
+        insert.bindValue(2, row.fileName);
+        insert.bindValue(3, row.prompt);
+        insert.bindValue(4, row.negative);
+        if (!insert.exec()) {
+            qWarning() << "FTS batch insert failed:" << insert.lastError().text();
+            (void)rollbackTransaction();
+            return false;
+        }
+    }
     if (!commitTransaction()) {
-        qWarning() << "FTS backfill commit failed";
+        qWarning() << "FTS batch commit failed";
         (void)rollbackTransaction();
+        return false;
     }
     return true;
 }
@@ -469,7 +515,10 @@ bool DatabaseManager::insertAsset(const Asset &asset)
         qWarning() << "insertAsset failed:" << q.lastError().text();
         return false;
     }
-    reindexAsset(asset.id);
+    if (m_deferIndexing)
+        m_deferredNewAssets.insert(asset.id);
+    else
+        reindexAsset(asset.id);
     return true;
 }
 
@@ -493,7 +542,8 @@ bool DatabaseManager::updateAsset(const Asset &asset)
     q.addBindValue(asset.id);
     if (!q.exec())
         return false;
-    reindexAsset(asset.id);
+    if (!m_deferIndexing || !m_deferredNewAssets.contains(asset.id))
+        reindexAsset(asset.id);
     return true;
 }
 
@@ -918,7 +968,8 @@ bool DatabaseManager::upsertMetadata(const Metadata &metadata)
         qWarning() << "upsertMetadata failed:" << q.lastError().text();
         return false;
     }
-    reindexAsset(metadata.assetId);
+    if (!m_deferIndexing || !m_deferredNewAssets.contains(metadata.assetId))
+        reindexAsset(metadata.assetId);
     return true;
 }
 

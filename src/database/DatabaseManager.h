@@ -1,6 +1,7 @@
 #ifndef DATABASEMANAGER_H
 #define DATABASEMANAGER_H
 
+#include <QSet>
 #include <QSqlDatabase>
 #include <QVector>
 #include "core/IDatabaseManager.h"
@@ -45,6 +46,8 @@ public:
 
     // False when the SQLite build lacks FTS5; search then falls back to LIKE.
     [[nodiscard]] bool isFullTextSearchEnabled() const { return m_ftsAvailable; }
+    void setDeferSearchIndexing(bool defer) override { m_deferIndexing = defer; }
+    [[nodiscard]] bool indexPendingAssets() override;
 
     [[nodiscard]] bool upsertMetadata(const Metadata &metadata) override;
     Metadata getMetadata(const QString &assetId) const override;
@@ -82,6 +85,10 @@ private:
     QString m_dbPath;
     int m_txDepth = 0;
     bool m_ftsAvailable = false;
+    bool m_deferIndexing = false;
+    // Assets inserted while indexing is deferred. Updates to any other asset
+    // (e.g. a prompt edit during a long scan) are indexed immediately.
+    QSet<QString> m_deferredNewAssets;
 };
 
 #endif

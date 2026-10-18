@@ -169,6 +169,9 @@ int main(int argc, char *argv[])
                                                  : QStringLiteral("LIKE (fallback)"));
 
     const double importMs = measureMs([&]() {
+        // Mirrors LibraryController: rows are written inside one transaction
+        // and the FTS index is built once afterwards.
+        db.setDeferSearchIndexing(true);
         if (!db.beginTransaction()) {
             out << QStringLiteral("could not begin import transaction\n");
             return;
@@ -202,6 +205,9 @@ int main(int argc, char *argv[])
             out << QStringLiteral("could not commit import transaction\n");
             (void)db.rollbackTransaction();
         }
+        db.setDeferSearchIndexing(false);
+        if (!db.indexPendingAssets())
+            out << QStringLiteral("could not build the search index\n");
     });
     out << QStringLiteral("import (one transaction)        %1 ms  (%2 assets/s)\n")
                .arg(importMs, 8, 'f', 1)

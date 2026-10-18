@@ -74,10 +74,11 @@
   - 新增 FTS5 虚表 `asset_search(asset_id UNINDEXED, file_name, prompt, negative_prompt)`，`rowid` 与 `assets.rowid` 对齐；`ensureSearchIndex()` 启动时创建、清理孤儿行并按 `asset_id` 补建缺失索引；`insertAsset`/`updateAsset`/`upsertMetadata`/`deleteAsset`/`deleteMissingAssets` 全部同步。FTS5 不可用时自动回退 LIKE。
   - 混合检索：先查 `COUNT(*) FROM asset_search WHERE MATCH`，命中 < 全库 5% 时走 FTS 物化+排序；命中密集（如 "portrait" 占 55%）时走 `created_at` 索引序的 LIKE 扫描，命中一页即停。总数为单独的 `countAssets()` 查询，移除 `DISTINCT` + `COUNT(*) OVER()`；标签过滤改 `EXISTS`（不再 JOIN 出重复行）。
   - CJK：索引时在每个汉字/假名/谚文两侧加空格（unicode61 逐字成 token），查询把 CJK 连续段构造成 `"月 光"` 短语；ASCII 段用前缀 `word*`。Qt 5.13.2 自带 SQLite 无 trigram tokenizer，这是无升级依赖的替代方案。
-  - 结果（本机）：10k 常用词 3.0ms（原 31ms）、深页 5.0ms（原 53ms）、CJK 0.8ms；50k 常用词 9.9ms（原 308ms）、深页 8.1ms（原 501ms）。导入因建索引从 0.65s/5.2s 升至 2.4s/21.5s（10k/50k）。
+  - 结果（本机）：10k 常用词 3.0ms（原 31ms）、深页 4.2ms（原 53ms）、CJK 1.0ms；50k 常用词 11.2ms（原 308ms）、深页 9.8ms（原 501ms）。
+  - 导入性能：扫描期间 `setDeferSearchIndexing(true)` 跳过逐行 reindex，`scanFinished` 在提交后调用 `indexPendingAssets()` 一次性建索引（单条 prepared INSERT 循环）。10k 0.73s、50k 5.4s，基本回到无索引基线（0.65s/5.2s）。延迟只对本次扫描新插入的 id 生效（`m_deferredNewAssets`）；扫描期间编辑已有素材的 prompt 仍立即更新索引。
   - 修复：`readAssetRow()` 用 `QSqlRecord::indexOf` 判断别名列，消除 `unknown field name` 警告；迁移备份前 `q.finish()`，避免 `wal_checkpoint(FULL)` 被活动语句锁住。
-  - 测试新增 4 项：FTS 前缀/元数据更新/改名/删除同步、CJK 子串、清理缺失同时清索引、删表后自动重建。
-  - 构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_database 20 项）。
+  - 测试新增 5 项：FTS 前缀/元数据更新/改名/删除同步、CJK 子串、清理缺失同时清索引、删表后自动重建、延迟索引只跳过新行。
+  - 构建 0 错 0 警告，39/39 扫描器 PASS，6/6 测试通过（tst_database 21 项）。
 
 #### In Progress
 - 无
@@ -131,10 +132,11 @@
 - 总数不要用 `COUNT(*) OVER()`：它让 SQLite 在 LIMIT 之前评估所有命中，10k 深页从 5ms 退化到 53ms。查询总数单独执行；FTS 计数不需要 join。
 - 标签过滤用 `EXISTS` 而不是 `LEFT JOIN asset_tags`：JOIN 会产生重复行，逼出 `DISTINCT`，而 `DISTINCT` 又会阻止 LIMIT 提前结束。
 - CJK 用"逐字空格 + 短语查询"而不是 trigram：Qt 5.13.2 的 SQLite 3.28 没有 trigram tokenizer；升级 SQLite 前这是零依赖方案。ASCII 搜索是词前缀语义（"port" 命中 "portrait"），不再是任意中间子串。
-- FTS 同步的代价是导入变慢（每文件 insert + metadata upsert 各一次 reindex）。若需恢复导入速度，可在扫描事务结束后批量补建索引，而不是每行 reindex。
+- 扫描导入时延迟建索引：`setDeferSearchIndexing(true)` → 批量写 assets/metadata → commit → `indexPendingAssets()`（一条 prepared INSERT 循环）。逐行 reindex 会让 50k 导入从 5.4s 退化到 21.5s。
+- 延迟只对本次扫描新插入的 id 生效（`m_deferredNewAssets`）：扫描期间用户编辑已有素材的 prompt/文件名仍走立即 reindex，避免索引在扫描结束前过期。
+- `indexPendingAssets()` 同时是启动补建入口：查询 `LEFT JOIN asset_search` 找缺失行并批量插入；它不删除已有行，删除/改名仍走 `reindexAsset()` 的 rowid 删除+插入。
 
 ### Next Steps
-- **导入速度回补**：当前每文件 insert + metadata upsert 各触发一次 reindex（3 条 SQL），50k 首次导入 21.5s（原 5.2s）。下一轮在扫描事务中跳过逐行 reindex，`scanFinished` 后一次性补建（`ensureSearchIndex()` 已具备补建能力），目标 50k < 8s。
 - **相关度排序**：搜索目前仍按 created_at；FTS5 可用 `bm25(asset_search)`，但需要 UI 增加"相关度"排序项，并确保与分页稳定排序 (`id ASC`) 兼容。
 - 启动时/重扫后的存在性核对：应用关闭期间被删除的文件不会触发 watcher，重扫又因路径仍在 knownPaths 中而跳过，目前只能显示为"文件不存在"但 `missing_since` 为空。下一轮在 scanFolder 完成后对候选路径做一次 `exists()` 核对（只查已导入条目，代价 O(N) stat）。
 - 缺失条目的专用视图/手动"重新定位"对话框：当前依赖重扫同一文件夹恢复；跨盘移动需要用户重新扫描新位置（同 hash 会 adopt）。

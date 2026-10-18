@@ -67,6 +67,11 @@ public:
     virtual QVector<Tag> getTagsForAsset(const QString &assetId) const = 0;
     virtual QVector<Asset> getAssetsByTag(int tagId) const = 0;
 
+    // During a folder scan the controller defers per-row indexing and asks
+    // for one batch at the end; otherwise FTS sync is immediate.
+    virtual void setDeferSearchIndexing(bool defer) = 0;
+    [[nodiscard]] virtual bool indexPendingAssets() = 0;
+
     // Transaction support
     [[nodiscard]] virtual bool beginTransaction() = 0;
     [[nodiscard]] virtual bool commitTransaction() = 0;
